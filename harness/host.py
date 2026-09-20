@@ -69,7 +69,7 @@ async def host_app(data_folder: Path | str):
     os.chdir(host_checkout_dir())
     try:
         app = create_app()
-        async with LifespanManager(app, startup_timeout=30) as manager:
+        async with LifespanManager(app, startup_timeout=30):
             # Unique superuser per boot: the module-level core database is
             # shared across boots (and pytest runs), so a fixed username
             # would collide on the second boot.
@@ -82,8 +82,9 @@ async def host_app(data_folder: Path | str):
                     first_install_token=settings.first_install_token,
                 )
             )
-            # Yield the raw FastAPI app (manager.app is the state-middleware
-            # wrapper) so probes can mount fixture-only routers on it.
+            # Yield the raw FastAPI app (the lifespan manager's app is the
+            # state-middleware wrapper) so probes can mount fixture-only
+            # routers on it.
             yield app
     finally:
         os.chdir(previous_cwd)

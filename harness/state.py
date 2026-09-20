@@ -160,9 +160,11 @@ OUTBOX_STATES = (
 OUTBOX_TRANSITIONS: dict[str, frozenset[str]] = {
     "pending": frozenset({"claimed", "superseded"}),
     "partially_published": frozenset({"claimed", "superseded"}),
-    "claimed": frozenset({"publishing", "pending", "partially_published"}),
+    "claimed": frozenset(
+        {"publishing", "pending", "partially_published", "superseded"}
+    ),
     "publishing": frozenset(
-        {"published", "pending", "partially_published", "failed"}
+        {"published", "pending", "partially_published", "failed", "superseded"}
     ),
     "published": frozenset(),
     "superseded": frozenset(),

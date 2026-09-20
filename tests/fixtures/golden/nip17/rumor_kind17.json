@@ -1,0 +1,27 @@
+{
+  "content": "",
+  "created_at": 1750000000,
+  "id": "43e43fdc355bce8dc647ca7ee19e459829aa975f23637d0fc995a4dfc467f2ee",
+  "kind": 17,
+  "pubkey": "bdca73c3a5f04b72f8f23f2263acecb56db1cc561b7dafa482540830f4b38110",
+  "tags": [
+    [
+      "p",
+      "94664bacef3e7091a0e3ddf439083f5f1a576be7eb2e3a319e071a19b88b3f09"
+    ],
+    [
+      "order",
+      "gq-order-01"
+    ],
+    [
+      "payment",
+      "lightning",
+      "lnbc125n1pjfixture000000000000000000000000000000",
+      "abababababababababababababababababababababababababababababababab"
+    ],
+    [
+      "amount",
+      "12500"
+    ]
+  ]
+}

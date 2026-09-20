@@ -19,6 +19,10 @@ re-qualification.
 - `retry/` — a retry of the recipient copy: SAME canonical rumor id with a
   fresh seal, fresh ephemeral wrapper key, and different outer event id
   (section 8.6 step 3).
+- `rumor_kind14.json` — an unsigned kind-14 general-DM rumor
+  (merchant -> buyer) for the section 6.9 allowlist fixture coverage.
+- `rumor_kind17.json` — an unsigned kind-17 receipt rumor
+  (buyer -> merchant) for the same allowlist coverage.
 
 ## Regeneration
 

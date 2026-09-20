@@ -394,6 +394,9 @@ def record_lock_evidence() -> None:
 
 def ensure_defaults() -> None:
     """Populate default pins (nostr-sdk version, LNbits checkout revision)."""
+    from harness.registry import NIP32_NAMESPACE
+
     _RECORD.setdefault("nostr_sdk", nostr_sdk_version())
     _RECORD.setdefault("lnbits_commit", lnbits_checkout_head())
     _RECORD.setdefault("lnbits_tag", LNBITS_TAG)
+    _RECORD.setdefault("nip32_namespace", NIP32_NAMESPACE)

@@ -1,0 +1,17 @@
+{
+  "content": "Qualification fixture DM",
+  "created_at": 1750000000,
+  "id": "c09f7f7a0b221d1724439e7fcd3445d5479431f7647eb45baf145d44cd829f18",
+  "kind": 14,
+  "pubkey": "94664bacef3e7091a0e3ddf439083f5f1a576be7eb2e3a319e071a19b88b3f09",
+  "tags": [
+    [
+      "p",
+      "bdca73c3a5f04b72f8f23f2263acecb56db1cc561b7dafa482540830f4b38110"
+    ],
+    [
+      "subject",
+      "gq-order-01"
+    ]
+  ]
+}

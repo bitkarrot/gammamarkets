@@ -144,7 +144,9 @@ def ddl(dialect: str, schema: str | None) -> list[str]:
             rate_direction TEXT NOT NULL,
             rate_unit TEXT NOT NULL,
             source TEXT NOT NULL,
+            providers TEXT NOT NULL,
             quoted_at {ts_type} NOT NULL,
+            expires_at {ts_type} NOT NULL,
             UNIQUE (order_id, currency)
         )
         """,

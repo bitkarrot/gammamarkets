@@ -130,7 +130,70 @@ Lock identities (recorded in the evidence manifest pins block on every
   `/Users/bk/github/gamma-markets-research/lnbits` (revision `74cccac`) is
   never used by the harness — it is not the qualified source.
 
-## 5. Evidence Pointers (D-09)
+## 5. Qualification Results (spec §2 — executable evidence summaries)
+
+Results recorded here are pass/fail summaries of the committed evidence;
+the full per-test detail lives in `evidence/manifest.json` (§6) for the
+run that produced them.
+
+### Protocol constants
+
+- **NIP-32 namespace** (§6.8): `org.gammamarkets.protocol` — pinned; carried
+  by public commerce events (30402/30405/30406, optionally 30017/30018) and
+  never on kind-0, NIP-89, NIP-04, seals, or gift wraps.
+- **Frozen identifiers** (§21.25): package `gammamarkets`, route prefix
+  `/gammamarkets`, hooks `gammamarkets_start`/`gammamarkets_stop`, env
+  prefix `GAMMAMARKETS_`, payment correlation `gammamarkets:`.
+
+### SDK security / FFI / crypto (P0-02)
+
+| Probe | Result |
+|---|---|
+| Pinned artifact identity (SHA-256 vs host lock) | pass |
+| Event id/signature verification; malformed/tampered rejection | pass |
+| NIP-44 v2 encrypt/decrypt round-trip + wrong-key failure | pass |
+| Bounded-input behavior (oversize event/CT, AUTH-flood) | pass |
+| NIP-59 gift-wrap chain construction | pass |
+
+Detail: `evidence/manifest.json` → results `tests/qualification/test_p0_02_sdk_security.py::*`.
+
+### Per-relay ACK classification (P0-04)
+
+| Relay behavior | Classified as | Result |
+|---|---|---|
+| Positive OK (accepted) | `accepted` | pass |
+| Negative OK (rejected + message) | `rejected`, relay message verbatim | pass |
+| No OK (silent relay) | `timeout` — never send success | pass |
+
+Structured per-relay outcomes are recorded per run in the manifest as the
+`relay_ack_classification` observation on
+`tests/qualification/test_p0_04_relay_ack.py::test_positive_negative_and_timeout_acks_classified_per_relay`.
+
+### FX float boundary (P0-13)
+
+Host/provider floats cross into the domain through exactly one
+`Decimal(str(value))` boundary; per-line and per-shipping-component
+`ROUND_CEILING`. Measured bound (deterministic seed, recorded per run in
+`evidence/manifest.json` → `fx_measurement`):
+
+- Max relative float error: `7.46e-17` (30-sample seeded corpus)
+- Max absolute sat error after ceiling: `0` sats
+
+### Platform matrix
+
+| Profile | Status |
+|---|---|
+| linux-x86_64 · py3.12 · sqlite | CI blocking (`.github/workflows/qualification.yml`) |
+| linux-x86_64 · py3.12 · postgres | CI blocking |
+| linux-aarch64 · py3.12 · sqlite | CI blocking |
+| linux-aarch64 · py3.12 · postgres | CI blocking |
+| darwin-arm64 · py3.12 · sqlite/postgres | advisory local — 221/221 green (last `make verify`) |
+
+The durable committed evidence bundle is refreshed from the canonical
+blocking CI profile (Linux x86_64 + PostgreSQL) at phase end; a local
+single-profile `make verify` regenerating `evidence/` is development-only.
+
+## 6. Evidence Pointers (D-09)
 
 - `evidence/manifest.json` — machine-readable normalized results (schema
   version, UTC timestamp, exact verify command, profile block, pins block,
@@ -142,7 +205,7 @@ Lock identities (recorded in the evidence manifest pins block on every
 - Reruns do not flip recorded outcomes (D-10 clean-pass policy): the tooling
   performs single runs only.
 
-## 6. Approval
+## 7. Approval
 
 **PENDING** — explicit owner approval of these pins and the evidence summary
 is required before Phase 2 planning begins (D-11). Clean CI alone does not

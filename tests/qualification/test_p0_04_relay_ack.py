@@ -24,8 +24,8 @@ import os
 import pytest
 from nostr_sdk import ClientBuilder, EventBuilder, NostrSigner, RelayUrl
 
+from harness import evidence, sdk
 from harness import relay as relay_module
-from harness import sdk
 
 pytestmark = pytest.mark.protocol
 
@@ -88,6 +88,17 @@ async def test_positive_negative_and_timeout_acks_classified_per_relay():
             assert outcome == "timeout", (
                 "a relay that never OKs must surface as timeout, never as "
                 "send success"
+            )
+
+            # Structured per-relay classification recorded into the evidence
+            # manifest — the row PINS.md's qualification-results table cites.
+            evidence.note_observation(
+                "relay_ack_classification",
+                {
+                    accepting.url: classify(output, accepting.url)[0],
+                    rejecting.url: classify(output, rejecting.url)[0],
+                    silent.url: classify(output, silent.url)[0],
+                },
             )
 
             # The accepting relay is the only one that recorded a positive

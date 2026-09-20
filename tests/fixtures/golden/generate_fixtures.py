@@ -84,6 +84,44 @@ async def gen_nip17(buyer: ns.Keys, merchant: ns.Keys) -> None:
     _write(out / "retry" / "seal.json", _event_json(t_seal))
     _write(out / "retry" / "wrap.json", _event_json(t_wrap))
 
+    # Kind-14 general-DM rumor (merchant -> buyer) and kind-17 receipt rumor
+    # (buyer -> merchant): unsigned rumor fixtures for the section-6.9
+    # allowlist coverage required by the P0-14 registry.
+    kind14 = (
+        ns.EventBuilder(ns.Kind(14), "Qualification fixture DM")
+        .custom_created_at(ns.Timestamp.from_secs(RUMOR_CREATED_AT))
+        .tags(
+            [
+                ns.Tag.parse(["p", buyer.public_key().to_hex()]),
+                ns.Tag.parse(["subject", ORDER_EXTERNAL_ID]),
+            ]
+        )
+        .build(merchant.public_key())
+    )
+    _write(out / "rumor_kind14.json", json.loads(kind14.as_json()))
+
+    kind17 = (
+        ns.EventBuilder(ns.Kind(17), "")
+        .custom_created_at(ns.Timestamp.from_secs(RUMOR_CREATED_AT))
+        .tags(
+            [
+                ns.Tag.parse(["p", merchant.public_key().to_hex()]),
+                ns.Tag.parse(["order", ORDER_EXTERNAL_ID]),
+                ns.Tag.parse(
+                    [
+                        "payment",
+                        "lightning",
+                        "lnbc125n1pjfixture000000000000000000000000000000",
+                        "ab" * 32,
+                    ]
+                ),
+                ns.Tag.parse(["amount", "12500"]),
+            ]
+        )
+        .build(buyer.public_key())
+    )
+    _write(out / "rumor_kind17.json", json.loads(kind17.as_json()))
+
     _write(
         out / "keys.json",
         {
