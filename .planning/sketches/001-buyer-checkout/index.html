@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gammamarkets Sketch 001 — Buyer Checkout</title>
+  <link id="theme-link" rel="stylesheet" href="../themes/default.css">
+  <style>
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; padding-top: 58px; background: var(--color-bg); color: var(--color-text); font-family: var(--font-sans); font-size: var(--text-base); }
+    button, input, select { font: inherit; }
+    button, .choice, .thumb, .link-button { transition: all 0.15s ease; }
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+    button { min-height: 44px; border: 0; border-radius: var(--radius-md); cursor: pointer; }
+    .variant-nav { position: fixed; inset: 0 0 auto; z-index: 1000; min-height: 58px; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); overflow-x: auto; background: color-mix(in srgb, var(--color-surface) 94%, transparent); border-bottom: 1px solid var(--color-border); backdrop-filter: blur(12px); }
+    .variant-tab { min-height: 40px; padding: 0 var(--space-4); color: var(--color-text-muted); background: transparent; white-space: nowrap; }
+    .variant-tab:hover { color: var(--color-text); background: var(--color-surface-alt); }
+    .variant-tab.active { color: var(--color-on-primary); background: var(--color-primary); }
+    .variant-tab.selected-winner:not(.active) { color: var(--color-primary); box-shadow: inset 0 0 0 1px var(--color-primary); }
+    #sketch-frame { width: 100%; margin: 0 auto; transition: max-width 0.2s ease; }
+    .variant { display: none; min-height: calc(100vh - 58px); }
+    .variant.active { display: block; }
+    .store-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) clamp(16px, 5vw, 72px); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+    .brand { display: flex; align-items: center; gap: var(--space-3); font-weight: 760; letter-spacing: -0.02em; }
+    .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; color: var(--color-on-primary); background: var(--color-primary); border-radius: 11px 11px 11px 3px; }
+    .secure-note { display: flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--text-sm); }
+    .product-layout { max-width: 1240px; margin: 0 auto; padding: clamp(20px, 4vw, 56px); display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr); gap: clamp(28px, 5vw, 72px); }
+    .gallery { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+    .thumbs { display: grid; gap: var(--space-3); }
+    .thumb { min-width: 64px; aspect-ratio: 1; border: 2px solid transparent; background: var(--color-surface); box-shadow: var(--shadow-sm); }
+    .thumb:hover, .thumb.active { border-color: var(--color-primary); transform: translateY(-1px); }
+    .thumb::before, .product-art::before, .mini-art::before { content: ""; display: block; width: 50%; height: 68%; margin: 15% auto 0; border-radius: 14px 14px 28px 28px; background: linear-gradient(135deg, #d7b489, #f4dfbd 48%, #aa754d); box-shadow: inset -10px -8px 18px rgba(70, 42, 25, 0.12), 0 12px 24px rgba(70, 42, 25, 0.12); }
+    .thumb:nth-child(2)::before { background: linear-gradient(135deg, #81938a, #d0d8cf 48%, #526b60); }
+    .thumb:nth-child(3)::before { background: linear-gradient(135deg, #b26e4c, #dfaa79 48%, #763e2c); }
+    .product-art { min-height: 570px; display: grid; place-items: center; border-radius: var(--radius-lg); overflow: hidden; background: radial-gradient(circle at 65% 20%, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 26%), linear-gradient(150deg, var(--color-surface-alt), var(--color-surface)); box-shadow: var(--shadow-md); }
+    .product-art::before { width: 40%; height: 52%; margin: 0; transform: scale(1.25); }
+    .product-info { position: sticky; top: 82px; align-self: start; }
+    .eyebrow { margin: 0 0 var(--space-2); color: var(--color-primary); font-size: var(--text-xs); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: var(--space-3); font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.02; letter-spacing: -0.045em; }
+    h2 { font-size: var(--text-2xl); letter-spacing: -0.025em; }
+    h3 { font-size: var(--text-lg); }
+    .price { margin-bottom: var(--space-4); font-size: var(--text-2xl); font-weight: 760; }
+    .stock { display: inline-flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-6); color: var(--color-success); font-size: var(--text-sm); font-weight: 700; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .description { color: var(--color-text-muted); line-height: 1.65; }
+    .section-label { display: flex; justify-content: space-between; margin: var(--space-6) 0 var(--space-2); font-size: var(--text-sm); font-weight: 720; }
+    .choice-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .choice { min-height: 44px; padding: 0 var(--space-4); color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); }
+    .choice:hover { border-color: var(--color-primary); }
+    .choice.selected { color: var(--color-on-primary); background: var(--color-primary); border-color: var(--color-primary); }
+    .qty { display: inline-grid; grid-template-columns: 44px 54px 44px; align-items: center; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; background: var(--color-surface); }
+    .qty button { border-radius: 0; color: var(--color-text); background: transparent; }
+    .qty button:hover { background: var(--color-surface-alt); }
+    .qty output { text-align: center; font-weight: 760; }
+    .checkout-card, .summary-card, .express-sheet, .guided-card { padding: var(--space-6); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
+    .field { margin-top: var(--space-4); }
+    .field label { display: block; margin-bottom: var(--space-2); font-size: var(--text-sm); font-weight: 720; }
+    .field input, .field select { width: 100%; min-height: 48px; padding: 0 var(--space-3); color: var(--color-text); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .field input.invalid { border-color: var(--color-danger); }
+    .error { min-height: 20px; margin: 5px 0 0; color: var(--color-danger); font-size: var(--text-xs); }
+    .check-row { display: grid; grid-template-columns: 22px 1fr; gap: var(--space-2); align-items: start; margin-top: var(--space-4); color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.4; }
+    .check-row input { width: 18px; height: 18px; accent-color: var(--color-primary); }
+    .summary { margin: var(--space-5, 20px) 0; padding: var(--space-4) 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+    .summary-line { display: flex; justify-content: space-between; gap: var(--space-4); margin: var(--space-2) 0; color: var(--color-text-muted); }
+    .summary-line.total { margin-top: var(--space-4); color: var(--color-text); font-size: var(--text-lg); font-weight: 800; }
+    .primary { width: 100%; min-height: 52px; padding: 0 var(--space-4); color: var(--color-on-primary); background: var(--color-primary); font-weight: 800; box-shadow: var(--shadow-sm); }
+    .primary:hover { background: var(--color-primary-hover); transform: translateY(-1px); }
+    .secondary { min-height: 44px; padding: 0 var(--space-4); color: var(--color-text); background: var(--color-surface-alt); border: 1px solid var(--color-border); }
+    .secondary:hover { border-color: var(--color-primary); }
+    .danger { color: var(--color-danger); }
+    .privacy { margin: var(--space-3) 0 0; color: var(--color-text-muted); font-size: var(--text-xs); line-height: 1.5; text-align: center; }
+    [hidden] { display: none !important; }
+    .invoice-view, .result-view { text-align: center; }
+    .qr { width: 190px; height: 190px; margin: var(--space-4) auto; padding: 10px; display: grid; grid-template-columns: repeat(11, 1fr); gap: 1px; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+    .qr span { background: #fff; }
+    .qr span.on { background: #111; }
+    .mono { font-family: var(--font-mono); }
+    .invoice-string { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-3); overflow: hidden; text-align: left; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .invoice-string code { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .invoice-string button { flex: 0 0 auto; min-height: 36px; padding: 0 var(--space-3); }
+    .status-pill { display: inline-flex; align-items: center; gap: var(--space-2); padding: 7px 12px; border-radius: var(--radius-full); color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface)); font-size: var(--text-sm); font-weight: 760; }
+    .status-pill.success { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface)); }
+    .status-pill.failed { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface)); }
+    .simulation-row { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+    .result-icon { width: 62px; height: 62px; margin: 0 auto var(--space-4); display: grid; place-items: center; border-radius: 50%; color: var(--color-on-primary); background: var(--color-success); font-size: var(--text-3xl); }
+    .timeline { max-width: 340px; margin: var(--space-6) auto 0; text-align: left; }
+    .timeline-item { position: relative; padding: 0 0 var(--space-4) 28px; color: var(--color-text-muted); }
+    .timeline-item::before { content: ""; position: absolute; left: 4px; top: 7px; width: 10px; height: 10px; border-radius: 50%; background: var(--color-success); }
+    .timeline-item:not(:last-child)::after { content: ""; position: absolute; left: 8px; top: 18px; bottom: 3px; width: 2px; background: var(--color-border); }
+    .guided-shell { max-width: 1180px; margin: 0 auto; padding: clamp(20px, 4vw, 56px); display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-8); }
+    .progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); margin-bottom: var(--space-6); }
+    .progress-step { padding: var(--space-3); color: var(--color-text-muted); background: var(--color-surface-alt); border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 760; }
+    .progress-step.active { color: var(--color-on-primary); background: var(--color-primary); }
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+    .mini-product { display: grid; grid-template-columns: 112px 1fr; gap: var(--space-4); align-items: center; padding: var(--space-4); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .mini-art { aspect-ratio: 1; display: grid; place-items: center; background: var(--color-surface-alt); border-radius: var(--radius-md); }
+    .mini-art::before { width: 42%; height: 58%; margin: 0; }
+    .nav-row { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-6); }
+    .nav-row .primary { width: auto; min-width: 160px; }
+    .summary-card { position: sticky; top: 82px; align-self: start; }
+    .express-wrap { max-width: 680px; margin: 0 auto; padding: clamp(20px, 6vw, 72px) var(--space-4); }
+    .express-sheet { padding: clamp(20px, 5vw, 40px); }
+    .sketch-decision { max-width: 1240px; margin: var(--space-4) auto 0; padding: var(--space-3) var(--space-4); color: var(--color-text); background: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface)); border: 1px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-border)); border-radius: var(--radius-md); font-size: var(--text-sm); }
+    .adaptive-mobile-title { display: none; }
+    .adaptive-checkout .progress { margin-bottom: var(--space-4); }
+    .adaptive-checkout .summary { margin-bottom: var(--space-4); }
+    .express-title { display: grid; grid-template-columns: 82px 1fr; gap: var(--space-4); align-items: center; }
+    .express-title .mini-art { width: 82px; }
+    details { margin-top: var(--space-4); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+    summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-weight: 720; }
+    details[open] summary { border-bottom: 1px solid var(--color-border); }
+    .details-body { padding: var(--space-4) 0; }
+    .mobile-cta { display: none; }
+    #sketch-frame.preview-tablet .product-layout, #sketch-frame.preview-tablet .guided-shell { grid-template-columns: 1fr; padding: var(--space-4); }
+    #sketch-frame.preview-tablet .product-info, #sketch-frame.preview-tablet .summary-card { position: static; }
+    #sketch-frame.preview-tablet .gallery { grid-template-columns: 1fr; }
+    #sketch-frame.preview-tablet .thumbs { grid-template-columns: repeat(3, 64px); order: 2; }
+    #sketch-frame.preview-tablet .product-art { min-height: 390px; }
+    #sketch-frame.preview-tablet .mobile-cta { position: sticky; bottom: 0; z-index: 25; display: block; padding: var(--space-3); background: color-mix(in srgb, var(--color-surface) 95%, transparent); border-top: 1px solid var(--color-border); backdrop-filter: blur(10px); }
+    #sketch-frame.preview-tablet .mobile-cta button { width: 100%; }
+    #sketch-frame.preview-tablet .guided-shell .summary-card { order: -1; }
+    #sketch-frame.preview-mobile .store-header { padding: var(--space-3) var(--space-4); }
+    #sketch-frame.preview-mobile .product-art { min-height: 310px; }
+    #sketch-frame.preview-mobile .product-layout { gap: var(--space-6); }
+    #sketch-frame.preview-mobile .checkout-card, #sketch-frame.preview-mobile .guided-card, #sketch-frame.preview-mobile .summary-card, #sketch-frame.preview-mobile .express-sheet { padding: var(--space-4); }
+    #sketch-frame.preview-mobile .progress-step { padding: var(--space-2); font-size: var(--text-xs); }
+    #sketch-frame.preview-mobile .mini-product { grid-template-columns: 82px 1fr; }
+    #sketch-frame.preview-mobile .nav-row { flex-direction: column-reverse; }
+    #sketch-frame.preview-mobile .nav-row button, #sketch-frame.preview-mobile .nav-row .primary { width: 100%; }
+    #sketch-frame.preview-mobile #variant-d .gallery { display: none; }
+    #sketch-frame.preview-mobile #variant-d .adaptive-mobile-title { display: grid; }
+    #sketch-frame.preview-mobile #variant-d .sketch-decision { margin-inline: var(--space-4); }
+    #sketch-tools { position: fixed; right: 12px; bottom: 12px; z-index: 1200; max-width: calc(100vw - 24px); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 10px; color: white; background: rgba(9, 12, 16, 0.88); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; font: 12px system-ui; opacity: 0.52; transition: opacity 0.2s; }
+    #sketch-tools:hover, #sketch-tools:focus-within { opacity: 1; }
+    #sketch-tools button, #sketch-tools select { min-height: 32px; padding: 0 8px; color: white; background: #222a34; border: 1px solid #59697c; border-radius: 6px; }
+    #toast { position: fixed; left: 50%; bottom: 70px; z-index: 1300; transform: translate(-50%, 20px); padding: 11px 16px; color: var(--color-on-primary); background: var(--color-primary); border-radius: var(--radius-full); box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: all 0.2s ease; }
+    #toast.show { transform: translate(-50%, 0); opacity: 1; }
+    #annotation-tip { position: fixed; z-index: 1400; max-width: 260px; padding: 7px 9px; color: #fff; background: #111; border-radius: 6px; font: 11px/1.35 var(--font-mono); pointer-events: none; display: none; }
+    body.annotations-on [data-annotate] { outline: 1px dashed color-mix(in srgb, var(--color-focus) 65%, transparent); outline-offset: 2px; }
+    @media (max-width: 820px) {
+      .secure-note span { display: none; }
+      .product-layout, .guided-shell { grid-template-columns: 1fr; padding: var(--space-4); }
+      .product-info, .summary-card { position: static; }
+      .gallery { grid-template-columns: 1fr; }
+      .thumbs { grid-template-columns: repeat(3, 64px); order: 2; }
+      .product-art { min-height: 390px; }
+      .mobile-cta { position: sticky; bottom: 0; z-index: 25; display: block; padding: var(--space-3); background: color-mix(in srgb, var(--color-surface) 95%, transparent); border-top: 1px solid var(--color-border); backdrop-filter: blur(10px); }
+      .mobile-cta button { width: 100%; }
+      .guided-shell .summary-card { order: -1; }
+    }
+    @media (max-width: 520px) {
+      body { padding-top: 54px; }
+      .variant-nav { min-height: 54px; padding: 6px 8px; }
+      .variant-tab { min-height: 40px; padding: 0 12px; }
+      .store-header { padding: var(--space-3) var(--space-4); }
+      .product-art { min-height: 310px; }
+      .product-layout { gap: var(--space-6); }
+      .checkout-card, .guided-card, .summary-card, .express-sheet { padding: var(--space-4); }
+      .progress-step { padding: var(--space-2); font-size: var(--text-xs); }
+      .mini-product { grid-template-columns: 82px 1fr; }
+      .nav-row { flex-direction: column-reverse; }
+      .nav-row button, .nav-row .primary { width: 100%; }
+      #variant-d .gallery { display: none; }
+      #variant-d .adaptive-mobile-title { display: grid; }
+      #variant-d .sketch-decision { margin-inline: var(--space-4); }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; } }
+  </style>
+</head>
+<body>
+  <nav class="variant-nav" aria-label="Sketch variants">
+    <button class="variant-tab active" data-variant-tab="a" onclick="showVariant('a', this)">A: Split Confidence</button>
+    <button class="variant-tab" data-variant-tab="b" onclick="showVariant('b', this)">B: Guided Steps</button>
+    <button class="variant-tab" data-variant-tab="c" onclick="showVariant('c', this)">C: Express Sheet</button>
+    <button class="variant-tab selected-winner" data-variant-tab="d" onclick="showVariant('d', this)">D: Adaptive Blend ★ Selected</button>
+  </nav>
+
+  <main id="sketch-frame">
+    <section id="variant-a" class="variant active" aria-label="Variant A Split Confidence">
+      <header class="store-header"><div class="brand"><span class="brand-mark">N</span>North Relay Goods</div><div class="secure-note"><strong>Lightning checkout</strong><span>· private by default</span></div></header>
+      <div class="product-layout">
+        <div class="gallery" data-annotate>
+          <div class="thumbs" aria-label="Product views">
+            <button class="thumb active" aria-label="Sand mug front view" onclick="selectThumb(this)"></button>
+            <button class="thumb" aria-label="Moss mug side view" onclick="selectThumb(this)"></button>
+            <button class="thumb" aria-label="Clay mug detail view" onclick="selectThumb(this)"></button>
+          </div>
+          <div class="product-art" role="img" aria-label="Hand-thrown ceramic mug in warm sand glaze"></div>
+        </div>
+        <div class="product-info">
+          <p class="eyebrow">Small-batch ceramics</p>
+          <h1 data-annotate>Hand-thrown Nostr Mug</h1>
+          <p class="price">48,000 sats</p>
+          <div class="stock"><span class="dot"></span>Six in stock</div>
+          <p class="description">A balanced 12 oz stoneware mug made in small batches. Each glaze is slightly different; every piece is signed by the maker.</p>
+          <div data-checkout="a">
+            <div class="section-label"><span>Glaze and size</span><span data-selection-label>Sand / 12 oz</span></div>
+            <div class="choice-row" data-choice-group>
+              <button class="choice selected" data-label="Sand / 12 oz" onclick="selectChoice(event, this)">Sand / 12 oz</button>
+              <button class="choice" data-label="Moss / 12 oz" onclick="selectChoice(event, this)">Moss / 12 oz</button>
+              <button class="choice" data-label="Clay / 10 oz" onclick="selectChoice(event, this)">Clay / 10 oz</button>
+            </div>
+            <div class="section-label"><span>Quantity</span><span>Tracked · 4–7 days</span></div>
+            <div class="qty"><button aria-label="Decrease quantity" onclick="changeQty('a', -1)">−</button><output data-qty="a">1</output><button aria-label="Increase quantity" onclick="changeQty('a', 1)">+</button></div>
+            <form class="checkout-card" data-form="a" onsubmit="createInvoice(event, 'a')">
+              <h2>Checkout</h2>
+              <div class="field"><label for="country-a">Shipping country</label><select id="country-a"><option>United States</option><option>Canada</option><option>United Kingdom</option></select></div>
+              <div class="field"><label for="email-a">Email for order updates</label><input id="email-a" data-email="a" type="email" value="buyer@example.com" autocomplete="email" onblur="validateEmail('a')"><p class="error" data-email-error="a" aria-live="polite"></p></div>
+              <label class="check-row"><input data-consent="a" type="checkbox" checked><span>Send transactional updates for this order. No marketing.</span></label>
+              <div class="summary" data-summary="a">
+                <div class="summary-line"><span>Mug × <span data-qty-text="a">1</span></span><strong data-subtotal="a">48,000 sats</strong></div>
+                <div class="summary-line"><span>Tracked shipping</span><strong>3,500 sats</strong></div>
+                <div class="summary-line total"><span>Total</span><strong data-total="a">51,500 sats</strong></div>
+              </div>
+              <button class="primary" type="submit">Create Lightning invoice</button>
+              <p class="privacy">Order token stays in this browser and is never placed in the URL.</p>
+            </form>
+          </div>
+          <div data-invoice="a" hidden></div><div data-result="a" hidden></div>
+        </div>
+      </div>
+      <div class="mobile-cta"><button class="primary" onclick="scrollToCheckout('a')">Review order · <span data-total="a">51,500 sats</span></button></div>
+    </section>
+
+    <section id="variant-b" class="variant" aria-label="Variant B Guided Steps">
+      <header class="store-header"><div class="brand"><span class="brand-mark">N</span>North Relay Goods</div><div class="secure-note"><strong>Three clear steps</strong><span>· total visible throughout</span></div></header>
+      <div class="guided-shell">
+        <div class="guided-card">
+          <div class="progress" aria-label="Checkout progress">
+            <div class="progress-step active" data-progress="b-1">1 Product</div><div class="progress-step" data-progress="b-2">2 Delivery</div><div class="progress-step" data-progress="b-3">3 Pay</div>
+          </div>
+          <div data-checkout="b">
+            <div class="step-panel active" data-step="b-1">
+              <p class="eyebrow">Step 1 of 3</p><h1>Choose your mug</h1>
+              <div class="mini-product"><div class="mini-art"></div><div><h3>Hand-thrown Nostr Mug</h3><p class="description">Small-batch stoneware · six in stock</p><strong>48,000 sats</strong></div></div>
+              <div class="section-label"><span>Glaze and size</span></div>
+              <div class="choice-row" data-choice-group><button class="choice selected" data-label="Sand / 12 oz" onclick="selectChoice(event, this)">Sand / 12 oz</button><button class="choice" data-label="Moss / 12 oz" onclick="selectChoice(event, this)">Moss / 12 oz</button><button class="choice" data-label="Clay / 10 oz" onclick="selectChoice(event, this)">Clay / 10 oz</button></div>
+              <div class="section-label"><span>Quantity</span></div><div class="qty"><button aria-label="Decrease quantity" onclick="changeQty('b', -1)">−</button><output data-qty="b">1</output><button aria-label="Increase quantity" onclick="changeQty('b', 1)">+</button></div>
+              <div class="nav-row"><span></span><button class="primary" type="button" onclick="setStep('b', 2)">Continue to delivery</button></div>
+            </div>
+            <div class="step-panel" data-step="b-2">
+              <p class="eyebrow">Step 2 of 3</p><h1>Delivery details</h1>
+              <div class="field"><label for="country-b">Shipping country</label><select id="country-b"><option>United States</option><option>Canada</option><option>United Kingdom</option></select></div>
+              <div class="field"><label for="email-b">Email for order updates</label><input id="email-b" data-email="b" type="email" value="buyer@example.com" autocomplete="email" onblur="validateEmail('b')"><p class="error" data-email-error="b" aria-live="polite"></p></div>
+              <label class="check-row"><input data-consent="b" type="checkbox" checked><span>Send transactional updates for this order. No marketing.</span></label>
+              <p class="description">Tracked · 4–7 days · 3,500 sats</p>
+              <div class="nav-row"><button class="secondary" type="button" onclick="setStep('b', 1)">Back</button><button class="primary" type="button" onclick="continueToPay('b')">Review payment</button></div>
+            </div>
+            <div class="step-panel" data-step="b-3">
+              <div data-pay-ready="b"><p class="eyebrow">Step 3 of 3</p><h1>Pay with Lightning</h1><p class="description">Review the complete total, then create a single-use invoice. Nothing is charged until you pay it.</p><button class="primary" type="button" onclick="createInvoice(event, 'b')">Create Lightning invoice</button><p class="privacy">Order token stays in this browser and is never placed in the URL.</p><div class="nav-row"><button class="secondary" type="button" onclick="setStep('b', 2)">Back</button><span></span></div></div>
+            </div>
+          </div>
+          <div data-invoice="b" hidden></div><div data-result="b" hidden></div>
+        </div>
+        <aside class="summary-card" data-annotate><p class="eyebrow">Always visible</p><h2>Order summary</h2><div class="mini-product"><div class="mini-art"></div><div><strong>Hand-thrown Nostr Mug</strong><p class="description" data-selection-label>Sand / 12 oz</p></div></div><div class="summary"><div class="summary-line"><span>Mug × <span data-qty-text="b">1</span></span><strong data-subtotal="b">48,000 sats</strong></div><div class="summary-line"><span>Tracked shipping</span><strong>3,500 sats</strong></div><div class="summary-line total"><span>Total</span><strong data-total="b">51,500 sats</strong></div></div><p class="privacy">Order reference NRG-1042 is shown after payment.</p></aside>
+      </div>
+    </section>
+
+    <section id="variant-c" class="variant" aria-label="Variant C Express Sheet">
+      <header class="store-header"><div class="brand"><span class="brand-mark">N</span>North Relay Goods</div><div class="secure-note"><strong>Express checkout</strong><span>· details when needed</span></div></header>
+      <div class="express-wrap">
+        <div class="express-sheet" data-annotate>
+          <div data-checkout="c">
+            <div class="express-title"><div class="mini-art"></div><div><p class="eyebrow">Six in stock</p><h2>Hand-thrown Nostr Mug</h2><p class="price">48,000 sats</p></div></div>
+            <div class="section-label"><span>Glaze</span><span data-selection-label>Sand / 12 oz</span></div>
+            <div class="choice-row" data-choice-group><button class="choice selected" data-label="Sand / 12 oz" onclick="selectChoice(event, this)">Sand</button><button class="choice" data-label="Moss / 12 oz" onclick="selectChoice(event, this)">Moss</button><button class="choice" data-label="Clay / 10 oz" onclick="selectChoice(event, this)">Clay</button></div>
+            <div class="section-label"><span>Quantity</span><span>Tracked · 4–7 days</span></div><div class="qty"><button aria-label="Decrease quantity" onclick="changeQty('c', -1)">−</button><output data-qty="c">1</output><button aria-label="Increase quantity" onclick="changeQty('c', 1)">+</button></div>
+            <details open><summary>Add shipping &amp; contact <span>Required</span></summary><div class="details-body"><div class="field"><label for="country-c">Shipping country</label><select id="country-c"><option>United States</option><option>Canada</option><option>United Kingdom</option></select></div><div class="field"><label for="email-c">Email for order updates</label><input id="email-c" data-email="c" type="email" value="buyer@example.com" autocomplete="email" onblur="validateEmail('c')"><p class="error" data-email-error="c" aria-live="polite"></p></div><label class="check-row"><input data-consent="c" type="checkbox" checked><span>Send transactional updates. No marketing.</span></label></div></details>
+            <details><summary>Order details <span data-total="c">51,500 sats</span></summary><div class="details-body"><div class="summary-line"><span>Mug × <span data-qty-text="c">1</span></span><strong data-subtotal="c">48,000 sats</strong></div><div class="summary-line"><span>Tracked shipping</span><strong>3,500 sats</strong></div></div></details>
+            <div class="summary"><div class="summary-line total"><span>Total</span><strong data-total="c">51,500 sats</strong></div></div>
+            <button class="primary" type="button" onclick="createInvoice(event, 'c')">Continue to Lightning</button><p class="privacy">Order token stays in this browser and is never placed in the URL.</p>
+          </div>
+          <div data-invoice="c" hidden></div><div data-result="c" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="variant-d" class="variant" aria-label="Variant D Adaptive Blend">
+      <header class="store-header"><div class="brand"><span class="brand-mark">N</span>North Relay Goods</div><div class="secure-note"><strong>Adaptive checkout</strong><span>· merchant preset with safe responsive fallback</span></div></header>
+      <div class="sketch-decision"><strong>Selected synthesis:</strong> merchant chooses Editorial, Guided, or Compact; this preview uses Editorial on desktop, guided checkout progression, and automatic Compact fallback on mobile. Checkout fields and security states never change.</div>
+      <div class="product-layout adaptive-layout">
+        <div class="gallery" data-annotate><div class="thumbs" aria-label="Product views"><button class="thumb active" aria-label="Sand mug front view" onclick="selectThumb(this)"></button><button class="thumb" aria-label="Moss mug side view" onclick="selectThumb(this)"></button><button class="thumb" aria-label="Clay mug detail view" onclick="selectThumb(this)"></button></div><div class="product-art" role="img" aria-label="Hand-thrown ceramic mug in warm sand glaze"></div></div>
+        <div class="product-info">
+          <div class="express-title adaptive-mobile-title"><div class="mini-art"></div><div><p class="eyebrow">Six in stock</p><h2>Hand-thrown Nostr Mug</h2><p class="price">48,000 sats</p></div></div>
+          <div class="adaptive-checkout checkout-card" data-annotate>
+            <div data-checkout="d">
+              <div class="progress" aria-label="Checkout progress"><div class="progress-step active" data-progress="d-1">1 Product</div><div class="progress-step" data-progress="d-2">2 Delivery</div><div class="progress-step" data-progress="d-3">3 Pay</div></div>
+              <div class="step-panel active" data-step="d-1"><p class="eyebrow">Editorial preset</p><h1>Hand-thrown Nostr Mug</h1><p class="description">Small-batch stoneware, signed by the maker.</p><div class="section-label"><span>Glaze and size</span><span data-selection-label>Sand / 12 oz</span></div><div class="choice-row" data-choice-group><button class="choice selected" data-label="Sand / 12 oz" onclick="selectChoice(event, this)">Sand</button><button class="choice" data-label="Moss / 12 oz" onclick="selectChoice(event, this)">Moss</button><button class="choice" data-label="Clay / 10 oz" onclick="selectChoice(event, this)">Clay</button></div><div class="section-label"><span>Quantity</span><span>Six in stock</span></div><div class="qty"><button aria-label="Decrease quantity" onclick="changeQty('d', -1)">−</button><output data-qty="d">1</output><button aria-label="Increase quantity" onclick="changeQty('d', 1)">+</button></div><div class="nav-row"><span></span><button class="primary" type="button" onclick="setStep('d', 2)">Continue to delivery</button></div></div>
+              <div class="step-panel" data-step="d-2"><p class="eyebrow">Delivery</p><h2>Where should it go?</h2><div class="field"><label for="country-d">Shipping country</label><select id="country-d"><option>United States</option><option>Canada</option><option>United Kingdom</option></select></div><div class="field"><label for="email-d">Email for order updates</label><input id="email-d" data-email="d" type="email" value="buyer@example.com" autocomplete="email" onblur="validateEmail('d')"><p class="error" data-email-error="d" aria-live="polite"></p></div><label class="check-row"><input data-consent="d" type="checkbox" checked><span>Send transactional updates. No marketing.</span></label><div class="nav-row"><button class="secondary" type="button" onclick="setStep('d', 1)">Back</button><button class="primary" type="button" onclick="continueToPay('d')">Review payment</button></div></div>
+              <div class="step-panel" data-step="d-3"><p class="eyebrow">Lightning payment</p><h2>Ready to create your invoice?</h2><p class="description">The payable total stays fixed for this invoice. Nothing is marked paid until LNbits confirms settlement.</p><div class="nav-row"><button class="secondary" type="button" onclick="setStep('d', 2)">Back</button><button class="primary" type="button" onclick="createInvoice(event, 'd')">Create Lightning invoice</button></div><p class="privacy">Order token stays in this browser and is never placed in the URL.</p></div>
+              <div class="summary"><div class="summary-line"><span>Mug × <span data-qty-text="d">1</span></span><strong data-subtotal="d">48,000 sats</strong></div><div class="summary-line"><span>Tracked shipping</span><strong>3,500 sats</strong></div><div class="summary-line total"><span>Total</span><strong data-total="d">51,500 sats</strong></div></div>
+            </div>
+            <div data-invoice="d" hidden></div><div data-result="d" hidden></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div><div id="annotation-tip"></div>
+  <div id="sketch-tools">
+    <label for="theme-switcher">Theme</label><select id="theme-switcher" onchange="setTheme(this.value)"><option value="default.css">Warm Market</option><option value="clean-minimal.css">Clean Minimal</option><option value="high-contrast.css">High Contrast</option></select>
+    <button onclick="setViewport(375)">375</button><button onclick="setViewport(768)">768</button><button onclick="setViewport(1280)">1280</button><button onclick="setViewport(null)">Full</button>
+    <button id="annotations" onclick="toggleAnnotations()">Annotations</button><button onclick="resetAll()">Reset</button>
+  </div>
+
+  <script>
+    const UNIT = 48000;
+    const SHIPPING = 3500;
+    const quantities = {a: 1, b: 1, c: 1, d: 1};
+    const timers = {};
+    let annotations = false;
+
+    function rootFor(key) { return document.getElementById('variant-' + key); }
+    function money(value) { return value.toLocaleString('en-US') + ' sats'; }
+    function showVariant(key, button) {
+      document.querySelectorAll('.variant').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.variant-tab').forEach(el => el.classList.remove('active'));
+      rootFor(key).classList.add('active');
+      button.classList.add('active');
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+    function selectThumb(button) {
+      button.parentElement.querySelectorAll('.thumb').forEach(el => el.classList.remove('active'));
+      button.classList.add('active');
+      toast('Product view selected');
+    }
+    function selectChoice(event, button) {
+      event.preventDefault();
+      const group = button.closest('[data-choice-group]');
+      group.querySelectorAll('.choice').forEach(el => el.classList.remove('selected'));
+      button.classList.add('selected');
+      const variant = button.closest('.variant');
+      variant.querySelectorAll('[data-selection-label]').forEach(el => el.textContent = button.dataset.label);
+    }
+    function changeQty(key, delta) {
+      quantities[key] = Math.max(1, Math.min(6, quantities[key] + delta));
+      updateSummary(key);
+    }
+    function updateSummary(key) {
+      const root = rootFor(key);
+      const qty = quantities[key];
+      const subtotal = UNIT * qty;
+      root.querySelectorAll('[data-qty="' + key + '"]').forEach(el => el.textContent = qty);
+      root.querySelectorAll('[data-qty-text="' + key + '"]').forEach(el => el.textContent = qty);
+      root.querySelectorAll('[data-subtotal="' + key + '"]').forEach(el => el.textContent = money(subtotal));
+      root.querySelectorAll('[data-total="' + key + '"]').forEach(el => el.textContent = money(subtotal + SHIPPING));
+    }
+    function validateEmail(key) {
+      const input = rootFor(key).querySelector('[data-email="' + key + '"]');
+      const error = rootFor(key).querySelector('[data-email-error="' + key + '"]');
+      const valid = input && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.value.trim());
+      if (input) input.classList.toggle('invalid', !valid);
+      if (error) error.textContent = valid ? '' : 'Enter a valid email for order updates.';
+      return valid;
+    }
+    function validate(key) {
+      const emailOK = validateEmail(key);
+      const consent = rootFor(key).querySelector('[data-consent="' + key + '"]');
+      if (!consent || !consent.checked) toast('Confirm transactional updates to continue');
+      return emailOK && consent && consent.checked;
+    }
+    function continueToPay(key) { if (validate(key)) setStep(key, 3); }
+    function setStep(key, step) {
+      const root = rootFor(key);
+      root.querySelectorAll('[data-step^="' + key + '-"]').forEach(el => el.classList.remove('active'));
+      root.querySelectorAll('[data-progress^="' + key + '-"]').forEach(el => el.classList.remove('active'));
+      root.querySelector('[data-step="' + key + '-' + step + '"]').classList.add('active');
+      root.querySelector('[data-progress="' + key + '-' + step + '"]').classList.add('active');
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+    function createInvoice(event, key) {
+      if (event) event.preventDefault();
+      if (!validate(key)) return;
+      const root = rootFor(key);
+      const checkout = root.querySelector('[data-checkout="' + key + '"]');
+      const invoice = root.querySelector('[data-invoice="' + key + '"]');
+      const result = root.querySelector('[data-result="' + key + '"]');
+      if (checkout) checkout.hidden = true;
+      result.hidden = true;
+      invoice.hidden = false;
+      invoice.innerHTML = invoiceMarkup(key);
+      buildQR(invoice.querySelector('[data-qr]'));
+      startTimer(key);
+      toast('Lightning invoice created');
+      invoice.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+    function invoiceMarkup(key) {
+      const total = money(UNIT * quantities[key] + SHIPPING);
+      return '<div class="invoice-view"><p class="eyebrow">Invoice ready</p><h2>Pay ' + total + '</h2><div class="status-pill"><span class="dot"></span>Waiting for payment · <span data-countdown="' + key + '">14:59</span></div><div class="qr" data-qr aria-label="Illustrative Lightning invoice QR code"></div><div class="invoice-string"><code class="mono">lnbc515u1pjnrg1042x7q9gammamarkets...</code><button class="secondary" onclick="copyInvoice()">Copy</button></div><p class="privacy">Invoice is correlated to this order only. Creating it does not mark the order paid.</p><div class="simulation-row"><button class="secondary" onclick="simulatePayment(\'' + key + '\')">Simulate payment</button><button class="secondary danger" onclick="simulateExpiry(\'' + key + '\')">Simulate expiry</button><button class="secondary" onclick="resetCheckout(\'' + key + '\')">Start over</button></div></div>';
+    }
+    function buildQR(el) {
+      for (let i = 0; i < 121; i++) { const cell = document.createElement('span'); if ((i * 7 + Math.floor(i / 11) * 3 + i % 5) % 4 < 2) cell.className = 'on'; el.appendChild(cell); }
+    }
+    function startTimer(key) {
+      clearInterval(timers[key]);
+      let seconds = 899;
+      timers[key] = setInterval(() => {
+        seconds--;
+        const el = rootFor(key).querySelector('[data-countdown="' + key + '"]');
+        if (el) el.textContent = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
+        if (seconds <= 0) simulateExpiry(key);
+      }, 1000);
+    }
+    function simulatePayment(key) { clearInterval(timers[key]); showResult(key, 'confirmed'); toast('Payment confirmed'); }
+    function simulateExpiry(key) { clearInterval(timers[key]); showResult(key, 'expired'); toast('Invoice expired'); }
+    function showResult(key, type) {
+      const root = rootFor(key);
+      root.querySelector('[data-invoice="' + key + '"]').hidden = true;
+      const result = root.querySelector('[data-result="' + key + '"]');
+      result.hidden = false;
+      if (type === 'confirmed') {
+        result.innerHTML = '<div class="result-view"><div class="result-icon">✓</div><p class="eyebrow">Payment confirmed</p><h2>Thank you for supporting an independent maker.</h2><p>Order <strong>NRG-1042</strong> is confirmed. A receipt was sent to buyer@example.com.</p><div class="timeline"><div class="timeline-item"><strong>Order received</strong><br>Inventory reserved</div><div class="timeline-item"><strong>Lightning settled</strong><br>51,500 sats received</div><div class="timeline-item"><strong>Preparing shipment</strong><br>Estimated 4–7 days</div></div><div class="simulation-row"><button class="secondary" onclick="resetCheckout(\'' + key + '\')">Return to product</button></div></div>';
+      } else {
+        result.innerHTML = '<div class="result-view"><div class="result-icon" style="background:var(--color-danger)">!</div><p class="eyebrow">Invoice expired</p><h2>No payment was taken.</h2><p>Your order remains private. Inventory will be released safely; create a new invoice only after status reconciliation finishes.</p><div class="status-pill failed">Expired · action required</div><div class="simulation-row"><button class="primary" onclick="resetCheckout(\'' + key + '\')">Review order again</button></div></div>';
+      }
+      result.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+    function resetCheckout(key) {
+      clearInterval(timers[key]);
+      const root = rootFor(key);
+      const checkout = root.querySelector('[data-checkout="' + key + '"]');
+      if (checkout) checkout.hidden = false;
+      root.querySelector('[data-invoice="' + key + '"]').hidden = true;
+      root.querySelector('[data-result="' + key + '"]').hidden = true;
+      if (key === 'b' || key === 'd') setStep(key, 1);
+      toast('Checkout reset');
+    }
+    function resetAll() { ['a','b','c','d'].forEach(resetCheckout); quantities.a = quantities.b = quantities.c = quantities.d = 1; ['a','b','c','d'].forEach(updateSummary); }
+    function copyInvoice() { navigator.clipboard?.writeText('lnbc515u1pjnrg1042x7q9gammamarkets'); toast('Invoice copied'); }
+    function scrollToCheckout(key) { rootFor(key).querySelector('.checkout-card').scrollIntoView({behavior: 'smooth', block: 'center'}); }
+    function setTheme(file) { document.getElementById('theme-link').href = '../themes/' + file; toast('Theme changed'); }
+    function setViewport(width) { const frame = document.getElementById('sketch-frame'); frame.style.maxWidth = width ? width + 'px' : 'none'; frame.classList.remove('preview-tablet', 'preview-mobile'); if (width && width <= 820) frame.classList.add('preview-tablet'); if (width && width <= 520) frame.classList.add('preview-mobile'); toast(width ? width + 'px preview' : 'Full width preview'); }
+    function toggleAnnotations() { annotations = !annotations; document.body.classList.toggle('annotations-on', annotations); document.getElementById('annotations').textContent = annotations ? 'Annotations on' : 'Annotations'; document.getElementById('annotation-tip').style.display = 'none'; }
+    function toast(message) { const el = document.getElementById('toast'); el.textContent = message; el.classList.add('show'); clearTimeout(el.timer); el.timer = setTimeout(() => el.classList.remove('show'), 1800); }
+    document.addEventListener('mousemove', event => {
+      if (!annotations) return;
+      const target = event.target.closest('[data-annotate]');
+      const tip = document.getElementById('annotation-tip');
+      if (!target) { tip.style.display = 'none'; return; }
+      const styles = getComputedStyle(target);
+      tip.textContent = 'font ' + styles.fontSize + ' · padding ' + styles.padding + ' · color ' + styles.color;
+      tip.style.display = 'block'; tip.style.left = Math.min(event.clientX + 12, innerWidth - 280) + 'px'; tip.style.top = Math.min(event.clientY + 12, innerHeight - 60) + 'px';
+    });
+    ['a','b','c','d'].forEach(updateSummary);
+  </script>
+</body>
+</html>
