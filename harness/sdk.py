@@ -63,3 +63,31 @@ def nip44_roundtrip(sender: Keys, recipient: Keys, plaintext: str) -> str:
     return nip44_decrypt(
         recipient.secret_key(), sender.public_key(), ciphertext
     )
+
+
+def event_id(event: Event) -> str:
+    """The event id as hex."""
+    return event.id().to_hex()
+
+
+class IdRegistry:
+    """Admission-modeled exactly-once event-id dedupe.
+
+    D-16 disclosure: this is EXTENSION-SIDE defense in depth only. It models
+    the admission layer the production extension must implement; it cannot
+    waive an SDK-internal dedupe or verification regression, which remains
+    blocking under D-13/D-16.
+    """
+
+    def __init__(self) -> None:
+        self._seen: set[str] = set()
+
+    def admit(self, eid: str) -> bool:
+        """Return True exactly once per distinct id (True = newly admitted)."""
+        if eid in self._seen:
+            return False
+        self._seen.add(eid)
+        return True
+
+    def __len__(self) -> int:
+        return len(self._seen)

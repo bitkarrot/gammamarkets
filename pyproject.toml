@@ -17,6 +17,10 @@ dev = [
     "pytest~=9.0",
     "pytest-asyncio>=0.25",
     "ruff~=0.14",
+    # Local deterministic relay fixture (harness/relay.py)
+    "websockets~=15.0",
+    # Host app boot fixture (harness/host.py), mirroring the host's test stack
+    "asgi-lifespan~=2.1",
 ]
 
 [tool.uv]
