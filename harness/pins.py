@@ -296,8 +296,11 @@ def machine_platform_tags() -> list[str]:
             return ["macosx", "arm64"]
         return ["macosx", "x86_64"]
     if sys.platform.startswith("linux"):
-        prefixes = ["manylinux", "musllinux"]
-        return [p for p in prefixes] + [arch]
+        # The libc tag is an either/or: glibc machines use manylinux wheels,
+        # musl machines use musllinux — never both.
+        libc, _ = platform.libc_ver()
+        libc_tag = "musllinux" if libc == "musl" else "manylinux"
+        return [libc_tag, arch]
     raise RuntimeError(f"unsupported platform for tag mapping: {sys.platform}")
 
 
