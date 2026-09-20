@@ -12,7 +12,7 @@ The project advances through four gated vertical stages. GSD Phase 1 executes th
 - GSD Phase 1 corresponds to the specification's named "Phase 0" qualification gate.
 - Decimal phases are reserved for urgent inserted work.
 
-- [ ] **Phase 1: Conformance Profile (Contract Phase 0)** - Prove host, SDK, schema, state, security, and protocol assumptions before runtime implementation.
+- [x] **Phase 1: Conformance Profile (Contract Phase 0)** - Prove host, SDK, schema, state, security, and protocol assumptions before runtime implementation. (completed 2026-09-20)
 - [ ] **Phase 2: Release A — Safe Web Commerce** - Ship catalog publication and LNbits-backed public checkout as the first production vertical slice.
 - [ ] **Phase 3: Release B — Gamma NIP-17 Orders** - Add encrypted recipient-specific Gamma order messaging and external-client conformance.
 - [ ] **Phase 4: Release C — Legacy Interop and Cutover** - Add literal NIP-15/NIP-04 compatibility and inventory-safe migration.
@@ -33,7 +33,7 @@ The project advances through four gated vertical stages. GSD Phase 1 executes th
 4. Protocol fixtures prove NIP-89 routing, NIP-17 wrap validation/routing, literal NIP-15 DTOs, and release-scoped compatibility restrictions.
 5. P0-01 through P0-14 have recorded evidence and no undeclared state, field, route, identifier, or release dependency remains.
 
-**Plans:** 3/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -117,7 +117,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Conformance Profile | 3/3 | Complete — pending D-11 owner approval |  |
+| 1. Conformance Profile | 3/3 | Complete    | 2026-09-20 |
 | 2. Release A — Safe Web Commerce | 0/3 | Not started | - |
 | 3. Release B — Gamma NIP-17 Orders | 0/3 | Not started | - |
 | 4. Release C — Legacy Interop and Cutover | 0/3 | Not started | - |

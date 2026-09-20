@@ -7,7 +7,7 @@ host-resolved `nostr-sdk==0.44.8` requires an explicit spec decision and the
 identical qualification profile (D-13, D-14). The host MUST NOT be silently
 downgraded.
 
-**Status: PENDING OWNER APPROVAL** (D-11) — see [Approval](#approval).
+**Status: APPROVED** (D-11) — see [Approval](#approval).
 
 ---
 
@@ -237,12 +237,11 @@ against the new lock naturally.
 
 ## 7. Approval
 
-**PENDING** — explicit owner approval of these pins and the evidence summary
-is required before Phase 2 planning begins (D-11). Clean CI alone does not
-unlock Release A planning.
+**APPROVED** — owner approved the pins and the evidence summary on
+2026-09-20; Phase 2 planning is unlocked (D-11).
 
 | Field | Value |
 |---|---|
-| Approved pins | _pending_ |
-| Approved evidence bundle | _pending_ |
-| Owner / date | _pending_ |
+| Approved pins | nostr-sdk 0.44.8 (release-source `a600c2a7`, wheel sha256 per §1), LNbits `v1.6.2-rc1` @ `e336fe14b841`, Python 3.12, SQLite + PostgreSQL dialects, Linux x86_64/aarch64 blocking matrix |
+| Approved evidence bundle | canonical CI run `35535526249` (linux-x86_64 + postgres, 220/221 passed, 1 optional-relay skip) committed at `2abeb30`; all P0-01..P0-14 green |
+| Owner / date | bitkarrot / 2026-09-20 |

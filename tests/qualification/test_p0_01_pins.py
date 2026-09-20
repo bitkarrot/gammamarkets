@@ -157,7 +157,7 @@ def test_evidence_pins_block_matches_recorded_values():
         ("SQLite", "blocking database"),
         ("macOS ARM64", "advisory smoke profile"),
         ("Python 3.12 only", "Python 3.12-only claim (D-02)"),
-        ("PENDING", "approval section (D-11)"),
+        ("APPROVED", "approval section (D-11)"),
         # Task 2 additions (D-15 contingency, provenance, lock identities)
         ("pinned native revision", "D-15 contingency criterion"),
         ("reproducible build", "D-15 contingency criterion"),
