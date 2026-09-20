@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 1
 current_phase_name: Conformance Profile
 status: planning
-stopped_at: "Completed 01-01-PLAN.md (qualification harness: P0-01/02/03)"
-last_updated: "2026-09-20T07:00:35.800Z"
+stopped_at: "Completed 01-02-PLAN.md (state/transaction/fencing/crash/notification models: P0-06..P0-10)"
+last_updated: "2026-09-20T07:24:15.406Z"
 last_activity: 2026-09-20
 last_activity_desc: UI research completed; three interactive sketch decisions packaged for Phase 2
-state_head: 0a9524649f56727a687e20809849e8974454782c
+state_head: 3a48b93cef2b02ee85cb25c85ca8955c39cd7fe0
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-09-20)
 ## Current Position
 
 Phase: 1 of 4 (Conformance Profile)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Ready to discuss and plan
 Last activity: 2026-09-20 — UI research completed; three interactive sketch decisions packaged for Phase 2
 
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 1 P01 | 20 min | 3 tasks | 23 files |
+| Phase 01 P02 | 21 min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,10 @@ Decisions are logged in PROJECT.md and the normative specification.
 - Public themes use preset, Brand Basics, and guarded Advanced Tokens tiers; admin styling stays host-controlled.
 - Phase 2 UI planning must load `.devin/skills/sketch-findings-gammamarkets/` and produce a binding UI contract.
 - [Phase 1]: Plan 01-01 shipped the permanent qualification harness: pins/provenance (P0-01), SDK security boundary (P0-02), host contract boundary (P0-03), one canonical make verify + evidence bundle, CI blocking matrix. — Everything later phases build depends on the pinned host/SDK/database contract being proven reproducible; the harness is permanent regression infrastructure (D-05), not disposable qualification code.
+- [Phase 1]: PG queue claims run as lock-select/update/fetch in one transaction with FOR UPDATE SKIP LOCKED: SQLAlchemy 1.4 + asyncpg returns no rows from raw text() UPDATE...RETURNING (01-02)
+- [Phase 1]: Idempotent intent inserts use ON CONFLICT DO NOTHING with deterministic ids: PostgreSQL aborts transactions on constraint violations, so IntegrityError catch-and-continue is not dialect-portable (01-02)
+- [Phase 1]: Outbox publication evidence is durable and append-only, recorded separately from the fenced claim-token outcome write: models the section 8.6 crash point and makes stale-claim reconstruction honest (01-02)
+- [Phase 1]: Cancelled orders retain their payment projection for late-settlement detection; BOLT11 delivery and payment-request enqueue happen only for invoice_pending orders (spec 8.2 step 3, decision 24)
 
 ### Pending Todos
 
@@ -96,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-20T07:00:35.786Z
-Stopped at: Completed 01-01-PLAN.md (qualification harness: P0-01/02/03)
+Last session: 2026-09-20T07:24:15.389Z
+Stopped at: Completed 01-02-PLAN.md (state/transaction/fencing/crash/notification models: P0-06..P0-10)
 Resume file: None
