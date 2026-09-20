@@ -12,3 +12,6 @@ __pycache__/
 
 # NOTE: evidence/ is NOT ignored — the normalized evidence bundle
 # (manifest.json + REPORT.md) is committed per D-09; raw pytest output is not.
+
+# gsd-tools generated state cache (durable form is .planning/STATE.md)
+.planning/state.json

@@ -23,7 +23,7 @@ affects: [01-02-relay-ack-concurrency, 01-03-protocol-fixtures, phase-2-planning
 actuals:
   tokens: 120643   # chars/4 over the realized diff (482,573 chars across 23 files)
   tasks: 3
-  commits: 3
+  commits: 5   # 3 feat + docs + chore, measured: git rev-list --count 7882e79..HEAD
 
 tech-stack:
   added:
