@@ -1,0 +1,136 @@
+name: qualification
+
+# GammaMarkets conformance-profile qualification (D-01, D-03, D-04, D-09).
+#
+# Blocking matrix (D-03): Linux x86_64 + Linux ARM64, each with SQLite and
+# PostgreSQL — four profiles that must all pass clean (D-10). macOS ARM64 is
+# an advisory smoke profile only (D-04): visible but non-blocking.
+
+on:
+  push:
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Lint
+        run: |
+          python3 tools/checkout_host.py
+          uv run ruff check .
+
+  qualify-sqlite:
+    name: qualification (sqlite / ${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    env:
+      LNBITS_BACKEND_WALLET_CLASS: FakeWallet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Run qualification suite (SQLite profile)
+        run: make verify 2>&1 | tee pytest-output.txt
+      - name: Upload evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualification-evidence-sqlite-${{ matrix.runner }}
+          path: |
+            evidence/manifest.json
+            evidence/REPORT.md
+            pytest-output.txt
+
+  qualify-postgres:
+    name: qualification (postgresql / ${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    env:
+      LNBITS_BACKEND_WALLET_CLASS: FakeWallet
+      LNBITS_DATABASE_URL: postgres://lnbits:lnbits@localhost:5432/lnbits
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: lnbits
+          POSTGRES_PASSWORD: lnbits
+          POSTGRES_DB: lnbits
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Run qualification suite (PostgreSQL profile)
+        run: make verify 2>&1 | tee pytest-output.txt
+      - name: Upload evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualification-evidence-postgresql-${{ matrix.runner }}
+          path: |
+            evidence/manifest.json
+            evidence/REPORT.md
+            pytest-output.txt
+
+  advisory-macos:
+    name: qualification (advisory / macos arm64)
+    # D-04: macOS ARM64 is an advisory developer smoke profile only —
+    # failure is visible but does NOT block Release A.
+    continue-on-error: true
+    runs-on: macos-latest
+    env:
+      LNBITS_BACKEND_WALLET_CLASS: FakeWallet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Run qualification suite (macOS advisory smoke, SQLite)
+        run: make verify 2>&1 | tee pytest-output.txt
+      - name: Upload evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualification-evidence-advisory-macos
+          path: |
+            evidence/manifest.json
+            evidence/REPORT.md
+            pytest-output.txt
