@@ -1,0 +1,14 @@
+# Harness caches (pinned host checkout, fetched sdist, per-run data folders)
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+
+# NOTE: evidence/ is NOT ignored — the normalized evidence bundle
+# (manifest.json + REPORT.md) is committed per D-09; raw pytest output is not.

@@ -1,0 +1,390 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-09-20T06:50:10.683724+00:00",
+  "verify_command": "make verify",
+  "rerun_policy": "Single run only (D-10 clean-pass policy): the tooling performs one run per verify command and has no retry loop; a rerun does not flip a recorded outcome.",
+  "profile": {
+    "python": "3.12.13",
+    "python_implementation": "CPython",
+    "machine": "arm64",
+    "platform": "darwin",
+    "database_dialect": "sqlite"
+  },
+  "pins": {
+    "nostr_sdk_native_library": {
+      "filename": "libnostr_sdk_ffi.dylib",
+      "size_bytes": 4970368,
+      "sha256": "49b779657adfc809b0d334e9cbda8a9377bdf509f0e7356038de434db8ec80ef"
+    },
+    "nostr_sdk": "0.44.8",
+    "lnbits_commit": "e336fe14b841d6f0c940e75b3d343e3ab5cf8433",
+    "lnbits_tag": "v1.6.2-rc1"
+  },
+  "results": [
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_host_checkout_head_is_pinned_commit",
+      "outcome": "passed",
+      "duration_s": 0.020482,
+      "markers": [
+        "fast"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_installed_nostr_sdk_is_exactly_pinned",
+      "outcome": "passed",
+      "duration_s": 0.000945,
+      "markers": [
+        "fast"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[0.44.8-nostr-sdk candidate pin]",
+      "outcome": "passed",
+      "duration_s": 0.000212,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[5dc79c5-GammaMarkets market-spec pin]",
+      "outcome": "passed",
+      "duration_s": 0.000642,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux ARM64-blocking platform (ARM64)]",
+      "outcome": "passed",
+      "duration_s": 0.000206,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux x86_64-blocking platform (x86_64)]",
+      "outcome": "passed",
+      "duration_s": 0.000207,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[PENDING-approval section (D-11)]",
+      "outcome": "passed",
+      "duration_s": 0.00022,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[PostgreSQL-blocking database]",
+      "outcome": "passed",
+      "duration_s": 0.000208,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Python 3.12 only-Python 3.12-only claim (D-02)]",
+      "outcome": "passed",
+      "duration_s": 0.000218,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[SQLite-blocking database]",
+      "outcome": "passed",
+      "duration_s": 0.000206,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[a2494f4f81d46684e5814a9bf35e2b1df978f955-Nostr NIPs pin]",
+      "outcome": "passed",
+      "duration_s": 0.000262,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[e336fe14b841d6f0c940e75b3d343e3ab5cf8433-LNbits commit pin]",
+      "outcome": "passed",
+      "duration_s": 0.000212,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[macOS ARM64-advisory smoke profile]",
+      "outcome": "passed",
+      "duration_s": 0.000201,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[v1.6.2-rc1-LNbits tag]",
+      "outcome": "passed",
+      "duration_s": 0.00021,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[v2 payload only-NIP-44 v2-only pin]",
+      "outcome": "passed",
+      "duration_s": 0.000236,
+      "markers": [
+        "fast",
+        "parametrize"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_requires_python_is_3_12_only",
+      "outcome": "passed",
+      "duration_s": 0.000344,
+      "markers": [
+        "fast"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_running_interpreter_is_3_12",
+      "outcome": "passed",
+      "duration_s": 0.000146,
+      "markers": [
+        "fast"
+      ],
+      "p0": "P0-01",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_build_sign_and_verify_event",
+      "outcome": "passed",
+      "duration_s": 0.005472,
+      "markers": [
+        "asyncio",
+        "sdk"
+      ],
+      "p0": "P0-02",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_ffi_import_and_keypair_generation",
+      "outcome": "passed",
+      "duration_s": 0.006578,
+      "markers": [
+        "asyncio",
+        "sdk"
+      ],
+      "p0": "P0-02",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_nip44_encrypt_decrypt_roundtrip",
+      "outcome": "passed",
+      "duration_s": 0.000847,
+      "markers": [
+        "asyncio",
+        "sdk"
+      ],
+      "p0": "P0-02",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_tampered_event_fails_verification",
+      "outcome": "passed",
+      "duration_s": 0.00185,
+      "markers": [
+        "asyncio",
+        "sdk"
+      ],
+      "p0": "P0-02",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_tested_binary_identity_recorded_into_evidence_pins",
+      "outcome": "passed",
+      "duration_s": 0.020939,
+      "markers": [
+        "asyncio",
+        "sdk"
+      ],
+      "p0": "P0-02",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_lost_cas_rolls_back_the_entire_transaction",
+      "outcome": "passed",
+      "duration_s": 0.004783,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_reservation_insert_violates_fk",
+      "outcome": "passed",
+      "duration_s": 0.00404,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_winning_cas_leaves_one_held_reservation",
+      "outcome": "passed",
+      "duration_s": 0.010714,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    }
+  ],
+  "summary": {
+    "total": 25,
+    "passed": 25,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_status": 0,
+    "p0_coverage": {
+      "P0-01": {
+        "status": "pass",
+        "tests": [
+          "tests/qualification/test_p0_01_pins.py::test_host_checkout_head_is_pinned_commit",
+          "tests/qualification/test_p0_01_pins.py::test_installed_nostr_sdk_is_exactly_pinned",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[0.44.8-nostr-sdk candidate pin]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[5dc79c5-GammaMarkets market-spec pin]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux ARM64-blocking platform (ARM64)]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux x86_64-blocking platform (x86_64)]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[PENDING-approval section (D-11)]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[PostgreSQL-blocking database]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Python 3.12 only-Python 3.12-only claim (D-02)]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[SQLite-blocking database]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[a2494f4f81d46684e5814a9bf35e2b1df978f955-Nostr NIPs pin]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[e336fe14b841d6f0c940e75b3d343e3ab5cf8433-LNbits commit pin]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[macOS ARM64-advisory smoke profile]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[v1.6.2-rc1-LNbits tag]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[v2 payload only-NIP-44 v2-only pin]",
+          "tests/qualification/test_p0_01_pins.py::test_requires_python_is_3_12_only",
+          "tests/qualification/test_p0_01_pins.py::test_running_interpreter_is_3_12"
+        ]
+      },
+      "P0-02": {
+        "status": "pass",
+        "tests": [
+          "tests/qualification/test_p0_02_sdk_security.py::test_build_sign_and_verify_event",
+          "tests/qualification/test_p0_02_sdk_security.py::test_ffi_import_and_keypair_generation",
+          "tests/qualification/test_p0_02_sdk_security.py::test_nip44_encrypt_decrypt_roundtrip",
+          "tests/qualification/test_p0_02_sdk_security.py::test_tampered_event_fails_verification",
+          "tests/qualification/test_p0_02_sdk_security.py::test_tested_binary_identity_recorded_into_evidence_pins"
+        ]
+      },
+      "P0-03": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-04": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-05": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-06": {
+        "status": "pass",
+        "tests": [
+          "tests/qualification/test_p0_06_transactions.py::test_lost_cas_rolls_back_the_entire_transaction",
+          "tests/qualification/test_p0_06_transactions.py::test_orphan_reservation_insert_violates_fk",
+          "tests/qualification/test_p0_06_transactions.py::test_winning_cas_leaves_one_held_reservation"
+        ]
+      },
+      "P0-07": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-08": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-09": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-10": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-11": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-12": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-13": {
+        "status": "pending",
+        "tests": []
+      },
+      "P0-14": {
+        "status": "pending",
+        "tests": []
+      }
+    }
+  }
+}

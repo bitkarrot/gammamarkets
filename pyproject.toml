@@ -1,0 +1,41 @@
+[project]
+name = "gammamarkets"
+version = "0.1.0"
+description = "GammaMarkets qualification harness (Phase 1 contract conformance; no production runtime code)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # LNbits pinned host, resolved via [tool.uv.sources] to the checkout
+    # created by tools/checkout_host.py (commit e336fe14b841d6f0c940e75b3d343e3ab5cf8433).
+    "lnbits",
+    # Nostr SDK candidate. Exact pin, stricter than the host's ~=0.44.0,
+    # so the lock cannot drift to a newer 0.44.x (D-13).
+    "nostr-sdk==0.44.8",
+]
+
+[dependency-groups]
+dev = [
+    "pytest~=9.0",
+    "pytest-asyncio>=0.25",
+    "ruff~=0.14",
+]
+
+[tool.uv]
+# The harness is not an installable package; tests import it via pytest
+# pythonpath = ["."].
+package = false
+
+[tool.uv.sources]
+lnbits = { path = ".cache/lnbits" }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
