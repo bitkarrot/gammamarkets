@@ -320,6 +320,8 @@ async def claim_due_rows(
     limit: int,
     worker: str,
     lease_seconds: int,
+    extra_where: str = "",
+    extra_params: dict | None = None,
 ) -> list[dict]:
     """Atomically claim up to ``limit`` due queue rows (section 8.6 step 1).
 
@@ -330,6 +332,8 @@ async def claim_due_rows(
 
     PostgreSQL claims with ``FOR UPDATE SKIP LOCKED`` in one statement;
     SQLite uses a bounded select-then-update inside ``BEGIN IMMEDIATE``.
+    ``extra_where``/``extra_params`` extend the candidate predicate (the
+    outbox uses them for published-dependency filtering).
     """
     state_clause, state_params = _in_clause("state", list(states))
     until = now + lease_seconds
@@ -340,39 +344,32 @@ async def claim_due_rows(
         "max_attempts": max_attempts,
         "limit": limit,
     }
+    predicate = (
+        f"{state_clause} AND next_attempt_at <= :now"
+        " AND attempts < :max_attempts"
+        + (f" AND ({extra_where})" if extra_where else "")
+    )
+    select_params = {**claimed_params, **state_params, **(extra_params or {})}
 
     async with qual_db.connect() as conn:
         async with qual_db.transaction(conn) as t:
+            # One transaction: candidate select -> claim update -> fetch.
+            # PostgreSQL locks candidates with FOR UPDATE SKIP LOCKED (a
+            # concurrent worker's select skips the locked rows, so two
+            # workers never claim the same row); SQLite serializes the
+            # whole select-then-update behind BEGIN IMMEDIATE (single
+            # writer). SQLAlchemy 1.4 + asyncpg returns no rows from raw
+            # text() UPDATE...RETURNING, hence the separate fetch.
+            select_sql = (
+                f"SELECT id FROM {table}"
+                f" WHERE {predicate}"
+                " ORDER BY next_attempt_at, id LIMIT :limit"
+            )
             if qual_db.dialect == "postgres":
-                sql = (
-                    f"UPDATE {table} SET state = 'claimed',"
-                    " claimed_by = :worker, claimed_at = :now,"
-                    " claimed_until = :until, claim_token = claim_token + 1,"
-                    " updated_at = :now"
-                    " WHERE id IN ("
-                    f"  SELECT id FROM {table}"
-                    f"  WHERE {state_clause} AND next_attempt_at <= :now"
-                    " AND attempts < :max_attempts"
-                    "  ORDER BY next_attempt_at, id"
-                    "  LIMIT :limit"
-                    "  FOR UPDATE SKIP LOCKED"
-                    ")"
-                )
-                rows = await t.fetch_all(
-                    sql, {**claimed_params, **state_params}
-                )
-                return rows
-
-            # SQLite: bounded select-then-update under BEGIN IMMEDIATE.
+                select_sql += " FOR UPDATE SKIP LOCKED"
             ids = [
                 row["id"]
-                for row in await t.fetch_all(
-                    f"SELECT id FROM {table}"
-                    f" WHERE {state_clause} AND next_attempt_at <= :now"
-                    " AND attempts < :max_attempts"
-                    " ORDER BY next_attempt_at, id LIMIT :limit",
-                    {**claimed_params, **state_params},
-                )
+                for row in await t.fetch_all(select_sql, select_params)
             ]
             if not ids:
                 return []
@@ -383,7 +380,12 @@ async def claim_due_rows(
                 " claimed_until = :until, claim_token = claim_token + 1,"
                 " updated_at = :now"
                 f" WHERE {id_clause}",
-                {**claimed_params, **id_params},
+                {
+                    "worker": claimed_params["worker"],
+                    "now": claimed_params["now"],
+                    "until": claimed_params["until"],
+                    **id_params,
+                },
             )
             return await t.fetch_all(
                 f"SELECT * FROM {table} WHERE {id_clause}", id_params

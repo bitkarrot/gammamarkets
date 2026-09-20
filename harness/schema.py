@@ -81,7 +81,9 @@ def ddl(dialect: str, schema: str | None) -> list[str]:
             stock_on_hand {int_type},
             stock_reserved {int_type} NOT NULL DEFAULT 0,
             revision {int_type} NOT NULL DEFAULT 0,
-            deleted_at {ts_type}
+            deleted_at {ts_type},
+            created_at {ts_type} NOT NULL DEFAULT 0,
+            updated_at {ts_type} NOT NULL DEFAULT 0
         )
         """,
         # --- section 4.7 (order snapshot columns the models need) ---
