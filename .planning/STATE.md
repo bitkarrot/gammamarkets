@@ -23,7 +23,7 @@ See: .planning/PROJECT.md (updated 2026-09-20)
 Phase: 1 of 4 (Conformance Profile)
 Plan: 0 of 3 in current phase
 Status: Ready to discuss and plan
-Last activity: 2026-09-20 — Corrected contract ingested and initial roadmap created
+Last activity: 2026-09-20 — UI research completed; three interactive sketch decisions packaged for Phase 2
 
 Progress: [----------] 0%
 
@@ -56,6 +56,10 @@ Decisions are logged in PROJECT.md and the normative specification.
 - Direct qualified `nostr-sdk` is the baseline; other relay extensions are unqualified adapter candidates.
 - GSD Phase 1 is the contract's Phase 0 evidence gate; it contains no production runtime implementation.
 - Release order is A web commerce, B Gamma NIP-17, C legacy interop/migration.
+- Checkout preserves Editorial/Guided/Compact merchant presets with responsive mobile fallback and invariant payment semantics.
+- Merchant order operations use a split list/detail workspace with embedded chronology.
+- Public themes use preset, Brand Basics, and guarded Advanced Tokens tiers; admin styling stays host-controlled.
+- Phase 2 UI planning must load `.devin/skills/sketch-findings-gammamarkets/` and produce a binding UI contract.
 
 ### Pending Todos
 
@@ -77,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-20 03:57 UTC
-Stopped at: GSD initialized; Phase 1 ready for discussion/planning
+Last session: 2026-09-20 04:53 UTC
+Stopped at: UI sketch findings packaged; Phase 1 remains ready for discussion/planning
 Resume file: None

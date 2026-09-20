@@ -40,19 +40,20 @@ Plans:
 **Goal:** A merchant can publish a protected Gamma/NIP-99 catalog and complete a safe LNbits-backed web order end to end.
 **Mode:** mvp
 **Depends on:** Phase 1
-**Requirements:** MERC-01, CAT-01, CAT-02, PUB-01, PUB-02, WEB-01, WEB-02, PAY-01, PAY-02, INV-01, ORD-01, NOTF-01, SEC-01
+**Requirements:** MERC-01, CAT-01, CAT-02, PUB-01, PUB-02, WEB-01, WEB-02, PAY-01, PAY-02, INV-01, ORD-01, NOTF-01, SEC-01, UI-01, UI-02, UI-03
 **Success Criteria** (what must be TRUE):
-1. Merchant can configure a protected identity/wallet, manage canonical catalog/inventory/shipping, and publish valid public events with visible per-relay outcomes.
-2. Buyer can open the local NIP-89 handler, submit server-priced idempotent checkout, receive one correlated invoice, and poll private status without token leakage.
+1. Merchant can configure a protected identity/wallet, manage canonical catalog/inventory/shipping, select a bounded public layout/theme tier, and publish valid public events with visible per-relay outcomes.
+2. Buyer can open the local NIP-89 handler, use an adaptive responsive checkout with a complete visible total, receive one correlated invoice, and poll private status without token leakage.
 3. Concurrent, cancelled, expired, late, duplicated, and mismatched payment paths preserve stock and state invariants with no blind invoice reissue.
-4. Merchant can manage legal order/fulfillment/exception actions and per-recipient notifications through owner-scoped, CSRF-safe routes.
-5. Release-A security, retention, logging, unsupported-topology, failure-drill, and applicable Phase 0 assertions pass through the real implementation.
+4. Merchant can triage and manage legal order/fulfillment/exception actions in a responsive split list/detail workspace with embedded chronology and per-recipient notifications.
+5. Release-A security, accessibility/contrast, public/admin theme separation, retention, logging, unsupported-topology, failure-drill, and applicable Phase 0 assertions pass through the real implementation.
 **Plans:** 3 plans
+**UI prerequisite:** Before Phase 2 plan execution, generate and approve the Phase 2 UI contract using `.devin/skills/sketch-findings-gammamarkets/` and the normative technical specification.
 
 Plans:
 - [ ] 02-01: Extension skeleton, key custody, database/migrations, merchant and catalog domain
-- [ ] 02-02: Public projection, relay outbox, NIP-89 catalog UI, and publication health
-- [ ] 02-03: Checkout, reservation, invoice saga, settlement, reconciliation, order administration, and email
+- [ ] 02-02: Public projection, relay outbox, NIP-89 catalog UI, tiered storefront themes, and publication health
+- [ ] 02-03: Adaptive checkout, reservation, invoice saga, settlement, reconciliation, split order administration, and email
 
 ### Phase 3: Release B — Gamma NIP-17 Orders
 **Goal:** A Nostr buyer can place and follow a Gamma order through declared inbox relays against the same canonical commerce authority.

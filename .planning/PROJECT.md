@@ -67,6 +67,9 @@ A merchant can sell one authoritative inventory safely through LNbits-backed web
 | Migration accounts for payable inventory liabilities under every key strategy | A new pubkey does not partition physical stock | Pending validation |
 | SMTP failures are boolean/unclassified in v1 | The pinned host helper erases SMTP failure categories | Pending validation |
 | External relay smoke uses `wss://nostr.net` only with ephemeral synthetic events | Useful interoperability signal without becoming a production dependency | Pending validation |
+| Public checkout uses bounded Editorial/Guided/Compact presets with responsive fallback | Preserve merchant choice without changing checkout semantics or mobile safety | Pending validation |
+| Merchant orders use split list/detail navigation with embedded chronology | Optimize daily triage while keeping payment, inventory, fulfillment, and audit understandable | Pending validation |
+| Storefront themes use preset → brand basics → guarded advanced tiers | Allow merchant identity without arbitrary CSS or admin/checkout drift | Pending validation |
 
 ## Evolution
 
@@ -84,4 +87,4 @@ This document evolves at phase transitions and milestone boundaries.
 3. Update context, constraints, and decision outcomes.
 
 ---
-*Last updated: 2026-09-20 after corrected-contract bootstrap*
+*Last updated: 2026-09-20 after UI sketch validation*

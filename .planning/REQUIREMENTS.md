@@ -46,6 +46,9 @@
 - [ ] **ORD-01**: Merchant can inspect orders/audit history and apply legal processing, cancellation, shipping, exception, fulfillment, and public-token rotation actions with owner-scoped authorization.
 - [ ] **NOTF-01**: Merchant and opted-in web buyer can receive per-recipient transactional emails through host SMTP with explicit suppressed/failed state, bounded retry, protected token rendering, and opt-out.
 - [ ] **SEC-01**: Release A enforces key/PII encryption, retention, HMAC lookup scopes, CSRF/origin/auth boundaries, rate/input limits, log redaction, unsupported-topology refusal, and cancellation-safe lifecycle behavior.
+- [ ] **UI-01**: Merchant can choose Editorial, Guided, or Compact public layout presets while responsive safety applies a compact mobile fallback and checkout fields, totals, validation, payment states, and security copy remain invariant.
+- [ ] **UI-02**: Merchant can triage and process orders through a responsive split list/detail workspace with search, state filters, exception prominence, legal contextual actions, and embedded payment/inventory/fulfillment chronology.
+- [ ] **UI-03**: Merchant can customize public appearance through Warm Market, Clean Minimal, or High Contrast presets, optional Brand Basics, and opt-in guarded Advanced Tokens while WCAG save gates and public/admin separation remain enforced.
 
 ### Release B — Gamma NIP-17 Orders
 
@@ -128,6 +131,9 @@ A requirement is complete only when implementation (or Phase 0 probe/model), aut
 | ORD-01 | Phase 2 | Pending |
 | NOTF-01 | Phase 2 | Pending |
 | SEC-01 | Phase 2 | Pending |
+| UI-01 | Phase 2 | Pending |
+| UI-02 | Phase 2 | Pending |
+| UI-03 | Phase 2 | Pending |
 | GAM-01 | Phase 3 | Pending |
 | GAM-02 | Phase 3 | Pending |
 | GAM-03 | Phase 3 | Pending |
@@ -140,10 +146,10 @@ A requirement is complete only when implementation (or Phase 0 probe/model), aut
 | LEG-05 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 37 total
-- Mapped to phases: 37
+- v1 requirements: 40 total
+- Mapped to phases: 40
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-09-20*
-*Last updated: 2026-09-20 after corrected-contract initialization*
+*Last updated: 2026-09-20 after UI sketch validation*
