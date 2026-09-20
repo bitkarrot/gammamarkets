@@ -1,10 +1,11 @@
 ---
 phase: "2"
 slug: "release-a-safe-web-commerce"
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: "2026-09-20"
+reviewed_at: "2026-09-20"
 ---
 
 # Phase 2 — UI Design Contract
@@ -34,7 +35,7 @@ created: "2026-09-20"
 
 > Quasar is the project's design system, supplied by the host — there is no installed npm package in this repository to query. Inventory is enumerated from the host-vendored bundle actually served to browsers.
 
-Enumerated by `grep -o 'Q[A-Z][A-Za-z]*' .cache/lnbits/lnbits/static/vendor/quasar.umd.prod.js | sort -u` — ~126 Q-component exports — `quasar@2.22.0` (pinned host `package.json`; vendored UMD bundle) — 2026-09-20.
+Enumerated by `grep -o 'Q[A-Z][A-Za-z]*' .cache/lnbits/lnbits/static/vendor/quasar.umd.prod.js | sort -u` — 131 Q-component exports — `quasar@2.22.0` (pinned host `package.json`; vendored UMD bundle) — 2026-09-20.
 
 Non-exhaustive list of known-good components for this phase. Checking the Quasar 2.22 docs for anything outside this table is the expected path, not an exception.
 
@@ -83,14 +84,14 @@ Exceptions: **44px minimum interactive target** on all public touch controls (sk
 
 ## Typography
 
-Exactly four roles and two weights. Sizes map to preset `--text-*` tokens; public presets may scale the Display/Heading tokens ±1 step per preset character, but Body and Label are invariant everywhere (checkout readability is a save-gated invariant).
+Exactly four roles and two weights, and exactly four declared sizes: 14/16/24/36px. Sizes map to preset `--text-*` tokens and are invariant everywhere — presets differentiate through color and density, never type size (checkout readability is a save-gated invariant).
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 16px (`--text-base`) | 400 | 1.5 |
-| Label | 14px (`--text-sm`); 12px (`--text-xs`) for meta/timestamps only | 400 / 600 | 1.4 |
-| Heading | 20px (`--text-xl`) / 24px (`--text-2xl`) | 600 | 1.2 |
-| Display | 30px (`--text-3xl`) / 36px (`--text-4xl`) — public surfaces only | 600 | 1.2 |
+| Label | 14px (`--text-sm`) — also meta/timestamps | 400 / 600 | 1.4 |
+| Heading | 24px (`--text-2xl`) | 600 | 1.2 |
+| Display | 36px (`--text-4xl`) — public surfaces only | 600 | 1.2 |
 
 Rules: 400 regular and 600 semibold are the only two weights — status pills and totals use 600, not the sketch's 760. Monospace stack is reserved for BOLT11 fragments, tokens, and technical evidence. Admin surfaces inherit host typography and never receive theme font tokens.
 
@@ -131,14 +132,17 @@ There is no runtime dark-mode toggle. High Contrast is the dark preset (dark bg,
 
 | Element | Copy |
 |---------|------|
-| Primary CTA (pre-invoice) | "Review payment" (Guided/Compact step CTA "Continue to delivery" precedes it) |
-| Primary CTA (invoice state) | "Copy invoice" — secondary action; the QR + truncated BOLT11 is the primary surface. Status polling is automatic |
+| Primary CTA (pre-invoice) | "Review payment" — clicking submits the order for server-side recalculation and invoice creation (§8.2). Guided/Compact step CTA "Continue to delivery" precedes it |
+| Invoice-state action | "Copy invoice" — secondary action; the QR + truncated BOLT11 is the primary surface. Status polling is automatic |
 | Order-status page CTA | "Copy status link" and "Stop order emails" (opt-out) |
 | Merchant order actions | State-machine-named verbs: "Start processing", "Mark shipped", "Mark delivered", "Cancel with reason", "Accept paid order", "Request refund", "Confirm refund sent", "Resolve exception", "Reissue status link" |
 | Empty state heading (orders) | "No orders yet" |
 | Empty state body (orders) | "New web and protocol orders will appear here." |
 | Empty-filter body | "No matching orders — adjust search or status filters." |
 | Empty catalog | "No products yet — create a product or save a draft to begin." |
+| Empty collections | "No collections yet — create a collection to group products; every published product belongs to at least one." |
+| Empty relay health | "No write relays configured — add at least one relay to publish your catalog." |
+| Empty notify_emails | "No notification addresses — add an email to receive order notifications." |
 | Error state (list load) | "Orders could not be loaded. The durable queue remains safe — retry without changing order state." + "Retry" |
 | Checkout validation | Inline, field-level, `aria-live="polite"`: "Enter a valid email for order updates." / "Choose a shipping option for this destination." |
 | Invoice expired | "Invoice expired — no payment was taken. Inventory will be released safely; create a new invoice only after status reconciliation finishes." + "Review order again" |
@@ -164,22 +168,37 @@ There is no runtime dark-mode toggle. High Contrast is the dark preset (dark bg,
 
 ## UI Considerations
 
-Applicable state considerations resolved: 24 covered, 2 backstop, 0 unresolved.
+Probe coverage (post-checker, computed by ui-consideration-probe over the 9 surfaces A1–B6): 27 applicable items — 27 resolved, 0 unresolved (25 explicit, 2 backstop).
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | order list, catalog, collections, outbox, relay health, notify_emails | ✅ covered | Documented empty copy per surface above; empty outbox shows "No publications pending" (healthy, not an error) |
-| loading | order list, product page, order-status poll, publication health | ✅ covered | QSkeleton rows for lists; order-status shows last-known state + "checking…" indicator; spinner never sole payment feedback |
-| error | list load, checkout submit, naddr resolve, token lookup | ✅ covered | Error copy contract above; naddr malformed/wrong-kind/foreign renders a plain "This product link is not valid here." — no relay fetch, no detail (spec §5.4) |
-| pending | invoice `awaiting_payment`, outbox `pending/claimed/publishing`, merchant `publication_pending` | ✅ covered | Countdown pill + waiting copy; outbox rows show per-relay pending state; merchant activation shows "Publishing…" with per-relay progress |
-| expired | invoice expiry, reservation TTL, public_token 30-day expiry | ✅ covered | Expired copy + "Review order again"; dead token shows "This order link is no longer valid." without confirming order existence |
-| partial-failure | outbox `partially_published`, per-relay ACK split, email `suppressed/failed` | ✅ covered | Per-relay outcome cells (ACKed/pending/failed) with retry counts; email row shows suppressed reason (SMTP unconfigured / opted out / disabled) vs failed-after-5-attempts |
-| exception | `payment_exception` on order, `creation_unknown`, late-settled-after-cancel, mismatched settlement, oversold accept | ✅ covered | Danger banner atop detail pane naming the exception + only legal actions (accept / refund / confirm-refund); `oversold=true` shows backorder disclosure incl. `backordered_qty` |
-| zero-one-many | order list, collections (must contain ≥1 active product to publish), relay list | ✅ covered | One order opens detail directly on mobile; collection editor blocks publish at zero active members (spec §6.2) |
-| long-text | product titles/descriptions (200/500/64 KB bounds), buyer IDs, naddr strings | ✅ covered | Titles truncate with ellipsis in list rows; descriptions render sanitized markdown in scrollable region; npub/token strings truncate middle with copy affordance |
-| overflow | order list (100s), timeline (long audit), outbox table | ✅ covered | QInfiniteScroll/pagination on list; timeline scrolls inside detail pane; outbox table paginated |
-| sold-out | product `available=0` / `nip99_status=sold` | ✅ covered | "Sold out" chip replaces buy controls; checkout submit still rejects server-side (`insufficient-stock`) |
-| hidden/draft | `visibility=hidden`, `draft=true` | ✅ covered | Hidden excluded from web catalog (direct URL renders "This product is not available."); drafts show a "Draft — never published" badge in admin |
+| Probe item | Category | Status | Resolution |
+|------------|----------|--------|------------|
+| A1 product page | unclassified | ✅ explicit | Hidden/draft → "This product is not available."; sold-out → "Sold out" chip; malformed/wrong-kind/foreign naddr → "This product link is not valid here." (no relay fetch, spec §5.4); long titles truncate, 64 KB descriptions in scrollable sanitized-markdown region |
+| A2 checkout | unclassified | ✅ explicit | pending (`awaiting_payment` countdown pill + waiting copy), expired ("Invoice expired…" + "Review order again"), uncertain-payment copy (never auto-reissue, §8.2), inline field validation with `aria-live`, `insufficient-stock`/`rate-limited`/`invalid-shipping-destination` error map |
+| A3 order status | empty | ✅ explicit | Dead/rotated token → "This order link is no longer valid." (no existence oracle, §11.4) |
+| A3 order status | loading | ✅ explicit | Last-known state + "checking…" indicator; spinner never sole payment feedback |
+| A3 order status | error | ✅ explicit | Token-lookup/load failure → problem + retry copy, no internals |
+| A3 order status | partial | ✅ explicit | Restricted public payload renders whatever settled state exists — payment vs shipping sections independent (§5.4) |
+| A3 order status | long-text | ✅ explicit | npub/token/order-ref truncate middle with copy affordance |
+| B1 order workspace | empty | ✅ explicit | "No orders yet" + filter-empty "No matching orders — adjust search or status filters." |
+| B1 order workspace | loading | ✅ explicit | QSkeleton list rows |
+| B1 order workspace | error | ✅ explicit | "Orders could not be loaded. The durable queue remains safe — retry without changing order state." + Retry |
+| B1 order workspace | populated | ✅ explicit | Linear Split list+detail, state pills, count summary "N active orders · M need attention", row: ref/channel/buyer/items/total/state |
+| B1 order workspace | partial | ✅ explicit | Exception orders surface danger banner naming exception + legal actions only (accept/refund/confirm-refund); late-settled-after-cancel and mismatched-settlement rows shown via exception state |
+| B1 order workspace | overflow | ✅ explicit | QInfiniteScroll/pagination on list; audit timeline scrolls inside detail pane |
+| B1 order workspace | zero-one-many | ✅ explicit | Single order opens detail directly on mobile |
+| B2 publication health | unclassified | ✅ explicit | Per-relay ACK cells (ACKed/pending/failed) + retry counts; `pending/claimed/publishing` pending states; `partially_published` split view; empty → "No publications pending" (healthy); no relay-config → "No write relays configured…" |
+| B3 catalog | empty | ✅ explicit | "No products yet — create a product or save a draft to begin." + collections empty copy ("…every published product belongs to at least one") |
+| B3 catalog | loading | ✅ explicit | QSkeleton rows |
+| B3 catalog | error | ✅ explicit | List-load error copy + retry; submit errors inline field-level |
+| B3 catalog | populated | ✅ explicit | QTable dense lists: products/collections/shipping with state/draft badges |
+| B3 catalog | partial | ✅ explicit | Drafts show "Draft — never published" badge; soft-delete keeps tombstone + reference report |
+| B3 catalog | overflow | ✅ explicit | Paginated tables |
+| B3 catalog | zero-one-many | ✅ explicit | Collection editor blocks publish at zero active members (§6.2) |
+| B4 merchant settings | unclassified | ✅ explicit | Topology-refusal banner on unsupported DB topology; deactivation is two-step with blocking nonterminal orders listed first; nsec import masked input + "Sent once over TLS and never displayed or logged." |
+| B5 notifications | unclassified | ✅ explicit | Per-recipient rows show suppressed reason (SMTP unconfigured / opted out / disabled) vs failed-after-5-attempts; empty → "No notification addresses…" |
+| B6 appearance | loading | ✅ explicit | Live preview recomputes contrast on every edit before save |
+| B6 appearance | error | ✅ explicit | WCAG save gates block: text/bg, primary/on-primary, focus ≥4.5:1 — failing payload rejected with named failing pair |
+| B6 appearance | long-text | ✅ explicit | Theme/preset names wrap safely in tier cards |
 | stock-squatting | per-IP/pubkey open-order caps | 🧪 backstop | Cap-hit renders `rate-limited` copy; held-reservation exhaustion is a disclosed DoS-inventory risk (spec §15) — visual drill is a held-out check |
 | reduced-motion / focus | all public surfaces | 🧪 backstop | `prefers-reduced-motion` kills transitions; `:focus-visible` always visible via `--color-focus` — verified visually at UAT |
 
@@ -222,7 +241,7 @@ Admin pages mount inside the host shell; density, nav, status colors, and action
 **B1 — Order workspace** (sketch 002-A Linear Split — LOCKED; UI-02, ORD-01)
 
 - `.workspace` grid `390px minmax(0,1fr)`: searchable/filterable list left, persistent detail right. Selection survives filter/status changes.
-- Filters row: search input ("Search order or buyer") + state select (All / Awaiting payment / Confirmed / Needs attention / Cancelled). Count summary in header ("N active orders · M need attention").
+- Filters row: search input ("Search order or buyer") + state select (All / Awaiting payment / Confirmed / Needs attention / Expired / Cancelled). Count summary in header ("N active orders · M need attention").
 - Order row: reference, channel chip (Web/Gamma/NIP-15), buyer handle (web = email as supplied; protocol = truncated npub), item summary, total in sats, state pill. Active row: `inset 3px 0 var(--color-primary)` left rule + 10% tint.
 - Detail pane order (fixed): ① heading (ref, channel, buyer, state pill) → ② exception banner (danger, names the exception + explains) → ③ legal contextual actions ONLY (derived from §7.1/§7.2 — illegal transitions are hidden or disabled with a tooltip reason, never offered) → ④ metrics grid (Total / Payment / Inventory / Protocol) → ⑤ items + fulfillment (address shown decrypted to owner only) → ⑥ chronological `order_events` timeline → ⑦ collapsed "Technical delivery details" (truncated payment_hash correlation, relay ACK evidence — never keys, full BOLT11, or bearer tokens).
 - Legal action map: `confirmed` → Start processing / Cancel with reason (reason required, refund warning — "never implies money was returned"); `processing` → Mark shipped (tracking/carrier/eta optional, tracking encrypted) → Mark delivered; `awaiting_payment`/`invoice_pending` → Cancel; `payment_exception` → Accept paid order (oversell/backorder flow disclosed) / Request refund / Confirm refund sent; `expired|cancelled` with settled payment → accept via exception only; terminal → "No legal action" disabled.
