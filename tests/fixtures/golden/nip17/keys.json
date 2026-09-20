@@ -1,0 +1,7 @@
+{
+  "buyer_pubkey": "bdca73c3a5f04b72f8f23f2263acecb56db1cc561b7dafa482540830f4b38110",
+  "buyer_secret_hex": "fd14237afe0b57387734877d8fd2690966740c212844d613b31a7d831dbb80d0",
+  "merchant_pubkey": "94664bacef3e7091a0e3ddf439083f5f1a576be7eb2e3a319e071a19b88b3f09",
+  "merchant_secret_hex": "d9b92e1f2c98365c4dddf2102092580f772df9e4855925b72a4fc4ee3bb701e4",
+  "note": "synthetic test keys only \u2014 never real key material"
+}

@@ -1,0 +1,20 @@
+{
+  "content": "",
+  "created_at": 1789890281,
+  "id": "b0a5e07794038310b95b5648e12de705e909215811c3675327667ea5ca981b8b",
+  "kind": 31989,
+  "pubkey": "94664bacef3e7091a0e3ddf439083f5f1a576be7eb2e3a319e071a19b88b3f09",
+  "sig": "efa3c0e887eeed4ed9d87c67f5a1f5d048128c881e5a60882c0444de68b3b66df885f48000642fc33167a8269747517c96c5f68f12f89e89e22d36fdbc6a808c",
+  "tags": [
+    [
+      "d",
+      "30402"
+    ],
+    [
+      "a",
+      "31990:94664bacef3e7091a0e3ddf439083f5f1a576be7eb2e3a319e071a19b88b3f09:gqapp-rec-001",
+      "wss://relay.example.com",
+      "web"
+    ]
+  ]
+}

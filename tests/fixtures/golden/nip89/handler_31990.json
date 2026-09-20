@@ -1,0 +1,23 @@
+{
+  "content": "{\"about\": \"LNbits gammamarkets extension checkout handler\", \"name\": \"GammaMarkets checkout\", \"picture\": \"\"}",
+  "created_at": 1789890281,
+  "id": "a59bb304a8b427ebe937adc4d8a78fe6eaf2576894593743d97a1fbc5902507a",
+  "kind": 31990,
+  "pubkey": "94664bacef3e7091a0e3ddf439083f5f1a576be7eb2e3a319e071a19b88b3f09",
+  "sig": "e660ed7adbec90ea4b72289d883d7dc4f423b7d5b66e298be12b904ab34ce8364008b5bde2df98f6935e9290a901599f67f8c1b618c789a727bf76d15d567ec0",
+  "tags": [
+    [
+      "d",
+      "gqapp-rec-001"
+    ],
+    [
+      "k",
+      "30402"
+    ],
+    [
+      "web",
+      "https://shop.example/gammamarkets/p/<bech32>",
+      "naddr"
+    ]
+  ]
+}

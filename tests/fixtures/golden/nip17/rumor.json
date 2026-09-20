@@ -1,0 +1,34 @@
+{
+  "content": "Qualification fixture order message",
+  "created_at": 1750000000,
+  "id": "3896408f96ff37a1672a6dc825af4b30e748a3d34a2308050f6e6fdd7df3b8fe",
+  "kind": 16,
+  "pubkey": "94664bacef3e7091a0e3ddf439083f5f1a576be7eb2e3a319e071a19b88b3f09",
+  "tags": [
+    [
+      "p",
+      "bdca73c3a5f04b72f8f23f2263acecb56db1cc561b7dafa482540830f4b38110"
+    ],
+    [
+      "subject",
+      "order"
+    ],
+    [
+      "type",
+      "1"
+    ],
+    [
+      "order",
+      "gq-order-01"
+    ],
+    [
+      "amount",
+      "12500"
+    ],
+    [
+      "item",
+      "30402:94664bacef3e7091a0e3ddf439083f5f1a576be7eb2e3a319e071a19b88b3f09:gq-prod-0001",
+      "2"
+    ]
+  ]
+}

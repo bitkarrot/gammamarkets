@@ -116,18 +116,18 @@ class LocalRelay:
                 if not isinstance(message, list) or not message:
                     continue
                 kind = message[0]
-                if kind == "EVENT" and len(message) >= 3:
-                    self.received_events.append(
-                        {"subscription_id": message[1], "event": message[2]}
-                    )
+                # NIP-01 client->relay EVENT is ["EVENT", <event>] (2 elements).
+                if kind == "EVENT" and len(message) >= 2:
+                    event = message[1] if isinstance(message[1], dict) else {}
+                    self.received_events.append({"event": event})
                     if self.mode is RelayMode.ACCEPTING:
                         await websocket.send(
-                            json.dumps(["OK", message[2].get("id"), True, ""])
+                            json.dumps(["OK", event.get("id"), True, ""])
                         )
                     elif self.mode is RelayMode.REJECTING:
                         await websocket.send(
                             json.dumps(
-                                ["OK", message[2].get("id"), False, self.reject_message]
+                                ["OK", event.get("id"), False, self.reject_message]
                             )
                         )
                     elif self.mode is RelayMode.AUTH_FLOOD:
