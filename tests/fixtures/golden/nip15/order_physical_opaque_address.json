@@ -1,0 +1,19 @@
+{
+  "address": "123 Opaque St, Unit 4, Springfield 00000",
+  "contact": {
+    "email": "",
+    "nostr": "",
+    "phone": "+15551230000"
+  },
+  "id": "gq-nip15-order-01",
+  "items": [
+    {
+      "product_id": "gq-prod-0001",
+      "quantity": 1
+    }
+  ],
+  "message": "leave at door",
+  "name": "Buyer Name",
+  "shipping_id": "gq-ship-dom",
+  "type": 2
+}

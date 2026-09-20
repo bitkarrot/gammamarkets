@@ -154,11 +154,146 @@ async def gen_nip89(merchant: ns.Keys) -> None:
     _write(out / "naddr.txt", coord.to_bech32())
 
 
+STALL_D = "gq-stall-0001"
+SHIPPING_D = "gq-ship-dom"
+
+
+def gen_nip15() -> None:
+    """Literal NIP-15 DTO fixtures (section 6.6) — content JSON shapes.
+
+    These are the literal DTO payloads the 30017/30018 events carry in their
+    content fields, plus the invalid variants the validator must reject and
+    the compatibility shapes (opaque physical-order address, mismatched
+    currencies, hidden/pre-order quantity mapping, digital zero-cost zone).
+    """
+    out = FIXTURE_ROOT / "nip15"
+
+    stall = {
+        "id": STALL_D,
+        "name": "Qualification Stall",
+        "description": "Stall fixture for the qualification harness",
+        "currency": "USD",
+        "shipping": [
+            {
+                "id": SHIPPING_D,
+                "name": "Domestic",
+                "cost": 5.0,
+                "regions": ["US", "CA"],
+            },
+            {
+                # Deterministic zero-cost zone required when a stall
+                # contains digital products (section 6.6).
+                "id": "digital",
+                "name": "Digital delivery",
+                "cost": 0,
+                "regions": ["Worldwide"],
+            },
+        ],
+    }
+    _write(out / "stall_30017.json", stall)
+
+    product = {
+        "id": PRODUCT_D,
+        "stall_id": STALL_D,
+        "name": "Qualification Product",
+        "description": "Product fixture",
+        "images": [],
+        "currency": "USD",
+        "price": 19.99,
+        "quantity": 3,
+        "specs": [["size", "M"], ["color", "black"]],
+        "shipping": [{"id": SHIPPING_D, "cost": 0}],
+    }
+    _write(out / "product_30018.json", product)
+
+    unlimited = dict(product)
+    unlimited["id"] = "gq-prod-unlim1"
+    unlimited["quantity"] = None
+    _write(out / "product_30018_unlimited.json", unlimited)
+
+    hidden = dict(product)
+    hidden["id"] = "gq-prod-hidden"
+    # hidden / pre-order -> quantity 0 (NIP-15 has no visibility flag).
+    hidden["quantity"] = 0
+    _write(out / "product_30018_hidden.json", hidden)
+
+    # NIP-15 physical order shape: the address is an OPAQUE payload the
+    # merchant interprets — never parsed into fields by the protocol layer.
+    order = {
+        "id": "gq-nip15-order-01",
+        "type": 2,
+        "name": "Buyer Name",
+        "address": "123 Opaque St, Unit 4, Springfield 00000",
+        "message": "leave at door",
+        "contact": {"nostr": "", "phone": "+15551230000", "email": ""},
+        "items": [{"product_id": PRODUCT_D, "quantity": 1}],
+        "shipping_id": SHIPPING_D,
+    }
+    _write(out / "order_physical_opaque_address.json", order)
+
+    # Invalid variants — each violates exactly one literal rule.
+    bad_specs = dict(product)
+    bad_specs["specs"] = {"size": "M"}  # object, not pair array
+    _write(out / "invalid_specs_object.json", bad_specs)
+
+    bad_qty_float = dict(product)
+    bad_qty_float["quantity"] = 1.5
+    _write(out / "invalid_quantity_float.json", bad_qty_float)
+
+    bad_qty_str = dict(product)
+    bad_qty_str["quantity"] = "3"
+    _write(out / "invalid_quantity_string.json", bad_qty_str)
+
+    bad_shipping = dict(product)
+    bad_shipping["shipping"] = [{"cost": 0}]  # missing id
+    _write(out / "invalid_missing_shipping_id.json", bad_shipping)
+
+    bad_currency = dict(product)
+    bad_currency["currency"] = "EUR"  # stall is USD — preview error
+    _write(out / "invalid_mismatched_currency.json", bad_currency)
+
+    _write(
+        out / "README.md",
+        "\n".join(
+            [
+                "# Golden NIP-15 fixtures (D-08)",
+                "",
+                "Literal 30017/30018 DTO payloads per section 6.6 plus the",
+                "invalid variants the validator must reject:",
+                "",
+                "- `stall_30017.json` — valid stall incl. the deterministic",
+                "  zero-cost `digital` zone",
+                "- `product_30018.json` — valid product (specs as pair",
+                "  arrays, integer quantity)",
+                "- `product_30018_unlimited.json` — quantity null (unlimited)",
+                "- `product_30018_hidden.json` — hidden/pre-order mapped to",
+                "  quantity 0",
+                "- `order_physical_opaque_address.json` — type-2 order with",
+                "  an opaque address payload",
+                "- `invalid_specs_object.json` — specs as object, not pairs",
+                "- `invalid_quantity_float.json` /",
+                "  `invalid_quantity_string.json` — non-integer quantity",
+                "- `invalid_missing_shipping_id.json` — zone without id",
+                "- `invalid_mismatched_currency.json` — product currency",
+                "  differs from the stall's (compatibility-preview error)",
+                "",
+                "## Regeneration",
+                "",
+                "    uv run python tests/fixtures/golden/generate_fixtures.py",
+                "",
+                "Fixed identifiers: stall d=`gq-stall-0001`, shipping",
+                "d=`gq-ship-dom`, product d=`gq-prod-0001`.",
+            ]
+        ),
+    )
+
+
 async def main() -> None:
     buyer = sdk.fixed_test_keys("buyer")
     merchant = sdk.fixed_test_keys("merchant")
     await gen_nip17(buyer, merchant)
     await gen_nip89(merchant)
+    gen_nip15()
     print(f"fixtures written under {FIXTURE_ROOT}")
 
 

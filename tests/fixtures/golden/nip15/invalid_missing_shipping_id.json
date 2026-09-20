@@ -1,0 +1,25 @@
+{
+  "currency": "USD",
+  "description": "Product fixture",
+  "id": "gq-prod-0001",
+  "images": [],
+  "name": "Qualification Product",
+  "price": 19.99,
+  "quantity": 3,
+  "shipping": [
+    {
+      "cost": 0
+    }
+  ],
+  "specs": [
+    [
+      "size",
+      "M"
+    ],
+    [
+      "color",
+      "black"
+    ]
+  ],
+  "stall_id": "gq-stall-0001"
+}

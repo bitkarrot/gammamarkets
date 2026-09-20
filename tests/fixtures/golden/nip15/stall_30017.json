@@ -1,0 +1,25 @@
+{
+  "currency": "USD",
+  "description": "Stall fixture for the qualification harness",
+  "id": "gq-stall-0001",
+  "name": "Qualification Stall",
+  "shipping": [
+    {
+      "cost": 5.0,
+      "id": "gq-ship-dom",
+      "name": "Domestic",
+      "regions": [
+        "US",
+        "CA"
+      ]
+    },
+    {
+      "cost": 0,
+      "id": "digital",
+      "name": "Digital delivery",
+      "regions": [
+        "Worldwide"
+      ]
+    }
+  ]
+}

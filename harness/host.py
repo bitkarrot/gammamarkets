@@ -82,7 +82,9 @@ async def host_app(data_folder: Path | str):
                     first_install_token=settings.first_install_token,
                 )
             )
-            yield manager.app
+            # Yield the raw FastAPI app (manager.app is the state-middleware
+            # wrapper) so probes can mount fixture-only routers on it.
+            yield app
     finally:
         os.chdir(previous_cwd)
         for key, value in snapshot.items():
