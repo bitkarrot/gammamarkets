@@ -33,16 +33,16 @@ The project advances through four gated vertical stages. GSD Phase 1 executes th
 4. Protocol fixtures prove NIP-89 routing, NIP-17 wrap validation/routing, literal NIP-15 DTOs, and release-scoped compatibility restrictions.
 5. P0-01 through P0-14 have recorded evidence and no undeclared state, field, route, identifier, or release dependency remains.
 
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans executed
 
 Plans:
 
 - [x] 01-01-PLAN.md
-- [ ] 01-02-PLAN.md
-- [ ] 01-03-PLAN.md
+- [x] 01-02-PLAN.md
+- [x] 01-03-PLAN.md
 - [x] 01-01: Freeze pins, artifact provenance, and host/SDK contract harness
-- [ ] 01-02: Build executable state, transaction, fencing, crash, and notification models
-- [ ] 01-03: Build protocol, relay, auth/privacy, FX, and contract-closure fixtures
+- [x] 01-02: Build executable state, transaction, fencing, crash, and notification models
+- [x] 01-03: Build protocol, relay, auth/privacy, FX, and contract-closure fixtures
 
 ### Phase 2: Release A — Safe Web Commerce
 
@@ -117,7 +117,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Conformance Profile | 1/3 | In Progress|  |
+| 1. Conformance Profile | 3/3 | Complete — pending D-11 owner approval |  |
 | 2. Release A — Safe Web Commerce | 0/3 | Not started | - |
 | 3. Release B — Gamma NIP-17 Orders | 0/3 | Not started | - |
 | 4. Release C — Legacy Interop and Cutover | 0/3 | Not started | - |
