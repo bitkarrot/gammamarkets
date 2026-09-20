@@ -16,9 +16,9 @@
 
 ### Phase 0 Qualification
 
-- [ ] **QUAL-01**: Operator can reproduce the approved host/SDK dependency set on every supported platform from recorded lockfile paths, wheel hashes, release-source revisions, and native dependency provenance without a silent host downgrade.
-- [ ] **QUAL-02**: Operator can demonstrate that the tested SDK binary rejects repeated invalid/known-ID events and oversized NIP-44 inputs before trusted processing or unbounded allocation while relay AUTH challenge work remains bounded when signing is paused.
-- [ ] **QUAL-03**: Implementer can create/query an LNbits invoice with exact `gammamarkets` extension/external-id/wallet metadata and register/cancel only extension-owned listener/task handles.
+- [x] **QUAL-01**: Operator can reproduce the approved host/SDK dependency set on every supported platform from recorded lockfile paths, wheel hashes, release-source revisions, and native dependency provenance without a silent host downgrade.
+- [x] **QUAL-02**: Operator can demonstrate that the tested SDK binary rejects repeated invalid/known-ID events and oversized NIP-44 inputs before trusted processing or unbounded allocation while relay AUTH challenge work remains bounded when signing is paused.
+- [x] **QUAL-03**: Implementer can create/query an LNbits invoice with exact `gammamarkets` extension/external-id/wallet metadata and register/cancel only extension-owned listener/task handles.
 - [ ] **QUAL-04**: Implementer can distinguish positive relay OK, negative relay OK, and timeout from deterministic local relays without publishing to an unlisted target.
 - [ ] **QUAL-05**: Implementer can build recipient and sender copies of a fixed kind-16 rumor, preserve rumor identity across retry, and reject every tampered outer/seal/rumor chain without plaintext logging.
 - [ ] **QUAL-06**: Implementer can prove last-unit reservation atomicity, rollback, FK enforcement, and stale fencing rejection on single-process SQLite and the claimed PostgreSQL topology without an auto-committing helper splitting the transaction.
@@ -104,9 +104,9 @@ A requirement is complete only when implementation (or Phase 0 probe/model), aut
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| QUAL-01 | Phase 1 | Pending |
-| QUAL-02 | Phase 1 | Pending |
-| QUAL-03 | Phase 1 | Pending |
+| QUAL-01 | Phase 1 | Complete |
+| QUAL-02 | Phase 1 | Complete |
+| QUAL-03 | Phase 1 | Complete |
 | QUAL-04 | Phase 1 | Pending |
 | QUAL-05 | Phase 1 | Pending |
 | QUAL-06 | Phase 1 | Pending |
@@ -146,6 +146,7 @@ A requirement is complete only when implementation (or Phase 0 probe/model), aut
 | LEG-05 | Phase 4 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 40 total
 - Mapped to phases: 40
 - Unmapped: 0
