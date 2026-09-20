@@ -62,6 +62,46 @@ def raw_sqlite_connection(conn: Connection):
     )
 
 
+class QualWorker:
+    """An additional ``Database`` handle over the SAME underlying database.
+
+    The host's ``Database.connect()`` serializes connections through one
+    asyncio lock per ``Database`` object, so concurrency proofs (P0-06 last
+    unit, section 8.2 parallel buyers) need one handle per parallel worker:
+    each worker gets its own engine + lock while sharing the SQLite file or
+    PostgreSQL schema. SQLite then serializes writers through BEGIN
+    IMMEDIATE file locks; PostgreSQL through row locking (section 14).
+    """
+
+    def __init__(self, parent: "QualDatabase") -> None:
+        self.dialect = parent.dialect
+        self.schema = parent.schema
+        self.name = parent.name
+        self.database = Database(parent.name)
+
+    def table(self, name: str) -> str:
+        return f"{self.schema}.{name}" if self.schema else name
+
+    @asynccontextmanager
+    async def connect(self):
+        async with self.database.connect() as conn:
+            if self.dialect == _SQLITE:
+                raw = raw_sqlite_connection(conn)
+                await raw.execute("PRAGMA foreign_keys=ON")
+            yield conn
+
+    def transaction(self, conn: Connection):
+        from harness import tx
+
+        return tx.DomainTransaction(conn, self.dialect)
+
+    async def fetch_all(self, sql: str, params: dict | None = None) -> list[dict]:
+        from harness import tx
+
+        async with self.connect() as conn:
+            return await tx.fetch_all(conn, self.dialect, sql, params)
+
+
 class QualDatabase:
     """A fresh schema database per test (SQLite: tmp file; PostgreSQL: schema)."""
 
@@ -77,10 +117,17 @@ class QualDatabase:
             self.name = f"ext_gamma_qual_{token}"
             self.schema = f"gamma_qual_{token}"
         self.database = Database(self.name)
+        self._workers: list[QualWorker] = []
 
     def table(self, name: str) -> str:
         """Schema-qualified table reference (PG) or bare name (SQLite)."""
         return f"{self.schema}.{name}" if self.schema else name
+
+    def worker(self) -> QualWorker:
+        """A parallel-worker handle over this same database (own engine+lock)."""
+        worker = QualWorker(self)
+        self._workers.append(worker)
+        return worker
 
     @asynccontextmanager
     async def connect(self):
@@ -110,6 +157,9 @@ class QualDatabase:
 
     async def teardown(self) -> None:
         """Dispose the engine and remove the per-test database."""
+        for worker in self._workers:
+            await worker.database.engine.dispose()
+        self._workers.clear()
         await self.database.engine.dispose()
         if self.dialect == _SQLITE:
             from lnbits.settings import settings

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-09-20T06:59:37.828838+00:00",
+  "generated_at": "2026-09-20T07:09:38.991635+00:00",
   "verify_command": "make verify",
   "rerun_policy": "Single run only (D-10 clean-pass policy): the tooling performs one run per verify command and has no retry loop; a rerun does not flip a recorded outcome.",
   "profile": {
@@ -3113,7 +3113,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_evidence_pins_block_matches_recorded_values",
       "outcome": "passed",
-      "duration_s": 0.136918,
+      "duration_s": 0.131815,
       "markers": [
         "fast"
       ],
@@ -3123,7 +3123,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_harness_lock_wheel_parity_with_host_lock",
       "outcome": "passed",
-      "duration_s": 0.049979,
+      "duration_s": 0.047815,
       "markers": [
         "fast"
       ],
@@ -3133,7 +3133,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_host_checkout_head_is_pinned_commit",
       "outcome": "passed",
-      "duration_s": 0.017738,
+      "duration_s": 0.021787,
       "markers": [
         "fast"
       ],
@@ -3143,7 +3143,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_host_lock_and_pypi_are_wheels_only",
       "outcome": "passed",
-      "duration_s": 0.033442,
+      "duration_s": 0.033582,
       "markers": [
         "fast"
       ],
@@ -3153,7 +3153,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_installed_nostr_sdk_is_exactly_pinned",
       "outcome": "passed",
-      "duration_s": 0.000638,
+      "duration_s": 0.000693,
       "markers": [
         "fast"
       ],
@@ -3163,7 +3163,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_installed_wheel_matches_machine_platform",
       "outcome": "passed",
-      "duration_s": 0.00048,
+      "duration_s": 0.000499,
       "markers": [
         "fast"
       ],
@@ -3173,7 +3173,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_native_library_hash_recorded_into_evidence_pins",
       "outcome": "passed",
-      "duration_s": 0.022213,
+      "duration_s": 0.027933,
       "markers": [
         "fast"
       ],
@@ -3183,7 +3183,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[0.44.8-nostr-sdk candidate pin]",
       "outcome": "passed",
-      "duration_s": 0.000226,
+      "duration_s": 0.000205,
       "markers": [
         "fast",
         "parametrize"
@@ -3194,7 +3194,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[5dc79c5-GammaMarkets market-spec pin]",
       "outcome": "passed",
-      "duration_s": 0.001218,
+      "duration_s": 0.001343,
       "markers": [
         "fast",
         "parametrize"
@@ -3205,7 +3205,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux ARM64-blocking platform (ARM64)]",
       "outcome": "passed",
-      "duration_s": 0.000207,
+      "duration_s": 0.000197,
       "markers": [
         "fast",
         "parametrize"
@@ -3216,7 +3216,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux x86_64-blocking platform (x86_64)]",
       "outcome": "passed",
-      "duration_s": 0.000212,
+      "duration_s": 0.000201,
       "markers": [
         "fast",
         "parametrize"
@@ -3227,7 +3227,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[PENDING-approval section (D-11)]",
       "outcome": "passed",
-      "duration_s": 0.000209,
+      "duration_s": 0.000199,
       "markers": [
         "fast",
         "parametrize"
@@ -3238,7 +3238,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[PostgreSQL-blocking database]",
       "outcome": "passed",
-      "duration_s": 0.000205,
+      "duration_s": 0.000206,
       "markers": [
         "fast",
         "parametrize"
@@ -3249,7 +3249,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Python 3.12 only-Python 3.12-only claim (D-02)]",
       "outcome": "passed",
-      "duration_s": 0.000208,
+      "duration_s": 0.000203,
       "markers": [
         "fast",
         "parametrize"
@@ -3260,7 +3260,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[SQLite-blocking database]",
       "outcome": "passed",
-      "duration_s": 0.000205,
+      "duration_s": 0.0002,
       "markers": [
         "fast",
         "parametrize"
@@ -3271,7 +3271,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[a2494f4f81d46684e5814a9bf35e2b1df978f955-Nostr NIPs pin]",
       "outcome": "passed",
-      "duration_s": 0.000231,
+      "duration_s": 0.000259,
       "markers": [
         "fast",
         "parametrize"
@@ -3282,7 +3282,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[a600c2a7186559b371030fe5fc5585c37b3a0931-release-source revision]",
       "outcome": "passed",
-      "duration_s": 0.000204,
+      "duration_s": 0.000211,
       "markers": [
         "fast",
         "parametrize"
@@ -3293,7 +3293,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[chacha20poly1305-native Cargo dependency pin]",
       "outcome": "passed",
-      "duration_s": 0.000198,
+      "duration_s": 0.000199,
       "markers": [
         "fast",
         "parametrize"
@@ -3304,7 +3304,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[e336fe14b841d6f0c940e75b3d343e3ab5cf8433-LNbits commit pin]",
       "outcome": "passed",
-      "duration_s": 0.000222,
+      "duration_s": 0.00021,
       "markers": [
         "fast",
         "parametrize"
@@ -3315,7 +3315,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[hashed artifacts-D-15 contingency criterion]",
       "outcome": "passed",
-      "duration_s": 0.000205,
+      "duration_s": 0.000202,
       "markers": [
         "fast",
         "parametrize"
@@ -3326,7 +3326,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[macOS ARM64-advisory smoke profile]",
       "outcome": "passed",
-      "duration_s": 0.000205,
+      "duration_s": 0.000194,
       "markers": [
         "fast",
         "parametrize"
@@ -3337,7 +3337,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[owner approval-D-15 contingency criterion]",
       "outcome": "passed",
-      "duration_s": 0.000211,
+      "duration_s": 0.000212,
       "markers": [
         "fast",
         "parametrize"
@@ -3348,7 +3348,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[pinned native revision-D-15 contingency criterion]",
       "outcome": "passed",
-      "duration_s": 0.000203,
+      "duration_s": 0.000198,
       "markers": [
         "fast",
         "parametrize"
@@ -3359,7 +3359,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[reproducible build-D-15 contingency criterion]",
       "outcome": "passed",
-      "duration_s": 0.000201,
+      "duration_s": 0.000208,
       "markers": [
         "fast",
         "parametrize"
@@ -3370,7 +3370,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[rust-nostr/nostr-sdk-ffi-release-source repository]",
       "outcome": "passed",
-      "duration_s": 0.000197,
+      "duration_s": 0.000208,
       "markers": [
         "fast",
         "parametrize"
@@ -3381,7 +3381,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[secp256k1-native Cargo dependency pin]",
       "outcome": "passed",
-      "duration_s": 0.000212,
+      "duration_s": 0.000213,
       "markers": [
         "fast",
         "parametrize"
@@ -3392,7 +3392,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[uv.lock-lockfile identity]",
       "outcome": "passed",
-      "duration_s": 0.000204,
+      "duration_s": 0.000208,
       "markers": [
         "fast",
         "parametrize"
@@ -3403,7 +3403,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[v1.6.2-rc1-LNbits tag]",
       "outcome": "passed",
-      "duration_s": 0.00023,
+      "duration_s": 0.000237,
       "markers": [
         "fast",
         "parametrize"
@@ -3414,7 +3414,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[v2 payload only-NIP-44 v2-only pin]",
       "outcome": "passed",
-      "duration_s": 0.000238,
+      "duration_s": 0.000228,
       "markers": [
         "fast",
         "parametrize"
@@ -3425,7 +3425,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[wheels only-no-sdist provenance fact]",
       "outcome": "passed",
-      "duration_s": 0.000205,
+      "duration_s": 0.000225,
       "markers": [
         "fast",
         "parametrize"
@@ -3436,7 +3436,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_release_source_and_native_cargo_provenance",
       "outcome": "passed",
-      "duration_s": 0.091427,
+      "duration_s": 0.092245,
       "markers": [
         "fast"
       ],
@@ -3446,7 +3446,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_requires_python_is_3_12_only",
       "outcome": "passed",
-      "duration_s": 0.000335,
+      "duration_s": 0.000321,
       "markers": [
         "fast"
       ],
@@ -3456,7 +3456,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_running_interpreter_is_3_12",
       "outcome": "passed",
-      "duration_s": 0.000135,
+      "duration_s": 0.000137,
       "markers": [
         "fast"
       ],
@@ -3466,7 +3466,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_auth_flood_bounded_with_signing_paused",
       "outcome": "passed",
-      "duration_s": 1.165761,
+      "duration_s": 1.163793,
       "markers": [
         "asyncio",
         "sdk"
@@ -3482,7 +3482,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_build_sign_and_verify_event",
       "outcome": "passed",
-      "duration_s": 0.000791,
+      "duration_s": 0.001523,
       "markers": [
         "asyncio",
         "sdk"
@@ -3493,7 +3493,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_d16_subcheck_attribution_recorded",
       "outcome": "passed",
-      "duration_s": 0.000909,
+      "duration_s": 0.000898,
       "markers": [
         "asyncio",
         "sdk"
@@ -3504,7 +3504,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_ffi_import_and_keypair_generation",
       "outcome": "passed",
-      "duration_s": 0.001081,
+      "duration_s": 0.001625,
       "markers": [
         "asyncio",
         "sdk"
@@ -3515,7 +3515,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_invalid_events_rejected_before_trusted_processing",
       "outcome": "passed",
-      "duration_s": 0.000772,
+      "duration_s": 0.000939,
       "markers": [
         "asyncio",
         "sdk"
@@ -3531,7 +3531,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_known_id_repetition_admitted_exactly_once",
       "outcome": "passed",
-      "duration_s": 0.000525,
+      "duration_s": 0.000636,
       "markers": [
         "asyncio",
         "sdk"
@@ -3547,7 +3547,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_nip44_encrypt_decrypt_roundtrip",
       "outcome": "passed",
-      "duration_s": 0.00062,
+      "duration_s": 0.00074,
       "markers": [
         "asyncio",
         "sdk"
@@ -3558,7 +3558,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_oversized_nip44_input_rejected_with_bounded_cost",
       "outcome": "passed",
-      "duration_s": 2.626862,
+      "duration_s": 2.635516,
       "markers": [
         "asyncio",
         "sdk"
@@ -3574,7 +3574,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_tampered_event_fails_verification",
       "outcome": "passed",
-      "duration_s": 0.000779,
+      "duration_s": 0.000924,
       "markers": [
         "asyncio",
         "sdk"
@@ -3585,7 +3585,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_tested_binary_identity_recorded_into_evidence_pins",
       "outcome": "passed",
-      "duration_s": 0.05227,
+      "duration_s": 0.037215,
       "markers": [
         "asyncio",
         "sdk"
@@ -3601,7 +3601,7 @@
     {
       "nodeid": "tests/qualification/test_p0_03_host_contract.py::test_invoice_listener_lifecycle_and_owned_handle_cancellation",
       "outcome": "passed",
-      "duration_s": 2.260482,
+      "duration_s": 2.276518,
       "markers": [
         "asyncio",
         "host"
@@ -3612,7 +3612,7 @@
     {
       "nodeid": "tests/qualification/test_p0_03_host_contract.py::test_invoice_metadata_persisted_and_exactly_queryable",
       "outcome": "passed",
-      "duration_s": 1.066196,
+      "duration_s": 1.099458,
       "markers": [
         "asyncio",
         "host"
@@ -3623,7 +3623,7 @@
     {
       "nodeid": "tests/qualification/test_p0_03_host_contract.py::test_no_durable_callback_delivery_across_restart",
       "outcome": "passed",
-      "duration_s": 5.155645,
+      "duration_s": 5.137555,
       "markers": [
         "asyncio",
         "host"
@@ -3632,9 +3632,9 @@
       "subchecks": []
     },
     {
-      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_lost_cas_rolls_back_the_entire_transaction",
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_adapter_only_transaction_rolls_back_cleanly",
       "outcome": "passed",
-      "duration_s": 0.009769,
+      "duration_s": 0.020473,
       "markers": [
         "asyncio",
         "db"
@@ -3643,9 +3643,189 @@
       "subchecks": []
     },
     {
-      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_reservation_insert_violates_fk",
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_adapter_performs_in_transaction_writes_without_host_helpers",
       "outcome": "passed",
-      "duration_s": 0.006649,
+      "duration_s": 0.012793,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_concurrent_duplicate_scoped_order_inserts_yield_one_row",
+      "outcome": "passed",
+      "duration_s": 0.011685,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_dialect_selection_matches_environment",
+      "outcome": "passed",
+      "duration_s": 0.000543,
+      "markers": [
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_duplicate_scoped_order_insert_conflicts",
+      "outcome": "passed",
+      "duration_s": 0.01121,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_guard_failure_mid_claim_rolls_back_everything",
+      "outcome": "passed",
+      "duration_s": 0.034153,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_host_auto_commit_helper_splits_domain_transaction",
+      "outcome": "passed",
+      "duration_s": 0.014613,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_idempotency_record_scope_conflict",
+      "outcome": "passed",
+      "duration_s": 0.01178,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_last_unit_concurrency_yields_exactly_one_reservation",
+      "outcome": "passed",
+      "duration_s": 0.048555,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_lost_cas_rolls_back_the_entire_transaction",
+      "outcome": "passed",
+      "duration_s": 0.02032,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_order_state_machine_table_exhaustive",
+      "outcome": "passed",
+      "duration_s": 0.199082,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[inventory_reservations-params0]",
+      "outcome": "passed",
+      "duration_s": 0.013452,
+      "markers": [
+        "asyncio",
+        "db",
+        "parametrize"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[inventory_reservations-params1]",
+      "outcome": "passed",
+      "duration_s": 0.012827,
+      "markers": [
+        "asyncio",
+        "db",
+        "parametrize"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[order_items-params2]",
+      "outcome": "passed",
+      "duration_s": 0.012741,
+      "markers": [
+        "asyncio",
+        "db",
+        "parametrize"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[order_items-params3]",
+      "outcome": "passed",
+      "duration_s": 0.014061,
+      "markers": [
+        "asyncio",
+        "db",
+        "parametrize"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[relay_publications-params4]",
+      "outcome": "passed",
+      "duration_s": 0.01282,
+      "markers": [
+        "asyncio",
+        "db",
+        "parametrize"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_sorted_id_locking_avoids_deadlock",
+      "outcome": "passed",
+      "duration_s": 0.3913,
+      "markers": [
+        "asyncio",
+        "db"
+      ],
+      "p0": "P0-06",
+      "subchecks": []
+    },
+    {
+      "nodeid": "tests/qualification/test_p0_06_transactions.py::test_task_lease_fencing_rejects_stale_writes",
+      "outcome": "passed",
+      "duration_s": 0.01682,
       "markers": [
         "asyncio",
         "db"
@@ -3656,7 +3836,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_winning_cas_leaves_one_held_reservation",
       "outcome": "passed",
-      "duration_s": 0.01736,
+      "duration_s": 0.033068,
       "markers": [
         "asyncio",
         "db"
@@ -3666,8 +3846,8 @@
     }
   ],
   "summary": {
-    "total": 49,
-    "passed": 49,
+    "total": 65,
+    "passed": 65,
     "failed": 0,
     "errors": 0,
     "skipped": 0,
@@ -3745,8 +3925,24 @@
       "P0-06": {
         "status": "pass",
         "tests": [
+          "tests/qualification/test_p0_06_transactions.py::test_adapter_only_transaction_rolls_back_cleanly",
+          "tests/qualification/test_p0_06_transactions.py::test_adapter_performs_in_transaction_writes_without_host_helpers",
+          "tests/qualification/test_p0_06_transactions.py::test_concurrent_duplicate_scoped_order_inserts_yield_one_row",
+          "tests/qualification/test_p0_06_transactions.py::test_dialect_selection_matches_environment",
+          "tests/qualification/test_p0_06_transactions.py::test_duplicate_scoped_order_insert_conflicts",
+          "tests/qualification/test_p0_06_transactions.py::test_guard_failure_mid_claim_rolls_back_everything",
+          "tests/qualification/test_p0_06_transactions.py::test_host_auto_commit_helper_splits_domain_transaction",
+          "tests/qualification/test_p0_06_transactions.py::test_idempotency_record_scope_conflict",
+          "tests/qualification/test_p0_06_transactions.py::test_last_unit_concurrency_yields_exactly_one_reservation",
           "tests/qualification/test_p0_06_transactions.py::test_lost_cas_rolls_back_the_entire_transaction",
-          "tests/qualification/test_p0_06_transactions.py::test_orphan_reservation_insert_violates_fk",
+          "tests/qualification/test_p0_06_transactions.py::test_order_state_machine_table_exhaustive",
+          "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[inventory_reservations-params0]",
+          "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[inventory_reservations-params1]",
+          "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[order_items-params2]",
+          "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[order_items-params3]",
+          "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[relay_publications-params4]",
+          "tests/qualification/test_p0_06_transactions.py::test_sorted_id_locking_avoids_deadlock",
+          "tests/qualification/test_p0_06_transactions.py::test_task_lease_fencing_rejects_stale_writes",
           "tests/qualification/test_p0_06_transactions.py::test_winning_cas_leaves_one_held_reservation"
         ]
       },
