@@ -25,4 +25,4 @@ A warm, independent-shop storefront with Shopify-clear checkout and a compact Li
 |---|------|----------------|--------|------|
 | 001 | buyer-checkout | How should product selection, shipping, Lightning invoice, and payment status balance speed with confidence? | D — Adaptive Blend | buyer, checkout, lightning, responsive |
 | 002 | order-operations | How should merchants triage, inspect, and act on paid, pending, cancelled, and exception orders? | A — Linear Split | admin, orders, list-detail, timeline |
-| 003 | theme-controls | How much storefront customization can be offered without destabilizing checkout or admin usability? | — | themes, tokens, settings, preview |
+| 003 | theme-controls | How much storefront customization can be offered without destabilizing checkout or admin usability? | D — Tiered Controls | themes, tokens, settings, preview |
