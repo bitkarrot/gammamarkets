@@ -193,6 +193,36 @@ The durable committed evidence bundle is refreshed from the canonical
 blocking CI profile (Linux x86_64 + PostgreSQL) at phase end; a local
 single-profile `make verify` regenerating `evidence/` is development-only.
 
+### Known vulnerabilities in the pinned tree (Dependabot disposition)
+
+GitHub flags 11 advisories on `uv.lock`, all on two packages that enter
+**transitively through `lnbits` itself** (`starlette~=0.48.0`,
+`pyjwt~=2.12.0`). The harness resolves identical versions to the pinned
+host lock (starlette 0.48.0, pyjwt 2.12.1) — that parity is P0-01's
+subject. Upstream (`v1.6.2`, `main`) carries the same constraints, so no
+patch release exists to repin to; forcing a bump here would qualify a
+dependency set that never ships. All 11 alerts are dismissed as
+`tolerable_risk` with this reasoning:
+
+- **pyjwt 2.12.1** (5 alerts: GHSA-xgmm/993g/jq35/w7vc/fhv5) — every
+  advisory is a `PyJWKClient`/`PyJWK`/JWT-decode path. gammamarkets
+  performs no JWT decoding; auth is Nostr-signed events via nostr-sdk
+  plus host session. Exposure is the host's own token code, which is the
+  host's posture, not this extension's.
+- **starlette 0.48.0** (6 alerts) — FileResponse Range-header DoS
+  (GHSA-7f5h), StaticFiles UNC/NTLM on Windows (GHSA-wqp7; N/A — pins
+  claim Linux/macOS only), `request.form()` limit bypass, Host-header /
+  `request.url` poisoning (GHSA-86qp, jp82), and `HTTPEndpoint` getattr
+  method dispatch (GHSA-x746). The qualification harness serves no HTTP.
+  Phase 2+ mitigations (extension routes run inside the host's
+  starlette): JSON-only request bodies (no `request.form()`), no
+  `FileResponse`/`StaticFiles` in extension code, `APIRouter` only (no
+  `HTTPEndpoint` subclassing — also the LNbits convention), and never
+  derive security decisions or absolute URLs from `request.url`/Host.
+
+If a future host pin resolves patched versions, these alerts re-dispatch
+against the new lock naturally.
+
 ## 6. Evidence Pointers (D-09)
 
 - `evidence/manifest.json` — machine-readable normalized results (schema
