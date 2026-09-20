@@ -123,6 +123,19 @@ class QualDatabase:
         """Schema-qualified table reference (PG) or bare name (SQLite)."""
         return f"{self.schema}.{name}" if self.schema else name
 
+    @property
+    def file_path(self) -> str | None:
+        """The SQLite database file path (None on PostgreSQL).
+
+        P0-09 uses it for the byte-level plaintext-absence search over the
+        raw database file.
+        """
+        if self.dialect != _SQLITE:
+            return None
+        from lnbits.settings import settings
+
+        return str(Path(settings.lnbits_data_folder) / f"{self.name}.sqlite3")
+
     def worker(self) -> QualWorker:
         """A parallel-worker handle over this same database (own engine+lock)."""
         worker = QualWorker(self)

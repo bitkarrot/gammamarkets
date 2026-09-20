@@ -15,3 +15,6 @@ __pycache__/
 
 # gsd-tools generated state cache (durable form is .planning/STATE.md)
 .planning/state.json
+
+# Stray host runtime artifacts (auth key written at import-time relative to cwd)
+data/

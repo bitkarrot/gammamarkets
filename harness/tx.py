@@ -322,6 +322,7 @@ async def claim_due_rows(
     lease_seconds: int,
     extra_where: str = "",
     extra_params: dict | None = None,
+    touch_updated_at: bool = True,
 ) -> list[dict]:
     """Atomically claim up to ``limit`` due queue rows (section 8.6 step 1).
 
@@ -334,6 +335,8 @@ async def claim_due_rows(
     SQLite uses a bounded select-then-update inside ``BEGIN IMMEDIATE``.
     ``extra_where``/``extra_params`` extend the candidate predicate (the
     outbox uses them for published-dependency filtering).
+    ``touch_updated_at``: the outbox_events table has an ``updated_at``
+    column; email_queue (section 4.18) does not — pass False there.
     """
     state_clause, state_params = _in_clause("state", list(states))
     until = now + lease_seconds
@@ -374,11 +377,12 @@ async def claim_due_rows(
             if not ids:
                 return []
             id_clause, id_params = _in_clause("id", ids)
+            updated_at_set = ", updated_at = :now" if touch_updated_at else ""
             await t.execute(
                 f"UPDATE {table} SET state = 'claimed',"
                 " claimed_by = :worker, claimed_at = :now,"
-                " claimed_until = :until, claim_token = claim_token + 1,"
-                " updated_at = :now"
+                " claimed_until = :until, claim_token = claim_token + 1"
+                f"{updated_at_set}"
                 f" WHERE {id_clause}",
                 {
                     "worker": claimed_params["worker"],
