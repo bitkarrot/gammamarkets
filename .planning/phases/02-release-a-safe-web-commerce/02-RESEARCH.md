@@ -463,40 +463,19 @@ out: SendEventOutput = await client.send_event_to(
 <open_questions>
 ## Open Questions
 
-1. **`{code}_static_files` vs PINS "no StaticFiles in extension code"**
-   - What we know: the host mounts `StaticFiles` itself when the extension *declares* `gammamarkets_static_files` [VERIFIED: `app.py:545-551`]; PINS bans `FileResponse`/`StaticFiles` *in extension code*.
-   - What's unclear: whether the disposition intends to forbid even the declarative list (starlette CVE surface: Range DoS applies to FileResponse; UNC/NTLM is Windows-only and out of claim).
-   - Recommendation: prefer the declaration (it is THE convention and host-owned code does the mount); flag in plan 02-02 for explicit disposition sign-off. Fallback: serve JS/CSS as Jinja-rendered inline/template responses.
+1. **`{code}_static_files` vs PINS "no StaticFiles in extension code"** — RESOLVED (plan 02-01): the PINS ban covers extension code instantiating `FileResponse`/`StaticFiles`; the declarative `gammamarkets_static_files` list is host-mounted and IS the convention — declared, disposition recorded in the 02-01 summary.
 
-2. **`template_renderer` template-name ↔ on-disk layout**
-   - What we know: `additional_folders` appends `{extensions_path}/extensions/{name}` as a Jinja search root [VERIFIED: `helpers.py:66-71`]; example ext uses `templates/example/index.html` + `{{ window_vars(user) }}`.
-   - What's unclear: exact `get_template(...)`/`TemplateResponse` name used by real extensions (e.g., `"example/index.html"` vs `"templates/example/index.html"`).
-   - Recommendation: 02-01 spike task renders one template through the real loader before committing the layout; mirror the `example` ext's `views.py` exactly.
+2. **`template_renderer` template-name ↔ on-disk layout** — RESOLVED (plan 02-01 Task 1 spike): render `index.html` through the real loader before committing the layout; verified rule recorded in the 02-01 summary.
 
-3. **Host audit middleware vs checkout PII**
-   - What we know: `lnbits_audit_log_request_body` can record full JSON bodies [VERIFIED: `middleware.py:188-192`].
-   - What's unclear: whether spec treats host audit capture of checkout bodies (address/email) as a violation or an operator-managed host concern.
-   - Recommendation: document in SEC-01 tests that tokens/PII stay out of path/query regardless; consider noting the host setting in operator docs rather than fighting it.
+3. **Host audit middleware vs checkout PII** — RESOLVED (plan 02-01 Task 2 step 4b): deployment-level disposition — qualified deployments MUST keep `lnbits_audit_log_request_body`/`_query_params`/`_path_params` disabled; the extension surfaces a blocking admin warning + startup log when capture is enabled, and a runtime test asserts both postures. This satisfies spec §5's audit-capture MUST.
 
-4. **Extension `permissions`/`ExtensionBackgroundPaymentGrant` runtime effect for Python extensions**
-   - What we know: `config.json` `permissions` are parsed into `InstallableExtension.permissions` (`models/extensions.py:891`); grant models exist (`:160-204`).
-   - What's unclear: whether any enforcement applies to Python (non-wasm) extensions in this pin.
-   - Recommendation: include a `permissions` block in `config.json` for transparency; verify enforcement behavior during 02-01 (likely display-only for Python exts).
+4. **Extension `permissions`/`ExtensionBackgroundPaymentGrant` runtime effect for Python extensions** — RESOLVED (plan 02-01 Task 1): `permissions` block included in `config.json` for transparency; runtime enforcement verified during the install spike and recorded in the 02-01 summary.
 
-5. **Dev/test install mechanics**
-   - What we know: two viable paths — symlink/copy package + `config.json` into a temp `LNBITS_EXTENSIONS_PATH` (module resolves as bare `gammamarkets`, path appended to `sys.path` [VERIFIED: `app.py:443-445`]) or into `{checkout}/lnbits/extensions/` (module `lnbits.extensions.gammamarkets`).
-   - What's unclear: which is cleaner for the harness + editable dev loop (the package is already importable in the project venv via `uv`).
-   - Recommendation: temp `LNBITS_EXTENSIONS_PATH` + `config.json` + on-disk package copy in the host fixture — exercises the real discovery path end to end.
+5. **Dev/test install mechanics** — RESOLVED (plan 02-01 Task 1): temp `LNBITS_EXTENSIONS_PATH` + `config.json` + on-disk package copy in the host fixture — exercises the real discovery path end to end.
 
-6. **`send_event_to` semantics under partial connectivity**
-   - What we know: `SendEventOutput` splits `success`/`failed` per relay.
-   - What's unclear: behavior for unreachable relays (timeout bound? exception vs failed-map entry) and whether `Client` must be `connect`ed before `send_event_to`.
-   - Recommendation: pin behavior in an early 02-02 relay probe against `LocalRelay` + a dead URL; keep publish evidence verbatim.
+6. **`send_event_to` semantics under partial connectivity** — RESOLVED (plan 02-02 Task 1): early `LocalRelay` + dead-URL probe pins behavior before the publisher depends on it; publish evidence stays verbatim.
 
-7. **First-plan vs later-plan split of `migrations.py`**
-   - What we know: host runs `mNNN_*` at every startup/install for the installed ext; versions tracked in `dbversions`.
-   - What's unclear: whether Phase 2 ships one big `m001` (spec §4 schema is fully specified) or increments per plan.
-   - Recommendation: plan-level increments (`m001` merchant/catalog, `m002` outbox/publication, `m003` orders/payments/email) matching 02-01/02-02/02-03 boundaries.
+7. **First-plan vs later-plan split of `migrations.py`** — RESOLVED (plan-level increments, adjusted): `m001` (02-01) = merchant/catalog/outbox-intent + task/rate tables; `m002` (02-03) = orders/payments/inventory/idempotency/email cluster + schema-only `inbox_events`/`order_messages`; no migration in 02-02/02-04; `peer_relays`/`relay_cursors`/`migration_jobs` defer to Phase 3/4.
 
 </open_questions>
 

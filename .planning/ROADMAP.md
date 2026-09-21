@@ -58,14 +58,17 @@ Plans:
 4. Merchant can triage and manage legal order/fulfillment/exception actions in a responsive split list/detail workspace with embedded chronology and per-recipient notifications.
 5. Release-A security, accessibility/contrast, public/admin theme separation, retention, logging, unsupported-topology, failure-drill, and applicable Phase 0 assertions pass through the real implementation.
 
-**Plans:** 3 plans
-**UI prerequisite:** Before Phase 2 plan execution, generate and approve the Phase 2 UI contract using `.devin/skills/sketch-findings-gammamarkets/` and the normative technical specification.
+**Plans:** 4 plans
+**UI prerequisite:** Before Phase 2 plan execution, generate and approve the Phase 2 UI contract using `.devin/skills/sketch-findings-gammamarkets/` and the normative technical specification. *(Satisfied: `02-UI-SPEC.md` approved.)*
 
 Plans:
 
 - [ ] 02-01: Extension skeleton, key custody, database/migrations, merchant and catalog domain
-- [ ] 02-02: Public projection, relay outbox, NIP-89 catalog UI, tiered storefront themes, and publication health
-- [ ] 02-03: Adaptive checkout, reservation, invoice saga, settlement, reconciliation, split order administration, and email
+- [ ] 02-02: Relay transport + durable outbox publication, NIP-89 handler, public storefront, theme backend
+- [ ] 02-03: Checkout, reservation + invoice saga, settlement/reconciliation, order admin API, email
+- [ ] 02-04: Buyer checkout/status UI and merchant admin surfaces (orders, catalog, publications, settings, appearance)
+
+*Plan count revised 3→4 during plan-checker revision: order-backend and UI layers split to keep each executor under the context budget.*
 
 ### Phase 3: Release B — Gamma NIP-17 Orders
 
@@ -118,6 +121,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Conformance Profile | 3/3 | Complete    | 2026-09-20 |
-| 2. Release A — Safe Web Commerce | 0/3 | Not started | - |
+| 2. Release A — Safe Web Commerce | 0/4 | Not started | - |
 | 3. Release B — Gamma NIP-17 Orders | 0/3 | Not started | - |
 | 4. Release C — Legacy Interop and Cutover | 0/3 | Not started | - |
