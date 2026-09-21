@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 current_phase: 2
 current_phase_name: Release A — Safe Web Commerce
 status: planning
-stopped_at: Phase 2 context gathered
-last_updated: "2026-09-20T21:06:51.737Z"
+stopped_at: Phase 2 plans written and checked — ready to execute
+last_updated: "2026-09-20T23:40:00.000Z"
 last_activity: 2026-09-20
-last_activity_desc: Phase 1 complete, transitioned to Phase 2
+last_activity_desc: Phase 2 plan set (4 plans) written, 3 checker rounds passed, all warnings resolved
 state_head: cb1f8367d10dfdab28045523c285fe033870b631
 progress:
   total_phases: 4
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-20)
 
 **Core value:** A merchant can sell one authoritative inventory safely through LNbits-backed web and Nostr flows without duplicate invoices, double allocation, or relay delivery being mistaken for payment truth.
-**Current focus:** Phase 1 — Conformance Profile (Contract Phase 0)
+**Current focus:** Phase 2 — Release A: Safe Web Commerce
 
 ## Current Position
 
 Phase: 2 of 4 (Release A — Safe Web Commerce)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-09-20 — Phase 1 complete, transitioned to Phase 2
+Plan: 4 plans written (02-01..02-04), checker-verified, 0/4 complete
+Status: Ready to execute
+Last activity: 2026-09-20 — Phase 2 plan set complete: context → research → approved UI-SPEC → 4 plans → 3 checker rounds
 
 Progress: [███░░░░░░░] 25%
 
@@ -102,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-20T21:06:51.708Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-release-a-safe-web-commerce/02-CONTEXT.md
+Last session: 2026-09-20T23:40:00.000Z
+Stopped at: Phase 2 plans written and checked — ready to execute
+Resume file: .planning/phases/02-release-a-safe-web-commerce/02-01-PLAN.md
