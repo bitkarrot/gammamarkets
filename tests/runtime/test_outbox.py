@@ -284,6 +284,18 @@ async def test_publish_accepted_marks_published_and_records_evidence(
         )
 
 
+async def _quiesce_pending(db) -> None:
+    """Supersede leftover live intents so claim-count assertions stay
+    hermetic — worker ticks claim globally across merchants."""
+    from gammamarkets.db import table
+
+    async with db.connect() as conn:
+        await conn.execute(
+            f"UPDATE {table('outbox_events')} SET state = 'superseded' "
+            "WHERE state IN ('pending', 'claimed', 'partially_published')"
+        )
+
+
 async def test_rejected_and_timeout_relays_leave_intent_pending(worker_env):
     """Zero positive ACKs -> pending + backoff; both evidence rows persist
     verbatim, and the batch itself does not crash."""
@@ -300,12 +312,15 @@ async def test_rejected_and_timeout_relays_leave_intent_pending(worker_env):
         intent = await _intent(worker_env["db"], mid)
         await worker_env["transport"].start([rejecting.url, silent.url])
 
+        t0 = int(time.time())
         result = await worker_env["outbox"].worker_tick("w-test")
         assert result["claimed"] == 1
         state = await _state(worker_env["db"], intent)
         assert state["row"]["state"] == "pending"
         assert state["row"]["attempts"] == 1
-        assert state["row"]["next_attempt_at"] > int(time.time())
+        # backoff is relative to the tick, not assertion time — the silent
+        # relay's send timeout can consume most of the first backoff.
+        assert state["row"]["next_attempt_at"] > t0
         results = {p["relay_url"]: p["result"] for p in state["pubs"]}
         assert results[rejecting.url] == "rejected"
         assert results[silent.url] == "timeout"
@@ -326,6 +341,7 @@ async def test_dead_relay_isolated_one_failure_never_crashes_batch(
     async with relay_module.LocalRelay(
         mode=relay_module.RelayMode.ACCEPTING
     ) as accepting:
+        await _quiesce_pending(worker_env["db"])
         mid = await _merchant(worker_env)
         await _relay_config(worker_env["db"], mid, accepting.url)
         await _relay_config(worker_env["db"], mid, dead)

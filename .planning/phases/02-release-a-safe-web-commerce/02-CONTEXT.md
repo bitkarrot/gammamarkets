@@ -127,3 +127,4 @@ Merchant-configurable endpoint sets with starter defaults:
 - Blossom media endpoints: merchant settings (`settings` table key `blossom_servers`), `https://`-only, same SSRF validation posture as relays; starter defaults exposed for the UI. Actual media-upload plumbing is a later scope — 02-02 ships config + defaults only.
 - Inbox relays: `direction=inbox` rows (schema exists; consumed in Release B).
 - Spec delta: blossom endpoints and starter relay defaults are beyond the spec's §4.11/§12 literals — record in the 02-02 summary.
+- Starter relay correction (2026-09-22): `relay.nostr.band` is defunct — use `relay.nostr.net` in the default relay set.

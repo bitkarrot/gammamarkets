@@ -25,7 +25,7 @@ from ..security import unprocessable
 DEFAULT_RELAYS = (
     "wss://relay.damus.io",
     "wss://nos.lol",
-    "wss://relay.nostr.band",
+    "wss://relay.nostr.net",
 )
 
 # Starter blossom media endpoints (https media servers, not nostr relays).

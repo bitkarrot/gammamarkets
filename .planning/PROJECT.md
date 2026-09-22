@@ -40,6 +40,7 @@ A merchant can sell one authoritative inventory safely through LNbits-backed web
 - Those corrections are incorporated into `docs/technical-specification.md`: SDK qualification, cancellation/invoice races, partial outbox retries, SMTP/token persistence, NIP-89 routing, NIP-15 DTOs, migration liabilities, worker storage, host boundaries, FX conversion, release scoping, and the plural runtime name.
 - `nostr-sdk==0.44.8` is only the host-resolved Phase 0 candidate. Exact wheel hashes, native provenance, and executable security/FFI/ACK behavior must be recorded before implementation.
 - Deterministic local relays are authoritative tests. `wss://nostr.net` is allowed only as an optional ephemeral, non-sensitive public-relay smoke target.
+- Relay fact (owner, 2026-09-22): `relay.nostr.band` is defunct; `relay.nostr.net` replaces it in the starter default relay set.
 
 ## Constraints
 
