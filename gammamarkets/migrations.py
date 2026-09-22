@@ -443,3 +443,280 @@ async def m001_initial(db: Connection):
         f"CREATE INDEX ix_outbox_events_aggregate "
         f"ON {s}outbox_events(aggregate_type, aggregate_id, aggregate_revision)"
     )
+
+
+async def m002_orders(db: Connection):
+    """Plan 02-03 — orders/payments/inventory/idempotency/email (spec
+    sections 4.7-4.9, 4.12, 4.15, 4.18) plus schema-only order_messages.
+    inbox_events is schema-only too (consumed by the Release-B inbox
+    worker); peer_relays/relay_cursors/migration_jobs stay deferred."""
+    s = db.references_schema
+    int_t = db.big_int
+    blob_t = db.blob
+
+    # --- 4.7 orders --------------------------------------------------------------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}orders (
+            id TEXT PRIMARY KEY,
+            merchant_id TEXT NOT NULL
+                REFERENCES {s}merchants(id) ON DELETE RESTRICT,
+            buyer_pubkey_enc {blob_t},
+            buyer_pubkey_hash TEXT,
+            protocol TEXT NOT NULL,
+            external_id_enc {blob_t},
+            external_id_hash TEXT,
+            request_hash TEXT,
+            source_event_id TEXT,
+            currency TEXT NOT NULL DEFAULT 'SAT',
+            subtotal_sat {int_t},
+            shipping_sat {int_t},
+            total_sat {int_t},
+            buyer_amount_sat {int_t},
+            state TEXT NOT NULL,
+            shipping_state TEXT NOT NULL DEFAULT 'not_required',
+            contact_enc {blob_t},
+            address_enc {blob_t},
+            shipping_option_id TEXT,
+            payment_hash TEXT UNIQUE,
+            invoice_expiry {int_t},
+            public_token_hash {blob_t},
+            public_token_enc {blob_t},
+            public_token_expires_at {int_t},
+            checkout_scope_hash TEXT,
+            payment_exception BOOLEAN NOT NULL DEFAULT FALSE,
+            payment_exception_reason TEXT,
+            payment_exception_resolution TEXT,
+            oversold BOOLEAN NOT NULL DEFAULT FALSE,
+            receipt_verified BOOLEAN NOT NULL DEFAULT FALSE,
+            email_opt_in BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at {int_t} NOT NULL DEFAULT 0,
+            updated_at {int_t} NOT NULL DEFAULT 0
+        )
+        """
+    )
+    await db.execute(
+        f"""
+        CREATE TABLE {s}order_items (
+            id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL
+                REFERENCES {s}orders(id) ON DELETE CASCADE,
+            product_id TEXT NOT NULL,
+            product_d TEXT,
+            title TEXT,
+            quantity INT NOT NULL,
+            unit_price_minor {int_t},
+            currency TEXT,
+            currency_decimals INT,
+            line_total_sat {int_t},
+            backordered_qty INT NOT NULL DEFAULT 0
+        )
+        """
+    )
+    await db.execute(
+        f"""
+        CREATE TABLE {s}order_events (
+            id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL
+                REFERENCES {s}orders(id) ON DELETE CASCADE,
+            from_state TEXT,
+            to_state TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            detail_json TEXT,
+            created_at {int_t} NOT NULL DEFAULT 0
+        )
+        """
+    )
+    await db.execute(
+        f"""
+        CREATE TABLE {s}order_fx_quotes (
+            id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL
+                REFERENCES {s}orders(id) ON DELETE CASCADE,
+            currency TEXT NOT NULL,
+            rate_decimal TEXT,
+            rate_direction TEXT,
+            rate_unit TEXT,
+            source TEXT,
+            providers TEXT,
+            quoted_at {int_t},
+            expires_at {int_t},
+            UNIQUE (order_id, currency)
+        )
+        """
+    )
+    await db.execute(
+        f"""
+        CREATE TABLE {s}order_fulfillment (
+            order_id TEXT PRIMARY KEY
+                REFERENCES {s}orders(id) ON DELETE CASCADE,
+            tracking_enc {blob_t},
+            carrier TEXT,
+            eta TEXT,
+            updated_at {int_t} NOT NULL DEFAULT 0
+        )
+        """
+    )
+    await db.execute(
+        f"""
+        CREATE TABLE {s}order_messages (
+            id TEXT PRIMARY KEY,
+            order_id TEXT
+                REFERENCES {s}orders(id) ON DELETE CASCADE,
+            direction TEXT NOT NULL,
+            protocol TEXT,
+            semantic_kind TEXT,
+            sender_hash TEXT,
+            recipient_hash TEXT,
+            participant_keys_enc {blob_t},
+            rumor_id TEXT,
+            event_id TEXT,
+            content_enc {blob_t},
+            created_at {int_t} NOT NULL DEFAULT 0
+        )
+        """
+    )
+
+    # --- 4.8 payments --------------------------------------------------------------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}payments (
+            id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL UNIQUE
+                REFERENCES {s}orders(id) ON DELETE CASCADE,
+            core_external_id TEXT NOT NULL UNIQUE,
+            payment_hash TEXT UNIQUE,
+            checking_id_enc {blob_t},
+            bolt11_enc {blob_t},
+            wallet_refs_enc {blob_t},
+            wallet_id_hash TEXT,
+            source_wallet_id_hash TEXT,
+            amount_sat {int_t},
+            status TEXT NOT NULL,
+            settled_at {int_t},
+            created_at {int_t} NOT NULL DEFAULT 0
+        )
+        """
+    )
+
+    # --- 4.9 inbox_events (schema-only; consumed by the Release-B worker) ----------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}inbox_events (
+            id TEXT PRIMARY KEY,
+            outer_event_id TEXT NOT NULL UNIQUE,
+            rumor_id TEXT,
+            merchant_id TEXT
+                REFERENCES {s}merchants(id) ON DELETE CASCADE,
+            source_relay_url TEXT,
+            received_at {int_t} NOT NULL DEFAULT 0,
+            kind INT,
+            author_hash TEXT,
+            author_enc {blob_t},
+            processed_state TEXT NOT NULL DEFAULT 'received',
+            reject_reason TEXT,
+            raw_json TEXT,
+            processed_at {int_t}
+        )
+        """
+    )
+
+    # --- 4.12 inventory_reservations -------------------------------------------------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}inventory_reservations (
+            id TEXT PRIMARY KEY,
+            product_id TEXT NOT NULL
+                REFERENCES {s}products(id) ON DELETE RESTRICT,
+            order_id TEXT NOT NULL
+                REFERENCES {s}orders(id) ON DELETE CASCADE,
+            quantity INT NOT NULL CHECK (quantity > 0),
+            state TEXT NOT NULL,
+            expires_at {int_t},
+            created_at {int_t} NOT NULL DEFAULT 0,
+            updated_at {int_t} NOT NULL DEFAULT 0,
+            UNIQUE (order_id, product_id)
+        )
+        """
+    )
+
+    # --- 4.15 idempotency_records ---------------------------------------------------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}idempotency_records (
+            scope_hash TEXT PRIMARY KEY,
+            request_hash TEXT NOT NULL,
+            state TEXT NOT NULL,
+            order_id TEXT,
+            owner_id TEXT,
+            lease_until {int_t},
+            status_code INT,
+            response_enc {blob_t},
+            created_at {int_t} NOT NULL DEFAULT 0,
+            expires_at {int_t} NOT NULL DEFAULT 0
+        )
+        """
+    )
+
+    # --- 4.18 email_queue -------------------------------------------------------------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}email_queue (
+            id TEXT PRIMARY KEY,
+            merchant_id TEXT NOT NULL
+                REFERENCES {s}merchants(id) ON DELETE CASCADE,
+            order_id TEXT
+                REFERENCES {s}orders(id) ON DELETE CASCADE,
+            channel TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            recipient_enc {blob_t} NOT NULL,
+            recipient_hash TEXT NOT NULL,
+            state TEXT NOT NULL,
+            attempts INT NOT NULL DEFAULT 0,
+            next_attempt_at {int_t} NOT NULL DEFAULT 0,
+            claimed_by TEXT,
+            claimed_at {int_t},
+            claimed_until {int_t},
+            claim_token {int_t} NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at {int_t} NOT NULL DEFAULT 0,
+            sent_at {int_t},
+            UNIQUE (order_id, channel, event_type, recipient_hash)
+        )
+        """
+    )
+
+    # --- 4.19 indexes touching m002 tables ------------------------------------------
+    await db.execute(
+        f"CREATE INDEX ix_orders_merchant_state "
+        f"ON {s}orders(merchant_id, state)"
+    )
+    await db.execute(
+        f"CREATE UNIQUE INDEX ix_orders_web_external_id "
+        f"ON {s}orders(merchant_id, external_id_hash) "
+        f"WHERE protocol = 'web'"
+    )
+    await db.execute(
+        f"CREATE UNIQUE INDEX ix_orders_nostr_external_id "
+        f"ON {s}orders(merchant_id, buyer_pubkey_hash, external_id_hash) "
+        f"WHERE buyer_pubkey_hash IS NOT NULL"
+    )
+    await db.execute(
+        f"CREATE UNIQUE INDEX ix_inbox_rumor "
+        f"ON {s}inbox_events(rumor_id) WHERE rumor_id IS NOT NULL"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_order_events_order "
+        f"ON {s}order_events(order_id, created_at)"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_reservations_expiry "
+        f"ON {s}inventory_reservations(state, expires_at)"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_email_queue_state_next "
+        f"ON {s}email_queue(state, next_attempt_at)"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_email_queue_order ON {s}email_queue(order_id)"
+    )

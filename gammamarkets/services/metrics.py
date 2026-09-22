@@ -46,3 +46,59 @@ async def outbox_depth() -> dict:
         "published_total": _counters.get("publication.published", 0),
         "failed_total": counts.get("failed", 0),
     }
+
+
+async def order_health() -> dict:
+    """§16 order gauges — non-terminal orders older than the sanity bound,
+    held reservations, open payment projections."""
+    from ..db import db, table
+
+    now = int(time.time())
+    async with db.connect() as conn:
+        stuck = await conn.fetchone(
+            f"SELECT COUNT(*) AS n FROM {table('orders')} "
+            "WHERE state NOT IN ('completed', 'rejected', 'cancelled',"
+            " 'expired') AND created_at < :bound",
+            {"bound": now - 86400},
+        )
+        open_orders = await conn.fetchone(
+            f"SELECT COUNT(*) AS n FROM {table('orders')} "
+            "WHERE state NOT IN ('completed', 'rejected', 'cancelled',"
+            " 'expired')",
+        )
+        held = await conn.fetchone(
+            f"SELECT COUNT(*) AS n, COALESCE(SUM(quantity), 0) AS qty"
+            f" FROM {table('inventory_reservations')} WHERE state = 'held'",
+        )
+        exceptions = await conn.fetchone(
+            f"SELECT COUNT(*) AS n FROM {table('orders')}"
+            " WHERE payment_exception",
+        )
+    return {
+        "open_orders": open_orders["n"],
+        "stuck_orders": stuck["n"],
+        "held_reservations": held["n"],
+        "held_units": held["qty"],
+        "payment_exceptions": exceptions["n"],
+        "settled_total": _counters.get("settlement.confirmed", 0),
+        "exception_total": _counters.get("settlement.exception", 0),
+    }
+
+
+async def email_depth() -> dict:
+    """§16 email gauges — queue depth by state + send outcomes."""
+    from ..db import db, table
+
+    async with db.connect() as conn:
+        rows = await conn.fetchall(
+            f"SELECT state, COUNT(*) AS n FROM {table('email_queue')}"
+            " GROUP BY state"
+        )
+    counts = {r["state"]: r["n"] for r in rows}
+    return {
+        "by_state": counts,
+        "pending": counts.get("pending", 0),
+        "failed": counts.get("failed", 0),
+        "sent_total": _counters.get("email.sent", 0),
+        "suppressed_total": _counters.get("email.suppressed", 0),
+    }

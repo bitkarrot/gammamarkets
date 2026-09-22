@@ -550,6 +550,7 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
         if not targets:
             # everything already accepted (or nothing to send)
             await _cas_state(tx, row, "published", now)
+            await _maybe_activate_merchant(tx, row)
             return "published"
 
         # sign inside the tx window — key released immediately after
@@ -598,6 +599,7 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
             if row.get("event_address"):
                 await _record_address(tx, row, event_id, created_at, now)
             await _cas_state(tx, row, "published", now)
+            await _maybe_activate_merchant(tx, row)
             return "published"
         if any(r == "accepted" for _, r, _ in results):
             state = "partially_published"
@@ -609,6 +611,19 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
             next_at = 0
         await _cas_state(tx, row, state, now, next_attempt_at=next_at)
         return state
+
+
+async def _maybe_activate_merchant(tx, row) -> None:
+    """§3.5 activation: a published merchant_profile intent flips
+    ``publication_pending -> active`` — checkout/public surfaces gate on
+    ``active`` and this is the only write path for that transition."""
+    if row["aggregate_type"] != "merchant_profile":
+        return
+    await tx.execute(
+        f"UPDATE {tx.table('merchants')} SET state = 'active',"
+        " updated_at = :n WHERE id = :m AND state = 'publication_pending'",
+        {"n": _now(), "m": row["aggregate_id"]},
+    )
 
 
 def _address_parts(address: str) -> dict:

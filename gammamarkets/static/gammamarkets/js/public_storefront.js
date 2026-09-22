@@ -61,6 +61,15 @@
           .replace(/=+$/, "");
       }
 
+      var email = (
+        (form.querySelector("input[name=email]") || {}).value || ""
+      ).trim();
+      var payload = {
+        merchant_pubkey: form.dataset.merchant,
+        items: [{ d_tag: dTag, quantity: qty }]
+      };
+      if (email) payload.contact = { email: email };
+
       var btn = form.querySelector("button[type=submit]");
       if (btn) btn.disabled = true;
       fetch(form.dataset.endpoint, {
@@ -69,10 +78,7 @@
           "Content-Type": "application/json",
           "Idempotency-Key": form.dataset.idem
         },
-        body: JSON.stringify({
-          merchant_pubkey: form.dataset.merchant,
-          items: [{ d_tag: dTag, quantity: qty }]
-        })
+        body: JSON.stringify(payload)
       })
         .then(function (resp) {
           return resp.json().then(function (body) {
@@ -101,5 +107,87 @@
           if (btn) btn.disabled = false;
         });
     });
+  }
+
+  /* A3: order-status page — the token (already stripped from the URL)
+     travels only as X-Order-Token; the status poll renders state and
+     the invoice while awaiting payment. */
+  var statusEl = document.getElementById("gm-order");
+  if (statusEl && orderToken) {
+    var render = function (body) {
+      var html =
+        "<h1>Order " + body.state + "</h1>" +
+        "<p class=\"order-total\">" + body.total_sat + " sats</p>";
+      if (body.shipping_state) {
+        html += "<p class=\"order-shipping\">Shipping: " +
+          body.shipping_state + "</p>";
+      }
+      if (body.items && body.items.length) {
+        html += "<ul class=\"order-items\">";
+        body.items.forEach(function (item) {
+          html += "<li>" + item.title + " x" + item.quantity + "</li>";
+        });
+        html += "</ul>";
+      }
+      if (body.state === "awaiting_payment" && body.bolt11) {
+        html +=
+          "<p class=\"invoice-prompt\">Pay this Lightning invoice:</p>" +
+          "<textarea class=\"bolt11\" readonly>" + body.bolt11 +
+          "</textarea>";
+        if (body.invoice_expiry) {
+          html += "<p class=\"invoice-expiry\">Expires: " +
+            new Date(body.invoice_expiry * 1000).toLocaleString() +
+            "</p>";
+        }
+      }
+      if (body.payment_exception) {
+        html += "<p class=\"order-notice\">This order needs merchant" +
+          " attention — contact the store.</p>";
+      }
+      html += "<p class=\"opt-out\"><a href=\"#\" id=\"gm-opt-out\">" +
+        "Stop email notifications</a></p>";
+      statusEl.innerHTML = html;
+      var optOut = document.getElementById("gm-opt-out");
+      if (optOut) {
+        optOut.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          fetch("/gammamarkets/api/v1/public/order-email-opt-out", {
+            method: "POST",
+            headers: { "X-Order-Token": orderToken }
+          });
+          optOut.textContent = "Email notifications stopped.";
+        });
+      }
+    };
+    var poll = function () {
+      fetch("/gammamarkets/api/v1/public/order-status", {
+        headers: { "X-Order-Token": orderToken }
+      })
+        .then(function (resp) {
+          return resp.json().then(function (body) {
+            return { status: resp.status, body: body };
+          });
+        })
+        .then(function (r) {
+          if (r.status === 200) {
+            render(r.body);
+            if (r.body.state === "awaiting_payment") {
+              setTimeout(poll, 4000);
+            }
+          } else {
+            statusEl.innerHTML =
+              "<p class=\"order-prompt\">Order link is not valid.</p>";
+          }
+        })
+        .catch(function () {
+          setTimeout(poll, 8000);
+        });
+    };
+    poll();
+  } else if (statusEl) {
+    statusEl.innerHTML =
+      "<h1>Order status</h1>" +
+      "<p class=\"order-prompt\">Open your order link to view its" +
+      " status.</p>";
   }
 })();

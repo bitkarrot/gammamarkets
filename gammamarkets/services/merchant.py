@@ -484,22 +484,39 @@ async def publish(merchant_id: str, user,
 
 async def get_notifications(merchant_id: str, user) -> dict:
     row = await get_merchant_row(merchant_id, str(user.id))
+    from ..db import db, table
+
+    async with db.connect() as conn:
+        queue_rows = await conn.fetchall(
+            f"SELECT event_type, channel, state, attempts, last_error,"
+            f" created_at, order_id FROM {table('email_queue')}"
+            " WHERE merchant_id = :m ORDER BY created_at DESC LIMIT 50",
+            {"m": merchant_id},
+        )
     return {
         "notify_emails": json.loads(row["notify_emails"])
         if row["notify_emails"] else [],
         "notify_events": json.loads(row["notify_events"])
         if row["notify_events"] else {},
-        "queue": [],  # email_queue lands in m002 (plan 02-03)
+        "queue": [
+            {
+                "event_type": r["event_type"],
+                "channel": r["channel"],
+                "state": r["state"],
+                "attempts": r["attempts"],
+                "last_error": r["last_error"],
+                "created_at": r["created_at"],
+                "order_bound": r["order_id"] is not None,
+            }
+            for r in queue_rows
+        ],
     }
 
 
 async def send_test_notification(merchant_id: str, user, recipient: str,
                                  settings: ExtSettings | None = None) -> dict:
-    """Bounded test send — ≤5/hour per merchant via rate_limit_buckets.
-
-    Uses the host's configured SMTP path directly; the queued email worker
-    (02-03) replaces this with durable queue semantics.
-    """
+    """Bounded test send — ≤5/hour per merchant via rate_limit_buckets,
+    enqueued through the durable §8.8 email path."""
     settings = settings or ext_settings()
     row = await get_merchant_row(merchant_id, str(user.id))
     from lnbits.helpers import is_valid_email_address
@@ -562,17 +579,15 @@ async def send_test_notification(merchant_id: str, user, recipient: str,
                 },
             )
 
-    from lnbits.settings import settings as host_settings
-    if not host_settings.is_email_notifications_configured():
-        return {"sent": False, "reason": "host email not configured"}
-    from lnbits.core.services.notifications import send_email_notification
+    # Enqueue through the durable §8.8 path (orderless rows bind recipient
+    # decryption to merchant_id) — the worker handles suppression and
+    # host-SMTP gating at send time.
+    from . import email as email_service
 
-    result = await send_email_notification(
-        [recipient],
-        "GammaMarkets test notification.",
-        subject="GammaMarkets test",
+    row_id = await email_service.enqueue_test_send(
+        merchant_id=merchant_id, recipient=recipient, now=now,
     )
-    return {"sent": result.get("status") == "ok"}
+    return {"sent": False, "queued": True, "queue_id": row_id}
 
 
 async def begin_deactivation(merchant_id: str, user) -> dict:

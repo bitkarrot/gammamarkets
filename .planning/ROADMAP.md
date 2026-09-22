@@ -65,12 +65,12 @@ Plans:
 
 - [x] 02-01-PLAN.md
 - [x] 02-02-PLAN.md
-- [ ] 02-03-PLAN.md
+- [x] 02-03-PLAN.md
 - [ ] 02-04-PLAN.md
 
 - [x] 02-01: Extension skeleton, key custody, database/migrations, merchant and catalog domain
 - [x] 02-02: Relay transport + durable outbox publication, NIP-89 handler, public storefront, theme backend
-- [ ] 02-03: Checkout, reservation + invoice saga, settlement/reconciliation, order admin API, email
+- [x] 02-03: Checkout, reservation + invoice saga, settlement/reconciliation, order admin API, email
 - [ ] 02-04: Buyer checkout/status UI and merchant admin surfaces (orders, catalog, publications, settings, appearance)
 
 *Plan count revised 3→4 during plan-checker revision: order-backend and UI layers split to keep each executor under the context budget.*

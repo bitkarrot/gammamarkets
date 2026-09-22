@@ -549,3 +549,154 @@ async def delete_shipping(
     return await catalog_service.delete_shipping(
         await _mid(user), user, option_id, strip=strip
     )
+
+
+# --- section 5.3 order routes ---------------------------------------------------
+#
+# Merchant-scoped paths carry the merchant id explicitly (unlike §5.2).
+
+from .services import orders as order_service  # noqa: E402
+
+
+class OrderStatusBody(_Strict):
+    to_state: str
+
+
+class OrderShippingBody(_Strict):
+    shipping_state: str
+    tracking: str | None = None
+    carrier: str | None = None
+    eta: str | None = None
+
+
+class OrderCancelBody(_Strict):
+    reason: str | None = None
+
+
+class ResolveExceptionBody(_Strict):
+    action: str
+    refund_reference: str | None = None
+
+
+@gammamarkets_api_router.get("/merchants/{merchant_id}/orders")
+@problem_boundary
+async def list_orders(
+    request: Request,
+    merchant_id: str,
+    state: str | None = None,
+    protocol: str | None = None,
+    q: str | None = None,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.list_orders(
+        merchant_id, user, state=state, protocol=protocol, q=q
+    )
+
+
+@gammamarkets_api_router.get("/merchants/{merchant_id}/orders/{order_id}")
+@problem_boundary
+async def get_order(
+    request: Request,
+    merchant_id: str,
+    order_id: str,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.order_detail(merchant_id, user, order_id)
+
+
+@gammamarkets_api_router.post(
+    "/merchants/{merchant_id}/orders/{order_id}/status"
+)
+@problem_boundary
+async def set_order_status(
+    request: Request,
+    merchant_id: str,
+    order_id: str,
+    body: OrderStatusBody,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.admin_set_status(
+        merchant_id, user, order_id, body.to_state
+    )
+
+
+@gammamarkets_api_router.post(
+    "/merchants/{merchant_id}/orders/{order_id}/shipping"
+)
+@problem_boundary
+async def set_order_shipping(
+    request: Request,
+    merchant_id: str,
+    order_id: str,
+    body: OrderShippingBody,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.admin_set_shipping(
+        merchant_id, user, order_id,
+        shipping_state=body.shipping_state,
+        tracking=body.tracking,
+        carrier=body.carrier,
+        eta=body.eta,
+    )
+
+
+@gammamarkets_api_router.post(
+    "/merchants/{merchant_id}/orders/{order_id}/cancel"
+)
+@problem_boundary
+async def cancel_order(
+    request: Request,
+    merchant_id: str,
+    order_id: str,
+    body: OrderCancelBody,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.admin_cancel(
+        merchant_id, user, order_id, body.reason
+    )
+
+
+@gammamarkets_api_router.post(
+    "/merchants/{merchant_id}/orders/{order_id}/resolve-exception"
+)
+@problem_boundary
+async def resolve_exception(
+    request: Request,
+    merchant_id: str,
+    order_id: str,
+    body: ResolveExceptionBody,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.admin_resolve_exception(
+        merchant_id, user, order_id,
+        action=body.action,
+        refund_reference=body.refund_reference,
+    )
+
+
+@gammamarkets_api_router.post(
+    "/merchants/{merchant_id}/orders/{order_id}/public-token/reissue"
+)
+@problem_boundary
+async def reissue_token(
+    request: Request,
+    merchant_id: str,
+    order_id: str,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.admin_reissue_token(
+        merchant_id, user, order_id
+    )
+
+
+@gammamarkets_api_router.get(
+    "/merchants/{merchant_id}/orders/{order_id}/events"
+)
+@problem_boundary
+async def get_order_events(
+    request: Request,
+    merchant_id: str,
+    order_id: str,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.order_events(merchant_id, user, order_id)

@@ -62,6 +62,10 @@
       <label>Quantity
         <input type="number" name="quantity" value="1" min="1" max="10000">
       </label>
+      <label>Email for order updates <span class="optional">(optional)</span>
+        <input type="email" name="email" maxlength="320"
+               autocomplete="email">
+      </label>
       <button type="submit" class="btn-buy">Buy with Lightning</button>
       <p class="form-error" role="alert" hidden></p>
     </form>

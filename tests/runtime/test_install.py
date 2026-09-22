@@ -43,8 +43,8 @@ M001_TABLES = {
     "rate_limit_buckets",
 }
 
-# Tables m001 must NOT create (m002 / later phases).
-ABSENT_TABLES = {
+# Tables m002 creates (orders/payments/inventory/idempotency/email).
+M002_TABLES = {
     "orders",
     "order_items",
     "order_events",
@@ -55,10 +55,14 @@ ABSENT_TABLES = {
     "inventory_reservations",
     "idempotency_records",
     "email_queue",
+    "inbox_events",
+}
+
+# Tables no migration creates yet (Phase 3/4).
+ABSENT_TABLES = {
     "peer_relays",
     "relay_cursors",
     "migration_jobs",
-    "inbox_events",
 }
 
 
@@ -115,17 +119,17 @@ async def test_discovered_and_registered(runtime_env):
 
 async def test_m001_tables_created(runtime_env):
     tables = await _table_names(runtime_env["ext_module"])
-    missing = M001_TABLES - tables
-    assert not missing, f"missing m001 tables: {missing}"
+    missing = (M001_TABLES | M002_TABLES) - tables
+    assert not missing, f"missing m001/m002 tables: {missing}"
     stray = ABSENT_TABLES & tables
-    assert not stray, f"m001 created tables owned by later migrations: {stray}"
+    assert not stray, f"migrations created tables owned by later phases: {stray}"
 
 
 async def test_modeled_columns_match_registry(runtime_env):
     """Every modeled field set (spec section 4 literals) is a subset of the
     migrated table's columns — the registry<->migration diff."""
     ext_module = runtime_env["ext_module"]
-    for name in M001_TABLES:
+    for name in M001_TABLES | M002_TABLES:
         if TABLE_CLASSIFICATION.get(name) != "modeled":
             continue
         modeled = SCHEMA_FIELDS[name]
