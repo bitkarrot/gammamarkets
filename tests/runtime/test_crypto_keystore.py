@@ -1,0 +1,450 @@
+"""Crypto + keystore drills — section 11 envelope/AAD/HMAC/token
+requirements plus the key-rotation and backup/restore drills."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+
+import pytest
+
+from gammamarkets import crypto
+from gammamarkets import settings as gsettings
+from gammamarkets.security import validate_relay_url
+
+pytestmark = pytest.mark.runtime
+
+
+def _keyring(n: int = 2) -> dict[str, bytes]:
+    return {f"v{i}": bytes([i]) * 32 for i in range(1, n + 1)}
+
+
+def _ext_settings(**over) -> gsettings.ExtSettings:
+    base = {
+        "master_keys": _keyring(),
+        "active_key_version": "v1",
+        "privacy_key": bytes([9]) * 32,
+        "public_base_url": "https://shop.example.com",
+    }
+    base.update(over)
+    return gsettings.ExtSettings(**base)
+
+
+def _set_env(monkeypatch, **extra):
+    import json
+
+    env = {
+        "GAMMAMARKETS_MASTER_KEYS": json.dumps(
+            {"v1": base64.b64encode(bytes(32)).decode()}
+        ),
+        "GAMMAMARKETS_ACTIVE_KEY_VERSION": "v1",
+        "GAMMAMARKETS_PRIVACY_KEY": base64.b64encode(bytes([9]) * 32).decode(),
+        "GAMMAMARKETS_PUBLIC_BASE_URL": "https://x.example",
+    }
+    env.update(extra)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+
+def _unsigned(pubkey_hex: str, kind: int = 1, content: str = "hi"):
+    from nostr_sdk import EventBuilder, Kind, PublicKey, Timestamp
+
+    return (
+        EventBuilder(Kind(kind), content)
+        .custom_created_at(Timestamp.from_secs(1))
+        .build(PublicKey.parse(pubkey_hex))
+    )
+
+
+async def _insert_merchant(database, merchant_id: str) -> None:
+    """Minimal merchants row so merchant_keys' FK is satisfied."""
+    async with database.connect() as conn:
+        await conn.execute(
+            "INSERT INTO gammamarkets.merchants "
+            "(id, user_id, pubkey, key_ref, wallet_id_enc, wallet_id_hash,"
+            " state, created_at, updated_at) "
+            "VALUES (:i, :u, :p, :kr, :we, :wh, 'draft', 0, 0)",
+            {
+                "i": merchant_id,
+                "u": f"user-{merchant_id}",
+                "p": hashlib.sha256(merchant_id.encode()).hexdigest(),
+                "kr": f"merchant_keys:{merchant_id}",
+                "we": b"\x00" * 16,
+                "wh": "wh",
+            },
+        )
+
+
+# --- keyring / startup validation --------------------------------------------
+
+
+def test_keyring_validation_via_env(monkeypatch):
+    # missing entirely
+    monkeypatch.delenv("GAMMAMARKETS_MASTER_KEYS", raising=False)
+    monkeypatch.setenv("GAMMAMARKETS_ACTIVE_KEY_VERSION", "v1")
+    monkeypatch.setenv(
+        "GAMMAMARKETS_PRIVACY_KEY", base64.b64encode(bytes([9]) * 32).decode()
+    )
+    monkeypatch.setenv("GAMMAMARKETS_PUBLIC_BASE_URL", "https://x.example")
+    with pytest.raises(gsettings.SettingsError):
+        gsettings.ext_settings()
+
+    import json
+
+    # malformed json / not a map / empty map
+    for raw in ("", "not-json", "[]", "{}"):
+        monkeypatch.setenv("GAMMAMARKETS_MASTER_KEYS", raw)
+        with pytest.raises(gsettings.SettingsError):
+            gsettings.ext_settings()
+
+    # bad base64 and wrong length
+    for bad_value in ("notb64!", base64.b64encode(b"short").decode()):
+        monkeypatch.setenv(
+            "GAMMAMARKETS_MASTER_KEYS", json.dumps({"v1": bad_value})
+        )
+        with pytest.raises(gsettings.SettingsError):
+            gsettings.ext_settings()
+
+    # duplicate key material under two versions
+    dup = base64.b64encode(bytes(32)).decode()
+    monkeypatch.setenv(
+        "GAMMAMARKETS_MASTER_KEYS", json.dumps({"v1": dup, "v2": dup})
+    )
+    with pytest.raises(gsettings.SettingsError):
+        gsettings.ext_settings()
+
+    # active version absent from ring
+    monkeypatch.setenv(
+        "GAMMAMARKETS_MASTER_KEYS", json.dumps({"v1": dup})
+    )
+    monkeypatch.setenv("GAMMAMARKETS_ACTIVE_KEY_VERSION", "v9")
+    with pytest.raises(gsettings.SettingsError):
+        gsettings.ext_settings()
+
+    # privacy key identical to a master key
+    monkeypatch.setenv("GAMMAMARKETS_ACTIVE_KEY_VERSION", "v1")
+    monkeypatch.setenv("GAMMAMARKETS_PRIVACY_KEY", dup)
+    with pytest.raises(gsettings.SettingsError):
+        gsettings.ext_settings()
+
+
+def test_public_base_url_must_be_canonical_https(monkeypatch):
+    _set_env(monkeypatch)
+    for bad in (
+        "http://x.example",            # not https
+        "https://x.example/path",      # path not allowed
+        "https://x.example?q=1",       # query
+        "https://x.example#f",         # fragment
+        "https://user:pw@x.example",   # userinfo
+        "x.example",                   # no scheme
+    ):
+        monkeypatch.setenv("GAMMAMARKETS_PUBLIC_BASE_URL", bad)
+        with pytest.raises(gsettings.SettingsError):
+            gsettings.ext_settings()
+
+
+def test_start_hook_fails_before_activation(monkeypatch):
+    """Missing/malformed config must abort gammamarkets_start — merchant
+    services never activate on bad configuration."""
+    import gammamarkets
+
+    monkeypatch.delenv("GAMMAMARKETS_MASTER_KEYS", raising=False)
+    # Reference the exception through the SAME module instance under test —
+    # runtime fixtures purge/reimport gammamarkets*, so a module-level
+    # ``gsettings`` may hold a different class object.
+    with pytest.raises(gammamarkets.settings.SettingsError):
+        gammamarkets.gammamarkets_start()
+
+
+# --- AES-256-GCM envelope -----------------------------------------------------
+
+
+def _aad(record_id="m1", table="merchants", column="wallet_id_enc",
+         key_version="v1"):
+    return dict(
+        record_id=record_id, table=table,
+        column=column, key_version=key_version,
+    )
+
+
+def test_envelope_roundtrip_and_layout():
+    s = _ext_settings()
+    plain = b"merchant secret material"
+    enc = crypto.encrypt(plain, s.master_keys["v1"], **_aad())
+    version = enc[: crypto.VERSION_LEN].rstrip(b"\x00").decode()
+    nonce = enc[crypto.VERSION_LEN : crypto.VERSION_LEN + crypto.NONCE_LEN]
+    assert version == "v1"
+    assert len(nonce) == crypto.NONCE_LEN
+    assert crypto.envelope_version(enc) == "v1"
+    # ct = plaintext length, tag = 16 bytes appended
+    body = enc[crypto.VERSION_LEN + crypto.NONCE_LEN :]
+    assert len(body) == len(plain) + 16
+    out = crypto.decrypt(enc, s.master_keys["v1"], **_aad())
+    assert out == plain
+
+
+def test_envelope_rejects_wrong_aad_parts():
+    s = _ext_settings()
+    kwargs = _aad()
+    enc = crypto.encrypt(b"x", s.master_keys["v1"], **kwargs)
+    key = s.master_keys["v1"]
+    for mutation in (
+        dict(record_id="m2"),
+        dict(table="merchant_keys"),
+        dict(column="nsec_enc"),
+        dict(key_version="v2"),
+    ):
+        bad = dict(kwargs, **mutation)
+        with pytest.raises(ValueError):
+            crypto.decrypt(enc, key, **bad)
+
+
+def test_envelope_prefix_ambiguity_blocked():
+    """Length-prefixed AAD: record 'a' + table 'bc' must differ from
+    record 'ab' + table 'c'."""
+    s = _ext_settings()
+    key = s.master_keys["v1"]
+    enc = crypto.encrypt(
+        b"x", key, **_aad(record_id="a", table="bc")
+    )
+    with pytest.raises(ValueError):
+        crypto.decrypt(
+            enc, key, **_aad(record_id="ab", table="c")
+        )
+
+
+def test_envelope_version_absent_from_keyring():
+    s = _ext_settings()
+    enc = crypto.encrypt(b"x", s.master_keys["v1"], **_aad())
+    # a keyring missing the envelope's version cannot decrypt it
+    with pytest.raises(ValueError):
+        crypto.decrypt(
+            enc, s.master_keys["v1"], **_aad(key_version="v9")
+        )
+
+
+# --- HMAC privacy indexes -----------------------------------------------------
+
+
+def test_hmac_index_purpose_separation():
+    s = _ext_settings()
+    a = crypto.hmac_index(
+        s.privacy_key, crypto.PURPOSE_ORDER_ID, "m1", "abc"
+    )
+    b = crypto.hmac_index(
+        s.privacy_key, crypto.PURPOSE_WALLET_ID, "m1", "abc"
+    )
+    c = crypto.hmac_index(
+        s.privacy_key, crypto.PURPOSE_ORDER_ID, "m2", "abc"
+    )
+    assert a != b  # purpose-separated
+    assert a != c  # merchant-separated
+    assert len(a) == 64  # sha256 hex
+
+
+def test_hmac_index_normalization():
+    s = _ext_settings()
+    a = crypto.hmac_index(
+        s.privacy_key, crypto.PURPOSE_EMAIL_RECIPIENT,
+        "m1", crypto.normalize("Alice@Example.com "),
+    )
+    b = crypto.hmac_index(
+        s.privacy_key, crypto.PURPOSE_EMAIL_RECIPIENT,
+        "m1", crypto.normalize("alice@example.com"),
+    )
+    assert a == b
+
+
+# --- public order tokens -------------------------------------------------------
+
+
+def test_public_token_roundtrip():
+    plain = crypto.generate_public_token()
+    assert len(plain) == 43  # 256 bits, base64url, no padding
+    digest = crypto.token_lookup_hash(plain)
+    # section 11.4: stored lookup value is SHA-256 of the token bytes
+    raw = base64.urlsafe_b64decode(plain + "=")
+    assert digest == hashlib.sha256(raw).digest()
+    assert crypto.tokens_equal(digest, digest)
+    assert not crypto.tokens_equal(digest, hashlib.sha256(b"x").digest())
+
+
+def test_public_token_rejects_noncanonical():
+    for bad in ("", "a" * 10, "not base64!!", "====", "a" * 44, "a" * 43 + "="):
+        with pytest.raises(ValueError):
+            crypto.token_lookup_hash(bad)
+
+
+# --- keystore -----------------------------------------------------------------
+
+
+async def test_keystore_generate_sign_roundtrip(keystore_env):
+    keystore = keystore_env["keystore"]
+    s = _ext_settings()
+    await _insert_merchant(keystore_env["db"], "m1")
+    ks = keystore.MerchantKeyStore(s)
+    pubkey = await ks.generate("m1")
+    assert len(pubkey) == 64
+
+    event = await ks.sign_event("m1", _unsigned(pubkey))
+    assert event.author().to_hex() == pubkey
+    event.verify_signature()
+
+    # a second generate must not silently rotate
+    with pytest.raises(keystore.KeystoreError):
+        await ks.generate("m1")
+
+
+async def test_keystore_rewrap_rotation_drill(keystore_env):
+    """Rewrap m2 to v2: the row flips version, key_origin is preserved,
+    and the same pubkey still signs."""
+    keystore = keystore_env["keystore"]
+    s1 = _ext_settings()
+    await _insert_merchant(keystore_env["db"], "m2")
+    ks1 = keystore.MerchantKeyStore(s1)
+    pubkey = await ks1.generate("m2")
+
+    s2 = _ext_settings(
+        master_keys=dict(s1.master_keys), active_key_version="v2"
+    )
+    ks2 = keystore.MerchantKeyStore(s2)
+    assert await ks2.rewrap("m2") is True
+
+    async with keystore_env["db"].connect() as conn:
+        row = await conn.fetchone(
+            "SELECT key_version, key_origin FROM gammamarkets.merchant_keys "
+            "WHERE merchant_id = 'm2'"
+        )
+    assert row["key_version"] == "v2"
+    assert row["key_origin"] == "generated"
+
+    event = await ks2.sign_event("m2", _unsigned(pubkey))
+    assert event.author().to_hex() == pubkey
+    event.verify_signature()
+
+
+async def test_keystore_backup_restore_drill(keystore_env):
+    """Serialize the encrypted row, wipe, restore, verify the same key
+    signs — the plan's backup/restore drill."""
+    keystore = keystore_env["keystore"]
+    s = _ext_settings()
+    await _insert_merchant(keystore_env["db"], "m3")
+    ks = keystore.MerchantKeyStore(s)
+    pubkey = await ks.generate("m3")
+    backup = await ks.export_encrypted("m3")
+    # the blob must not carry plaintext key material
+    assert "nsec1" not in backup
+
+    await ks.delete("m3")
+    with pytest.raises(keystore.KeystoreError):
+        await ks.sign_event("m3", _unsigned(pubkey))
+
+    await ks.restore_encrypted("m3", backup)
+    event = await ks.sign_event("m3", _unsigned(pubkey))
+    assert event.author().to_hex() == pubkey
+    event.verify_signature()
+
+
+async def test_keystore_rewrap_resume_drill(keystore_env):
+    """Kill-and-resume: rewrap one of two rows, observe a stale v1 row
+    remains, then resume the loop to completion — zero v1 rows only after
+    every merchant rewraps (the §17 resumable-rotation gate)."""
+    keystore = keystore_env["keystore"]
+    s1 = _ext_settings()
+    for mid in ("m5", "m6"):
+        await _insert_merchant(keystore_env["db"], mid)
+        await keystore.MerchantKeyStore(s1).generate(mid)
+
+    s2 = _ext_settings(
+        master_keys=dict(s1.master_keys), active_key_version="v2"
+    )
+    ks2 = keystore.MerchantKeyStore(s2)
+
+    # simulated crash: only m5 rewrapped
+    assert await ks2.rewrap("m5") is True
+    assert "v1" in await ks2.stale_versions()  # stale rows remain — the
+    # keyring cannot drop v1 yet
+
+    # resume: drain every stale row (the rotation job's loop)
+    for mid in await ks2.stale_merchants():
+        assert await ks2.rewrap(mid) is True
+    assert await ks2.stale_versions() == ["v2"]
+
+
+async def test_keystore_import_validates_nsec(keystore_env):
+    keystore = keystore_env["keystore"]
+    s = _ext_settings()
+    await _insert_merchant(keystore_env["db"], "m4")
+    ks = keystore.MerchantKeyStore(s)
+    with pytest.raises(keystore.KeystoreError):
+        await ks.import_key("m4", "nsec1notarealkey")
+    with pytest.raises(keystore.KeystoreError):
+        await ks.import_key("m4", "")
+
+
+async def test_imported_nsec_never_stored_plaintext(keystore_env):
+    """The raw secret exists only inside the operation — the stored row
+    holds ciphertext that must not contain the key bytes."""
+    keystore = keystore_env["keystore"]
+    from nostr_sdk import Keys
+
+    s = _ext_settings()
+    await _insert_merchant(keystore_env["db"], "m7")
+    ks = keystore.MerchantKeyStore(s)
+    keys = Keys.generate()
+    nsec_hex = keys.secret_key().to_hex()
+    pubkey = await ks.import_key("m7", keys.secret_key().to_bech32())
+    assert pubkey == keys.public_key().to_hex()
+
+    async with keystore_env["db"].connect() as conn:
+        row = await conn.fetchone(
+            "SELECT key_origin, nonce, ciphertext "
+            "FROM gammamarkets.merchant_keys WHERE merchant_id = 'm7'"
+        )
+    assert row["key_origin"] == "imported"
+    stored = bytes(row["nonce"]) + bytes(row["ciphertext"])
+    assert bytes.fromhex(nsec_hex) not in stored
+    assert nsec_hex.encode() not in stored
+
+
+async def test_keystore_release_gated_methods(keystore_env):
+    keystore = keystore_env["keystore"]
+    s = _ext_settings()
+    ks = keystore.MerchantKeyStore(s)
+
+    with pytest.raises(keystore.ReleaseNotAvailable):
+        await ks.nip17_wrap("m1", None, "pk")
+    with pytest.raises(keystore.ReleaseNotAvailable):
+        await ks.nip17_unwrap("m1", None)
+    with pytest.raises(keystore.ReleaseNotAvailable):
+        await ks.nip04_decrypt("m1", "pk", "ct")
+    with pytest.raises(keystore.ReleaseNotAvailable):
+        await ks.nip04_encrypt("m1", "pk", "pt")
+
+
+# --- relay URL validation -----------------------------------------------------
+
+
+def test_relay_url_validation():
+    assert validate_relay_url("wss://relay.example.com") == (
+        "wss://relay.example.com"
+    )
+    assert (
+        validate_relay_url("wss://relay.example.com/")
+        == "wss://relay.example.com"
+    )
+    for bad in (
+        "ws://relay.example.com",           # plaintext transport
+        "https://relay.example.com",
+        "wss://127.0.0.1",                  # raw IP
+        "wss://169.254.169.254/latest",     # metadata IP (raw IP anyway)
+        "wss://user:pw@relay.example.com",  # userinfo
+        "wss://relay.example.com#frag",     # fragment
+        "wss://xn--exmple-cua.com",         # punycode host rejected
+        "wss://localhost",                  # single-label internal name
+        "wss://relay",                      # single-label
+        "wss://relay.internal",             # internal suffix
+        "wss://printer.local",              # mDNS suffix
+    ):
+        with pytest.raises(Exception):
+            validate_relay_url(bad)

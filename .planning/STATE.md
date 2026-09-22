@@ -2,18 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 2
 current_phase_name: Release A — Safe Web Commerce
-status: planning
-stopped_at: Phase 2 plans written and checked — ready to execute
-last_updated: "2026-09-20T23:40:00.000Z"
-last_activity: 2026-09-20
-last_activity_desc: Phase 2 plan set (4 plans) written, 3 checker rounds passed, all warnings resolved
-state_head: cb1f8367d10dfdab28045523c285fe033870b631
+status: executing
+stopped_at: Plan 02-01 complete — extension skeleton, m001, crypto/keystore, §5.1+5.2 APIs, outbox intents
+last_updated: "2026-09-22T06:07:44.000Z"
+last_activity: 2026-09-21
+last_activity_desc: Plan 02-01 executed — 76 runtime tests green, full regression 296 passed 1 skipped
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 25
+  total_plans: 7
+  completed_plans: 4
+  percent: 57
 ---
 
 # Project State
@@ -28,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-09-20)
 ## Current Position
 
 Phase: 2 of 4 (Release A — Safe Web Commerce)
-Plan: 4 plans written (02-01..02-04), checker-verified, 0/4 complete
-Status: Ready to execute
-Last activity: 2026-09-20 — Phase 2 plan set complete: context → research → approved UI-SPEC → 4 plans → 3 checker rounds
+Plan: 4 plans written (02-01..02-04), checker-verified, 1/4 complete
+Status: Executing — 02-01 done, next 02-02 (publication transport + storefront)
+Last activity: 2026-09-21 — Plan 02-01 executed and verified
 
-Progress: [███░░░░░░░] 25%
+Progress: [█████░░░░░] 57%
 
 ## Performance Metrics
 
@@ -61,6 +60,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 1 P01 | 20 min | 3 tasks | 23 files |
 | Phase 01 P02 | 21 min | 3 tasks | 15 files |
 | Phase 01 P03 | ~50 min | 3 tasks | 25 files |
+| Phase 02 P01 | multi-session | 3 tasks | 18 created + 4 modified |
 
 ## Accumulated Context
 
@@ -81,6 +81,10 @@ Decisions are logged in PROJECT.md and the normative specification.
 - [Phase 1]: Idempotent intent inserts use ON CONFLICT DO NOTHING with deterministic ids: PostgreSQL aborts transactions on constraint violations, so IntegrityError catch-and-continue is not dialect-portable (01-02)
 - [Phase 1]: Outbox publication evidence is durable and append-only, recorded separately from the fenced claim-token outcome write: models the section 8.6 crash point and makes stale-claim reconstruction honest (01-02)
 - [Phase 1]: Cancelled orders retain their payment projection for late-settlement detection; BOLT11 delivery and payment-request enqueue happen only for invoice_pending orders (spec 8.2 step 3, decision 24)
+- [Phase 2]: Host `deactivate_all` is a persisted editable admin setting — runtime fixtures must reset it in the shared core DB, and `sys.modules` must be purged before re-import so `Database()` binds the right data folder (02-01)
+- [Phase 2]: Host `rewrite_values` HTML-strips raw execute/fetch params — markdown/JSON payloads only persist via `insert`/`update` or DomainTransaction raw statements (02-01)
+- [Phase 2]: Cookie auth wins when a request carries both cookie and bearer headers — prevents bearer bypass of Origin/CSRF (02-01)
+- [Phase 2]: Kind-5 tombstone intents carry the bumped aggregate revision so supersession retires stale pending publishes; product intents enqueue AFTER collection republishes so dependency edges bind to live rows (02-01)
 
 ### Pending Todos
 
@@ -102,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-20T23:40:00.000Z
-Stopped at: Phase 2 plans written and checked — ready to execute
-Resume file: .planning/phases/02-release-a-safe-web-commerce/02-01-PLAN.md
+Last session: 2026-09-22T06:07:44.000Z
+Stopped at: Plan 02-01 complete — extension skeleton, m001, crypto/keystore, §5.1+5.2 APIs, outbox intents
+Resume file: .planning/phases/02-release-a-safe-web-commerce/02-02-PLAN.md

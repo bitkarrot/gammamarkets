@@ -45,6 +45,7 @@ MARKERS = {
     "db": "database transaction and state probes",
     "protocol": "Nostr protocol-level probes (deterministic local relays)",
     "host": "LNbits host contract probes (boots the pinned host app)",
+    "runtime": "extension runtime tests (real host loader, production package)",
 }
 
 

@@ -1,0 +1,17 @@
+{
+  "name": "GammaMarkets",
+  "version": "0.1.0",
+  "short_description": "NIP-99 catalog and Lightning checkout with one authoritative inventory.",
+  "tile": "",
+  "min_lnbits_version": "1.6.0",
+  "permissions": [
+    {
+      "id": "payments",
+      "description": "Create invoices on the merchant's bound wallet."
+    },
+    {
+      "id": "email",
+      "description": "Send order notifications through the host SMTP configuration."
+    }
+  ]
+}

@@ -1,0 +1,1713 @@
+"""Catalog domain — spec sections 4.2–4.6, 6.7, 15.
+
+Write paths go through ``DomainTransaction`` (raw connection — host
+``rewrite_values`` stripping does NOT apply there, preserving markdown/JSON
+fidelity; Pitfall 3). Every publishable mutation bumps ``revision`` and
+enqueues an outbox intent in the same transaction; drafts and deletes of
+never-published aggregates enqueue nothing public.
+
+Deletion is always soft (§6.7): ``deleted_at`` set, detail/reference rows
+removed, kind-5 tombstone intent enqueued AFTER republish intents for
+survivors (dependency edges express the ordering).
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import time
+import uuid
+
+from ..db import DomainTransaction
+from ..security import (
+    conflict,
+    not_found,
+    unprocessable,
+)
+from ..settings import ExtSettings, ext_settings
+from .outbox import enqueue_intent
+
+# --- section 15 bounds ----------------------------------------------------------
+
+TITLE_MAX = 200
+SUMMARY_MAX = 500
+DESC_MAX = 64 * 1024
+IMAGES_MAX = 16
+CURRENCY_RE = re.compile(r"^[A-Z0-9]{3,8}$")
+D_TAG_RE = re.compile(r"^[a-z0-9-]{8,64}$|^[0-9a-f]{8,64}$")
+COUNTRY_RE = re.compile(r"^[A-Z]{2}$")
+REGION_RE = re.compile(r"^[A-Z]{2}-[A-Z0-9]{1,3}$")
+
+PRODUCT_TYPES = ("simple", "variable", "variation")
+FORMATS = ("digital", "physical")
+VISIBILITIES = ("hidden", "on-sale", "pre-order")
+NIP99_STATUSES = ("active", "sold")
+SERVICES = ("standard", "express", "overnight", "pickup")
+DURATION_UNITS = ("H", "D", "W")
+FREQ_UNITS = ("D", "W", "Y")  # pinned Gamma units (§6.1)
+
+_HTML_TAG_RE = re.compile(r"<[^>]*>")
+_BAD_URL_RE = re.compile(r"(?:javascript|data|vbscript)\s*:", re.IGNORECASE)
+
+
+def _now() -> int:
+    return int(time.time())
+
+
+def _reject_unknown(payload: dict, allowed: set) -> None:
+    unknown = set(payload) - allowed
+    if unknown:
+        raise unprocessable(
+            "invalid-content", f"unsupported fields: {sorted(unknown)}"
+        )
+
+
+async def _merchant_id_for(user) -> str:
+    """§5.2 routes carry no merchant id — resolve the caller's 1:1 merchant."""
+    from . import merchant as merchant_service
+
+    return (await merchant_service.current_merchant(user))["id"]
+
+
+def sanitize_markdown(text: str | None) -> str | None:
+    """Allowlist markdown sanitizer (§15): strip raw HTML tags, reject
+    javascript:/data:/vbscript: URLs. Markdown syntax itself is preserved
+    byte-for-byte (round-trip fidelity is asserted in tests)."""
+    if text is None:
+        return None
+    if _BAD_URL_RE.search(text):
+        raise unprocessable(
+            "invalid-content", "Disallowed URL scheme in content"
+        )
+    return _HTML_TAG_RE.sub("", text)
+
+
+def _check_title(v: str | None, field: str = "title") -> str | None:
+    if v is not None and len(v) > TITLE_MAX:
+        raise unprocessable(
+            "invalid-content", f"{field} exceeds {TITLE_MAX} chars"
+        )
+    return v
+
+
+def _check_summary(v: str | None) -> str | None:
+    if v is not None and len(v) > SUMMARY_MAX:
+        raise unprocessable(
+            "invalid-content", f"summary exceeds {SUMMARY_MAX} chars"
+        )
+    return v
+
+
+def _check_description(v: str | None) -> str | None:
+    if v is not None:
+        if len(v.encode()) > DESC_MAX:
+            raise unprocessable(
+                "invalid-content", "description exceeds 64KB"
+            )
+        return sanitize_markdown(v)
+    return v
+
+
+def _check_currency(currency: str | None, decimals: int | None) -> None:
+    if currency is not None and not CURRENCY_RE.match(currency):
+        raise unprocessable(
+            "invalid-content", "currency must match ^[A-Z0-9]{3,8}$"
+        )
+    if decimals is not None and not (0 <= decimals <= 18):
+        raise unprocessable(
+            "invalid-content", "currency_decimals must be 0..18"
+        )
+
+
+def _check_d_tag(d_tag: str) -> str:
+    if not D_TAG_RE.match(d_tag):
+        raise unprocessable(
+            "invalid-content",
+            "d_tag must be lowercase hex or [a-z0-9-] slug, 8-64 chars",
+        )
+    return d_tag
+
+
+def _gen_d_tag() -> str:
+    return uuid.uuid4().hex[:32]
+
+
+async def _check_d_tag_free(
+    tx: DomainTransaction, table_name: str, merchant_id: str, d_tag: str
+) -> None:
+    row = await tx.fetch_one(
+        f"SELECT id FROM {tx.table(table_name)} "
+        "WHERE merchant_id = :m AND d_tag = :d",
+        {"m": merchant_id, "d": d_tag},
+    )
+    if row:
+        raise conflict(
+            "duplicate-resource", "Conflict", "d_tag already in use"
+        )
+
+
+async def _merchant_owned(merchant_id: str, user) -> dict:
+    from . import merchant as merchant_service
+
+    return await merchant_service.get_merchant_row(merchant_id, str(user.id))
+
+
+async def _fetch(table_name: str, id_: str, merchant_id: str) -> dict:
+    from ..db import db, table
+
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT * FROM {table(table_name)} "
+            "WHERE id = :i AND merchant_id = :m",
+            {"i": id_, "m": merchant_id},
+        )
+    if not row:
+        raise not_found(f"{table_name[:-1]} not found")
+    return dict(row)
+
+
+async def _fetchall(table_name: str, merchant_id: str,
+                    include_deleted: bool = False) -> list[dict]:
+    from ..db import db, table
+
+    sql = (
+        f"SELECT * FROM {table(table_name)} WHERE merchant_id = :m"
+        + ("" if include_deleted else " AND deleted_at IS NULL")
+        + " ORDER BY created_at, id"
+    )
+    async with db.connect() as conn:
+        rows = await conn.fetchall(sql, {"m": merchant_id})
+    return [dict(r) for r in rows]
+
+
+# --- outbox helpers --------------------------------------------------------------
+
+
+async def _product_publishable(tx: DomainTransaction, product_id: str) -> bool:
+    row = await tx.fetch_one(
+        f"SELECT draft, deleted_at FROM {tx.table('products')} WHERE id = :i",
+        {"i": product_id},
+    )
+    return bool(row) and not row["draft"] and row["deleted_at"] is None
+
+
+async def _collection_member_d_tags(
+    tx: DomainTransaction, collection_id: str
+) -> list[str]:
+    rows = await tx.fetch_all(
+        f"SELECT p.d_tag FROM {tx.table('product_collections')} pc "
+        f"JOIN {tx.table('products')} p ON p.id = pc.product_id "
+        "WHERE pc.collection_id = :c AND p.deleted_at IS NULL AND NOT p.draft",
+        {"c": collection_id},
+    )
+    return sorted(r["d_tag"] for r in rows)
+
+
+async def _collections_of_product(
+    tx: DomainTransaction, product_id: str
+) -> list[str]:
+    rows = await tx.fetch_all(
+        f"SELECT collection_id AS c FROM {tx.table('product_collections')} "
+        "WHERE product_id = :p",
+        {"p": product_id},
+    )
+    return [r["c"] for r in rows]
+
+
+async def _product_shipping_refs(
+    tx: DomainTransaction, product_id: str
+) -> list[tuple[str, str]]:
+    """(aggregate_type, aggregate_id) deps: shipping options + shipping
+    collections referenced by the product."""
+    rows = await tx.fetch_all(
+        f"SELECT shipping_option_id AS i FROM {tx.table('product_shipping_options')} "
+        "WHERE product_id = :p",
+        {"p": product_id},
+    )
+    deps = [("shipping_options", r["i"]) for r in rows]
+    rows = await tx.fetch_all(
+        f"SELECT collection_id AS i FROM {tx.table('product_shipping_collections')} "
+        "WHERE product_id = :p",
+        {"p": product_id},
+    )
+    return deps + [("collections", r["i"]) for r in rows]
+
+
+async def _enqueue_product(
+    tx: DomainTransaction, merchant_id: str, product_id: str,
+    revision: int, pubkey: str,
+) -> str | None:
+    """Enqueue a 30402 intent when publishable; also assigns
+    ``published_at`` once (§6 — retries never change it)."""
+    row = await tx.fetch_one(
+        f"SELECT draft, deleted_at, d_tag, published_at "
+        f"FROM {tx.table('products')} WHERE id = :i",
+        {"i": product_id},
+    )
+    if not row or row["draft"] or row["deleted_at"] is not None:
+        return None
+    if row["published_at"] is None:
+        await tx.execute(
+            f"UPDATE {tx.table('products')} SET published_at = :t "
+            "WHERE id = :i",
+            {"t": _now(), "i": product_id},
+        )
+    deps = []
+    for cid in await _collections_of_product(tx, product_id):
+        deps.append(("collections", cid))
+    deps.extend(await _product_shipping_refs(tx, product_id))
+    return await enqueue_intent(
+        tx, merchant_id, "products", product_id, 30402,
+        revision=revision,
+        event_address=f"30402:{pubkey}:{row['d_tag']}",
+        depends_on=deps,
+    )
+
+
+async def _enqueue_collection(
+    tx: DomainTransaction, merchant_id: str, collection_id: str,
+    revision: int, pubkey: str,
+) -> str | None:
+    """Enqueue a 30405 intent — but a collection with zero active members
+    MUST NOT publish (§6.2), so the intent is skipped until membership is
+    non-empty."""
+    row = await tx.fetch_one(
+        f"SELECT d_tag, deleted_at FROM {tx.table('collections')} "
+        "WHERE id = :i",
+        {"i": collection_id},
+    )
+    if not row or row["deleted_at"] is not None:
+        return None
+    members = await _collection_member_d_tags(tx, collection_id)
+    if not members:
+        return None
+    deps = [
+        ("shipping_options", r["shipping_option_id"])
+        for r in await tx.fetch_all(
+            f"SELECT shipping_option_id FROM {tx.table('collection_shipping')} "
+            "WHERE collection_id = :c",
+            {"c": collection_id},
+        )
+    ]
+    return await enqueue_intent(
+        tx, merchant_id, "collections", collection_id, 30405,
+        revision=revision,
+        event_address=f"30405:{pubkey}:{row['d_tag']}",
+        depends_on=deps,
+    )
+
+
+async def _enqueue_shipping(
+    tx: DomainTransaction, merchant_id: str, option_id: str,
+    revision: int, pubkey: str,
+) -> str | None:
+    row = await tx.fetch_one(
+        f"SELECT d_tag, deleted_at, active FROM {tx.table('shipping_options')} "
+        "WHERE id = :i",
+        {"i": option_id},
+    )
+    if not row or row["deleted_at"] is not None or not row["active"]:
+        return None
+    return await enqueue_intent(
+        tx, merchant_id, "shipping_options", option_id, 30406,
+        revision=revision,
+        event_address=f"30406:{pubkey}:{row['d_tag']}",
+    )
+
+
+async def _enqueue_stall_if_enabled(
+    tx: DomainTransaction, merchant_id: str, catalog_id: str,
+    pubkey: str,
+) -> None:
+    row = await tx.fetch_one(
+        f"SELECT publish_nip15, nip15_stall_d FROM {tx.table('catalogs')} "
+        "WHERE id = :i",
+        {"i": catalog_id},
+    )
+    if row and row["publish_nip15"]:
+        await enqueue_intent(
+            tx, merchant_id, "catalogs", catalog_id, 30017,
+            event_address=f"30017:{pubkey}:{row['nip15_stall_d'] or ''}",
+        )
+
+
+# --- catalogs -------------------------------------------------------------------
+
+
+_CATALOG_FIELDS = {
+    "name", "description", "default_currency", "default_location",
+    "nip15_stall_d", "publish_gamma", "publish_nip15",
+}
+
+
+async def create_catalog(merchant_id: str, user, payload: dict) -> dict:
+    await _merchant_owned(merchant_id, user)
+    _reject_unknown(payload, _CATALOG_FIELDS)
+    name = _check_title(payload.get("name"), "name")
+    description = _check_description(payload.get("description"))
+    currency = payload.get("default_currency")
+    if currency is not None and not CURRENCY_RE.match(currency):
+        raise unprocessable("invalid-content", "invalid default_currency")
+    catalog_id = uuid.uuid4().hex
+    stall_d = payload.get("nip15_stall_d") or _gen_d_tag()
+    now = _now()
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"INSERT INTO {tx.table('catalogs')} "
+            "(id, merchant_id, name, description, default_currency,"
+            " default_location, nip15_stall_d, publish_gamma, publish_nip15,"
+            " created_at, updated_at) "
+            "VALUES (:i, :m, :n, :d, :c, :l, :sd, :pg, :pn, :t, :t)",
+            {
+                "i": catalog_id,
+                "m": merchant_id,
+                "n": name,
+                "d": description,
+                "c": currency,
+                "l": payload.get("default_location"),
+                "sd": stall_d,
+                "pg": bool(payload.get("publish_gamma", True)),
+                "pn": bool(payload.get("publish_nip15", False)),
+                "t": now,
+            },
+        )
+    return await get_catalog(merchant_id, user, catalog_id)
+
+
+async def list_catalogs(merchant_id: str, user) -> list[dict]:
+    await _merchant_owned(merchant_id, user)
+    return await _fetchall("catalogs", merchant_id)
+
+
+async def get_catalog(merchant_id: str, user, catalog_id: str) -> dict:
+    await _merchant_owned(merchant_id, user)
+    row = await _fetch("catalogs", catalog_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("catalog not found")
+    return row
+
+
+async def patch_catalog(merchant_id: str, user, catalog_id: str,
+                        patch: dict) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("catalogs", catalog_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("catalog not found")
+    allowed = {
+        "name", "description", "default_currency", "default_location",
+        "publish_gamma", "publish_nip15",
+    }
+    unknown = set(patch) - allowed
+    if unknown:
+        raise unprocessable(
+            "invalid-content", f"unsupported fields: {sorted(unknown)}"
+        )
+    updates: dict = {}
+    if "name" in patch:
+        updates["name"] = _check_title(patch["name"], "name")
+    if "description" in patch:
+        updates["description"] = _check_description(patch["description"])
+    if "default_currency" in patch:
+        c = patch["default_currency"]
+        if c is not None and not CURRENCY_RE.match(c):
+            raise unprocessable(
+                "invalid-content", "invalid default_currency"
+            )
+        updates["default_currency"] = c
+    if "default_location" in patch:
+        updates["default_location"] = patch["default_location"]
+    for flag in ("publish_gamma", "publish_nip15"):
+        if flag in patch:
+            updates[flag] = bool(patch[flag])
+    async with DomainTransaction() as tx:
+        for col, val in updates.items():
+            await tx.execute(
+                f"UPDATE {tx.table('catalogs')} SET {col} = :v,"
+                " updated_at = :t WHERE id = :i",
+                {"v": val, "t": _now(), "i": catalog_id},
+            )
+        if updates:
+            await _enqueue_stall_if_enabled(
+                tx, merchant_id, catalog_id, merchant["pubkey"]
+            )
+    return await get_catalog(merchant_id, user, catalog_id)
+
+
+async def delete_catalog(merchant_id: str, user, catalog_id: str) -> dict:
+    """Soft delete — products under the catalog are NOT cascade-deleted
+    (they hold their own tombstones); the catalog row is retained."""
+    await _merchant_owned(merchant_id, user)
+    row = await _fetch("catalogs", catalog_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("catalog not found")
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('catalogs')} SET deleted_at = :t,"
+            " updated_at = :t WHERE id = :i",
+            {"t": _now(), "i": catalog_id},
+        )
+    return {"deleted": True, "id": catalog_id}
+
+
+# --- products --------------------------------------------------------------------
+
+
+def _validate_product_payload(p: dict, partial: bool = False) -> None:
+    if not partial or "title" in p:
+        _check_title(p.get("title"))
+    if not partial or "summary" in p:
+        _check_summary(p.get("summary"))
+    if not partial or "description_md" in p:
+        _check_description(p.get("description_md"))
+    if not partial or "currency" in p or "currency_decimals" in p:
+        _check_currency(p.get("currency"), p.get("currency_decimals"))
+    if "product_type" in p and p["product_type"] not in PRODUCT_TYPES:
+        raise unprocessable(
+            "invalid-content", f"product_type must be one of {PRODUCT_TYPES}"
+        )
+    if "format" in p and p["format"] not in FORMATS:
+        raise unprocessable(
+            "invalid-content", f"format must be one of {FORMATS}"
+        )
+    if "visibility" in p and p["visibility"] not in VISIBILITIES:
+        raise unprocessable(
+            "invalid-content", f"visibility must be one of {VISIBILITIES}"
+        )
+    if "nip99_status" in p and p["nip99_status"] not in NIP99_STATUSES:
+        raise unprocessable(
+            "invalid-content", "nip99_status must be active|sold"
+        )
+    if "recurring_frequency" in p and p["recurring_frequency"] is not None:
+        if p["recurring_frequency"] not in FREQ_UNITS:
+            raise unprocessable(
+                "invalid-content", "recurring_frequency must be D|W|Y"
+            )
+    if "stock_on_hand" in p and p["stock_on_hand"] is not None:
+        if p["stock_on_hand"] < 0:
+            raise unprocessable(
+                "invalid-content", "stock_on_hand must be >= 0 or null"
+            )
+    if (
+        p.get("stock_on_hand") is not None
+        and p.get("stock_reserved") is not None
+        and p["stock_reserved"] > p["stock_on_hand"]
+    ):
+        raise unprocessable(
+            "invalid-content",
+            "stock_reserved cannot exceed stock_on_hand",
+        )
+    if "amount_minor" in p and p["amount_minor"] is not None:
+        if p["amount_minor"] < 0:
+            raise unprocessable(
+                "invalid-content", "amount_minor must be >= 0"
+            )
+    images = p.get("images")
+    if images is not None:
+        if not isinstance(images, list) or len(images) > IMAGES_MAX:
+            raise unprocessable(
+                "invalid-content", f"at most {IMAGES_MAX} images"
+            )
+        for img in images:
+            url = img.get("url") if isinstance(img, dict) else img
+            if not isinstance(url, str) or not url.startswith("https://"):
+                raise unprocessable(
+                    "invalid-content", "image URLs must be https://"
+                )
+
+
+async def _validate_variation(
+    tx: DomainTransaction, merchant_id: str, product_type: str,
+    parent_id: str | None,
+) -> str | None:
+    """Variation rules (§4.3/§6.1): exactly one parent, parent must be
+    ``variable``, parent must not itself be a variation (depth = 1)."""
+    if product_type != "variation":
+        return None
+    if not parent_id:
+        raise unprocessable(
+            "invalid-content", "variation requires parent_product_id"
+        )
+    parent = await tx.fetch_one(
+        f"SELECT product_type, deleted_at FROM {tx.table('products')} "
+        "WHERE id = :i AND merchant_id = :m",
+        {"i": parent_id, "m": merchant_id},
+    )
+    if not parent or parent["deleted_at"] is not None:
+        raise unprocessable("invalid-content", "parent product not found")
+    if parent["product_type"] != "variable":
+        raise unprocessable(
+            "invalid-content",
+            "variation parent must be a variable product",
+        )
+    return parent_id
+
+
+_PRODUCT_FIELDS = (
+    "title", "summary", "description_md", "amount_minor", "currency",
+    "currency_decimals", "recurring_frequency", "visibility",
+    "nip99_status", "draft", "stock_on_hand", "stock_reserved",
+    "location", "geohash",
+    "weight_value", "weight_unit", "dim_l", "dim_w", "dim_h", "dim_unit",
+    "nip15_product_id",
+)
+
+
+def _sanitize_product_fields(patch: dict) -> dict:
+    out = {}
+    for f in _PRODUCT_FIELDS:
+        if f in patch:
+            v = patch[f]
+            if f == "description_md":
+                v = _check_description(v)
+            elif f == "title":
+                v = _check_title(v)
+            elif f == "summary":
+                v = _check_summary(v)
+            elif f == "draft":
+                v = bool(v)
+            out[f] = v
+    return out
+
+
+async def _replace_product_details(
+    tx: DomainTransaction, product_id: str, patch: dict,
+    merchant_id: str,
+) -> None:
+    """Replace detail-table sets when the corresponding key is present."""
+    if "images" in patch:
+        await tx.execute(
+            f"DELETE FROM {tx.table('product_images')} WHERE product_id = :p",
+            {"p": product_id},
+        )
+        for i, img in enumerate(patch["images"] or []):
+            url = img.get("url") if isinstance(img, dict) else img
+            await tx.execute(
+                f"INSERT INTO {tx.table('product_images')} "
+                "(id, product_id, url, dimensions, sort_order) "
+                "VALUES (:i, :p, :u, :d, :s)",
+                {
+                    "i": uuid.uuid4().hex,
+                    "p": product_id,
+                    "u": url,
+                    "d": img.get("dimensions") if isinstance(img, dict) else None,
+                    "s": img.get("sort_order", i) if isinstance(img, dict) else i,
+                },
+            )
+    if "specs" in patch:
+        await tx.execute(
+            f"DELETE FROM {tx.table('product_specs')} WHERE product_id = :p",
+            {"p": product_id},
+        )
+        for spec in patch["specs"] or []:
+            await tx.execute(
+                f"INSERT INTO {tx.table('product_specs')} "
+                "(id, product_id, key, value) VALUES (:i, :p, :k, :v)",
+                {
+                    "i": uuid.uuid4().hex,
+                    "p": product_id,
+                    "k": spec["key"],
+                    "v": spec["value"],
+                },
+            )
+    if "categories" in patch:
+        await tx.execute(
+            f"DELETE FROM {tx.table('product_categories')} "
+            "WHERE product_id = :p",
+            {"p": product_id},
+        )
+        for cat in patch["categories"] or []:
+            await tx.execute(
+                f"INSERT INTO {tx.table('product_categories')} "
+                "(id, product_id, category) VALUES (:i, :p, :c)",
+                {"i": uuid.uuid4().hex, "p": product_id, "c": cat},
+            )
+    if "collection_ids" in patch:
+        # membership — draft products may not join collections (§6.7)
+        prod = await tx.fetch_one(
+            f"SELECT draft FROM {tx.table('products')} WHERE id = :i",
+            {"i": product_id},
+        )
+        wanted = list(dict.fromkeys(patch["collection_ids"] or []))
+        if wanted and prod and prod["draft"]:
+            raise unprocessable(
+                "invalid-content", "draft products cannot join collections"
+            )
+        for cid in wanted:
+            col = await tx.fetch_one(
+                f"SELECT id, deleted_at FROM {tx.table('collections')} "
+                "WHERE id = :i AND merchant_id = :m",
+                {"i": cid, "m": merchant_id},
+            )
+            if not col or col["deleted_at"] is not None:
+                raise unprocessable(
+                    "invalid-content", f"collection {cid} not found"
+                )
+        await tx.execute(
+            f"DELETE FROM {tx.table('product_collections')} "
+            "WHERE product_id = :p",
+            {"p": product_id},
+        )
+        for cid in wanted:
+            await tx.execute(
+                f"INSERT INTO {tx.table('product_collections')} "
+                "(id, product_id, collection_id) VALUES (:i, :p, :c)",
+                {"i": uuid.uuid4().hex, "p": product_id, "c": cid},
+            )
+    for key, tbl, fk in (
+        ("shipping_option_ids", "product_shipping_options",
+         "shipping_option_id"),
+        ("shipping_collection_ids", "product_shipping_collections",
+         "collection_id"),
+    ):
+        if key not in patch:
+            continue
+        pairs = patch[key] or []  # list of ids or {id, extra_cost_minor}
+        await tx.execute(
+            f"DELETE FROM {tx.table(tbl)} WHERE product_id = :p",
+            {"p": product_id},
+        )
+        for entry in pairs:
+            if isinstance(entry, dict):
+                ref_id, extra = entry["id"], entry.get("extra_cost_minor")
+            else:
+                ref_id, extra = entry, None
+            await tx.execute(
+                f"INSERT INTO {tx.table(tbl)} "
+                f"(id, product_id, {fk}, extra_cost_minor) "
+                "VALUES (:i, :p, :r, :e)",
+                {
+                    "i": uuid.uuid4().hex,
+                    "p": product_id,
+                    "r": ref_id,
+                    "e": extra,
+                },
+            )
+
+
+_PRODUCT_PAYLOAD_FIELDS = set(_PRODUCT_FIELDS) | {
+    "catalog_id", "d_tag", "product_type", "format", "parent_product_id",
+    "stock_reserved", "images", "specs", "categories", "collection_ids",
+    "shipping_option_ids", "shipping_collection_ids",
+}
+
+
+async def create_product(merchant_id: str, user, payload: dict) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    _reject_unknown(payload, _PRODUCT_PAYLOAD_FIELDS)
+    _validate_product_payload(payload)
+    product_type = payload.get("product_type", "simple")
+    fmt = payload.get("format", "physical")
+    if not payload.get("catalog_id"):
+        raise unprocessable("invalid-content", "catalog_id is required")
+    catalog = await _fetch("catalogs", payload["catalog_id"], merchant_id)
+    if catalog["deleted_at"] is not None:
+        raise not_found("catalog not found")
+    d_tag = payload.get("d_tag") or _gen_d_tag()
+    _check_d_tag(d_tag)
+
+    product_id = uuid.uuid4().hex
+    now = _now()
+    async with DomainTransaction() as tx:
+        await _check_d_tag_free(tx, "products", merchant_id, d_tag)
+        parent_id = await _validate_variation(
+            tx, merchant_id, product_type, payload.get("parent_product_id")
+        )
+        fields = _sanitize_product_fields(payload)
+        cols = ["id", "merchant_id", "catalog_id", "d_tag", "product_type",
+                "format", "revision", "created_at", "updated_at"]
+        vals = [product_id, merchant_id, payload["catalog_id"], d_tag,
+                product_type, fmt, 0, now, now]
+        if parent_id:
+            cols.append("parent_product_id")
+            vals.append(parent_id)
+        for f, v in fields.items():
+            cols.append(f)
+            vals.append(v)
+        placeholders = ", ".join(f":p{i}" for i in range(len(cols)))
+        await tx.execute(
+            f"INSERT INTO {tx.table('products')} "
+            f"({', '.join(cols)}) VALUES ({placeholders})",
+            {f"p{i}": v for i, v in enumerate(vals)},
+        )
+        await _replace_product_details(tx, product_id, payload, merchant_id)
+        # membership changes republish affected collections FIRST (§8.6
+        # ordering) so the product intent's dependency edges bind to them
+        for cid in await _collections_of_product(tx, product_id):
+            col = await tx.fetch_one(
+                f"SELECT revision FROM {tx.table('collections')} WHERE id = :i",
+                {"i": cid},
+            )
+            await tx.execute(
+                f"UPDATE {tx.table('collections')} SET revision = :r,"
+                " updated_at = :t WHERE id = :i",
+                {"r": (col["revision"] or 0) + 1, "t": now, "i": cid},
+            )
+            await _enqueue_collection(
+                tx, merchant_id, cid, (col["revision"] or 0) + 1,
+                merchant["pubkey"],
+            )
+        await _enqueue_product(
+            tx, merchant_id, product_id, 0, merchant["pubkey"]
+        )
+        await _enqueue_stall_if_enabled(
+            tx, merchant_id, payload["catalog_id"], merchant["pubkey"]
+        )
+    return await get_product(merchant_id, user, product_id)
+
+
+async def list_products(merchant_id: str, user,
+                        catalog_id: str | None = None) -> list[dict]:
+    await _merchant_owned(merchant_id, user)
+    from ..db import db, table
+
+    sql = (
+        f"SELECT * FROM {table('products')} WHERE merchant_id = :m"
+        " AND deleted_at IS NULL"
+    )
+    params: dict = {"m": merchant_id}
+    if catalog_id:
+        sql += " AND catalog_id = :c"
+        params["c"] = catalog_id
+    sql += " ORDER BY created_at, id"
+    async with db.connect() as conn:
+        rows = await conn.fetchall(sql, params)
+    return [dict(r) for r in rows]
+
+
+async def get_product(merchant_id: str, user, product_id: str) -> dict:
+    await _merchant_owned(merchant_id, user)
+    row = await _fetch("products", product_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("product not found")
+    row["images"] = await _detail_list(
+        "product_images", product_id, "sort_order"
+    )
+    row["specs"] = await _detail_list("product_specs", product_id)
+    row["categories"] = [
+        r["category"]
+        for r in await _detail_list("product_categories", product_id)
+    ]
+    row["collection_ids"] = [
+        r["collection_id"]
+        for r in await _detail_list("product_collections", product_id)
+    ]
+    row["shipping_options"] = await _detail_list(
+        "product_shipping_options", product_id
+    )
+    row["shipping_collections"] = await _detail_list(
+        "product_shipping_collections", product_id
+    )
+    return row
+
+
+async def _detail_list(table_name: str, product_id: str,
+                       order: str = "id") -> list[dict]:
+    from ..db import db, table
+
+    async with db.connect() as conn:
+        rows = await conn.fetchall(
+            f"SELECT * FROM {table(table_name)} WHERE product_id = :p "
+            f"ORDER BY {order}",
+            {"p": product_id},
+        )
+    return [dict(r) for r in rows]
+
+
+async def patch_product(merchant_id: str, user, product_id: str,
+                        patch: dict) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("products", product_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("product not found")
+    _reject_unknown(patch, _PRODUCT_PAYLOAD_FIELDS)
+    _validate_product_payload(patch, partial=True)
+    fields = _sanitize_product_fields(patch)
+    new_type = patch.get("product_type", row["product_type"])
+    parent_id = patch.get("parent_product_id", row["parent_product_id"])
+    if parent_id == product_id:
+        raise unprocessable(
+            "invalid-content", "a product cannot be its own parent"
+        )
+
+    now = _now()
+    async with DomainTransaction() as tx:
+        if "product_type" in patch or "parent_product_id" in patch:
+            # re-validate the resulting combination
+            parent_id = await _validate_variation(
+                tx, merchant_id, new_type, parent_id
+            )
+            fields["product_type"] = new_type
+            fields["parent_product_id"] = parent_id
+            if new_type != "variation":
+                # a variable/simple product must not be referenced as a
+                # variation's parent check happens on children — but a
+                # product_type change away from 'variable' with existing
+                # children is a dangling-parent defect
+                children = await tx.fetch_all(
+                    f"SELECT id FROM {tx.table('products')} "
+                    "WHERE parent_product_id = :i AND deleted_at IS NULL",
+                    {"i": product_id},
+                )
+                if children:
+                    raise conflict(
+                        "invalid-transition",
+                        "Product has variations",
+                        "cannot change type while variations reference it",
+                    )
+        # stock auto-status: available reaching 0 -> sold (§6.1)
+        if "stock_on_hand" in fields or "stock_reserved" in fields:
+            on_hand = fields.get("stock_on_hand", row["stock_on_hand"])
+            reserved = fields.get(
+                "stock_reserved", row["stock_reserved"]
+            )
+            if (
+                on_hand is not None
+                and reserved is not None
+                and reserved > on_hand
+            ):
+                raise unprocessable(
+                    "invalid-content",
+                    "stock_reserved cannot exceed stock_on_hand",
+                )
+            if on_hand is not None:
+                available = on_hand - (reserved or 0)
+                if "nip99_status" not in fields:
+                    fields["nip99_status"] = (
+                        "sold" if available <= 0 else "active"
+                    )
+        for col, val in fields.items():
+            await tx.execute(
+                f"UPDATE {tx.table('products')} SET {col} = :v WHERE id = :i",
+                {"v": val, "i": product_id},
+            )
+        await tx.execute(
+            f"UPDATE {tx.table('products')} SET revision = revision + 1,"
+            " updated_at = :t WHERE id = :i",
+            {"t": now, "i": product_id},
+        )
+        await _replace_product_details(tx, product_id, patch, merchant_id)
+        new_revision = (row["revision"] or 0) + 1
+        # collections republish first so product deps bind to live intents
+        for cid in await _collections_of_product(tx, product_id):
+            col = await tx.fetch_one(
+                f"SELECT revision FROM {tx.table('collections')} WHERE id = :i",
+                {"i": cid},
+            )
+            nr = (col["revision"] or 0) + 1
+            await tx.execute(
+                f"UPDATE {tx.table('collections')} SET revision = :r,"
+                " updated_at = :t WHERE id = :i",
+                {"r": nr, "t": now, "i": cid},
+            )
+            await _enqueue_collection(
+                tx, merchant_id, cid, nr, merchant["pubkey"]
+            )
+        await _enqueue_product(
+            tx, merchant_id, product_id, new_revision, merchant["pubkey"]
+        )
+    return await get_product(merchant_id, user, product_id)
+
+
+async def add_product_image(merchant_id: str, user, product_id: str,
+                            payload: dict) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("products", product_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("product not found")
+    url = payload.get("url")
+    if not isinstance(url, str) or not url.startswith("https://"):
+        raise unprocessable(
+            "invalid-content", "image URL must be https://"
+        )
+    async with DomainTransaction() as tx:
+        count = await tx.fetch_one(
+            f"SELECT COUNT(*) AS n FROM {tx.table('product_images')} "
+            "WHERE product_id = :p",
+            {"p": product_id},
+        )
+        if (count["n"] if count else 0) >= IMAGES_MAX:
+            raise unprocessable(
+                "invalid-content", f"at most {IMAGES_MAX} images"
+            )
+        await tx.execute(
+            f"INSERT INTO {tx.table('product_images')} "
+            "(id, product_id, url, dimensions, sort_order) "
+            "VALUES (:i, :p, :u, :d, :s)",
+            {
+                "i": uuid.uuid4().hex,
+                "p": product_id,
+                "u": url,
+                "d": payload.get("dimensions"),
+                "s": payload.get("sort_order", count["n"] if count else 0),
+            },
+        )
+        await tx.execute(
+            f"UPDATE {tx.table('products')} SET revision = revision + 1,"
+            " updated_at = :t WHERE id = :i",
+            {"t": _now(), "i": product_id},
+        )
+        await _enqueue_product(
+            tx, merchant_id, product_id, (row["revision"] or 0) + 1,
+            merchant["pubkey"],
+        )
+    return await get_product(merchant_id, user, product_id)
+
+
+async def _delete_product_locked(
+    tx: DomainTransaction, merchant_id: str, product_id: str,
+    pubkey: str,
+) -> None:
+    """Soft-delete core inside an open transaction — shared by DELETE and
+    the last-member cascade."""
+    row = await tx.fetch_one(
+        f"SELECT d_tag, deleted_at FROM {tx.table('products')} WHERE id = :i",
+        {"i": product_id},
+    )
+    if not row or row["deleted_at"] is not None:
+        return
+    now = _now()
+    # Affected collections BEFORE membership removal (they republish first).
+    member_collections = await _collections_of_product(tx, product_id)
+    for tbl in (
+        "product_images", "product_specs", "product_categories",
+        "product_collections", "product_shipping_options",
+        "product_shipping_collections",
+    ):
+        await tx.execute(
+            f"DELETE FROM {tx.table(tbl)} WHERE product_id = :p",
+            {"p": product_id},
+        )
+    await tx.execute(
+        f"UPDATE {tx.table('products')} SET deleted_at = :t,"
+        " updated_at = :t, revision = revision + 1 WHERE id = :i",
+        {"t": now, "i": product_id},
+    )
+    # republish surviving collections (a-tags rebuilt without the product)
+    deps: list[tuple[str, str]] = []
+    for cid in member_collections:
+        col = await tx.fetch_one(
+            f"SELECT revision FROM {tx.table('collections')} WHERE id = :i",
+            {"i": cid},
+        )
+        nr = (col["revision"] or 0) + 1
+        await tx.execute(
+            f"UPDATE {tx.table('collections')} SET revision = :r,"
+            " updated_at = :t WHERE id = :i",
+            {"r": nr, "t": now, "i": cid},
+        )
+        intent = await _enqueue_collection(
+            tx, merchant_id, cid, nr, pubkey
+        )
+        if intent is None:
+            # last active member removed -> the collection cannot publish
+            # (§6.2). Tombstone the relay copy but keep the local row — the
+            # merchant may add members later and re-publish.
+            col_row = await tx.fetch_one(
+                f"SELECT d_tag FROM {tx.table('collections')} WHERE id = :i",
+                {"i": cid},
+            )
+            await enqueue_intent(
+                tx, merchant_id, "collections", cid, 5,
+                revision=nr,
+                event_address=f"30405:{pubkey}:{col_row['d_tag']}",
+            )
+        else:
+            deps.append(("collections", cid))
+    # tombstone intent — depends on survivor republishes
+    await enqueue_intent(
+        tx, merchant_id, "products", product_id, 5,
+        revision=(await tx.fetch_one(
+            f"SELECT revision FROM {tx.table('products')} WHERE id = :i",
+            {"i": product_id},
+        ))["revision"],
+        event_address=f"30402:{pubkey}:{row['d_tag']}",
+        depends_on=deps,
+    )
+
+
+async def delete_product(merchant_id: str, user, product_id: str) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("products", product_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("product not found")
+    async with DomainTransaction() as tx:
+        await _delete_product_locked(
+            tx, merchant_id, product_id, merchant["pubkey"]
+        )
+    return {"deleted": True, "id": product_id}
+
+
+# --- collections -----------------------------------------------------------------
+
+
+_COLLECTION_FIELDS = {
+    "d_tag", "title", "description", "image", "location", "geohash",
+    "shipping_option_ids",
+}
+
+
+async def create_collection(merchant_id: str, user, payload: dict) -> dict:
+    await _merchant_owned(merchant_id, user)
+    _reject_unknown(payload, _COLLECTION_FIELDS)
+    title = _check_title(payload.get("title"))
+    description = _check_description(payload.get("description"))
+    image = payload.get("image")
+    if image is not None and not image.startswith("https://"):
+        raise unprocessable(
+            "invalid-content", "collection image must be https://"
+        )
+    collection_id = uuid.uuid4().hex
+    d_tag = payload.get("d_tag") or _gen_d_tag()
+    _check_d_tag(d_tag)
+    now = _now()
+    async with DomainTransaction() as tx:
+        await _check_d_tag_free(tx, "collections", merchant_id, d_tag)
+        await tx.execute(
+            f"INSERT INTO {tx.table('collections')} "
+            "(id, merchant_id, d_tag, title, description, image, location,"
+            " geohash, created_at, updated_at) "
+            "VALUES (:i, :m, :d, :t2, :desc, :img, :loc, :g, :t, :t)",
+            {
+                "i": collection_id,
+                "m": merchant_id,
+                "d": d_tag,
+                "t2": title,
+                "desc": description,
+                "img": image,
+                "loc": payload.get("location"),
+                "g": payload.get("geohash"),
+                "t": now,
+            },
+        )
+        for sid in payload.get("shipping_option_ids") or []:
+            opt = await tx.fetch_one(
+                f"SELECT id, deleted_at FROM {tx.table('shipping_options')} "
+                "WHERE id = :i AND merchant_id = :m",
+                {"i": sid, "m": merchant_id},
+            )
+            if not opt or opt["deleted_at"] is not None:
+                raise unprocessable(
+                    "invalid-content", f"shipping option {sid} not found"
+                )
+            await tx.execute(
+                f"INSERT INTO {tx.table('collection_shipping')} "
+                "(id, collection_id, shipping_option_id) "
+                "VALUES (:i, :c, :s)",
+                {"i": uuid.uuid4().hex, "c": collection_id, "s": sid},
+            )
+        # zero members -> no intent (§6.2); non-empty happens via product
+        # membership paths which enqueue the collection then.
+    return await get_collection(merchant_id, user, collection_id)
+
+
+async def list_collections(merchant_id: str, user) -> list[dict]:
+    await _merchant_owned(merchant_id, user)
+    return await _fetchall("collections", merchant_id)
+
+
+async def get_collection(merchant_id: str, user, collection_id: str) -> dict:
+    await _merchant_owned(merchant_id, user)
+    row = await _fetch("collections", collection_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("collection not found")
+    from ..db import db, table
+
+    async with db.connect() as conn:
+        members = await conn.fetchall(
+            f"SELECT p.id, p.d_tag, p.title, p.draft FROM {table('product_collections')} pc "
+            f"JOIN {table('products')} p ON p.id = pc.product_id "
+            "WHERE pc.collection_id = :c AND p.deleted_at IS NULL",
+            {"c": collection_id},
+        )
+        ship = await conn.fetchall(
+            f"SELECT shipping_option_id FROM {table('collection_shipping')} "
+            "WHERE collection_id = :c",
+            {"c": collection_id},
+        )
+    row["members"] = [dict(m) for m in members]
+    row["shipping_option_ids"] = [s["shipping_option_id"] for s in ship]
+    return row
+
+
+async def patch_collection(merchant_id: str, user, collection_id: str,
+                           patch: dict) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("collections", collection_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("collection not found")
+    allowed = {"title", "description", "image", "location", "geohash",
+               "shipping_option_ids"}
+    unknown = set(patch) - allowed
+    if unknown:
+        raise unprocessable(
+            "invalid-content", f"unsupported fields: {sorted(unknown)}"
+        )
+    now = _now()
+    async with DomainTransaction() as tx:
+        for col in ("title", "description", "image", "location", "geohash"):
+            if col in patch:
+                v = patch[col]
+                if col == "title":
+                    v = _check_title(v)
+                elif col == "description":
+                    v = _check_description(v)
+                elif col == "image" and v is not None and not v.startswith(
+                    "https://"
+                ):
+                    raise unprocessable(
+                        "invalid-content", "image must be https://"
+                    )
+                await tx.execute(
+                    f"UPDATE {tx.table('collections')} SET {col} = :v"
+                    " WHERE id = :i",
+                    {"v": v, "i": collection_id},
+                )
+        if "shipping_option_ids" in patch:
+            await tx.execute(
+                f"DELETE FROM {tx.table('collection_shipping')} "
+                "WHERE collection_id = :c",
+                {"c": collection_id},
+            )
+            for sid in patch["shipping_option_ids"] or []:
+                opt = await tx.fetch_one(
+                    f"SELECT id, deleted_at FROM {tx.table('shipping_options')} "
+                    "WHERE id = :i AND merchant_id = :m",
+                    {"i": sid, "m": merchant_id},
+                )
+                if not opt or opt["deleted_at"] is not None:
+                    raise unprocessable(
+                        "invalid-content",
+                        f"shipping option {sid} not found",
+                    )
+                await tx.execute(
+                    f"INSERT INTO {tx.table('collection_shipping')} "
+                    "(id, collection_id, shipping_option_id) "
+                    "VALUES (:i, :c, :s)",
+                    {"i": uuid.uuid4().hex, "c": collection_id, "s": sid},
+                )
+        nr = (row["revision"] or 0) + 1
+        await tx.execute(
+            f"UPDATE {tx.table('collections')} SET revision = :r,"
+            " updated_at = :t WHERE id = :i",
+            {"r": nr, "t": now, "i": collection_id},
+        )
+        await _enqueue_collection(
+            tx, merchant_id, collection_id, nr, merchant["pubkey"]
+        )
+    return await get_collection(merchant_id, user, collection_id)
+
+
+async def _collection_references(
+    tx: DomainTransaction, collection_id: str
+) -> dict:
+    members = await tx.fetch_all(
+        f"SELECT product_id AS i FROM {tx.table('product_collections')} "
+        "WHERE collection_id = :c",
+        {"c": collection_id},
+    )
+    ship_refs = await tx.fetch_all(
+        f"SELECT product_id AS i FROM {tx.table('product_shipping_collections')} "
+        "WHERE collection_id = :c",
+        {"c": collection_id},
+    )
+    return {
+        "member_products": [r["i"] for r in members],
+        "shipping_referencing_products": [r["i"] for r in ship_refs],
+    }
+
+
+async def _delete_collection_locked(
+    tx: DomainTransaction, merchant_id: str, collection_id: str,
+    pubkey: str, strip: bool = False,
+) -> dict:
+    row = await tx.fetch_one(
+        f"SELECT d_tag, deleted_at FROM {tx.table('collections')} WHERE id = :i",
+        {"i": collection_id},
+    )
+    if not row or row["deleted_at"] is not None:
+        return {"deleted": True}
+    refs = await _collection_references(tx, collection_id)
+    if (refs["member_products"] or refs["shipping_referencing_products"]) \
+            and not strip:
+        raise conflict(
+            "invalid-transition", "Collection is referenced",
+            json.dumps(refs),
+        )
+    now = _now()
+    affected_products = list(
+        dict.fromkeys(
+            refs["member_products"] + refs["shipping_referencing_products"]
+        )
+    )
+    await tx.execute(
+        f"DELETE FROM {tx.table('product_collections')} "
+        "WHERE collection_id = :c",
+        {"c": collection_id},
+    )
+    await tx.execute(
+        f"DELETE FROM {tx.table('product_shipping_collections')} "
+        "WHERE collection_id = :c",
+        {"c": collection_id},
+    )
+    await tx.execute(
+        f"DELETE FROM {tx.table('collection_shipping')} "
+        "WHERE collection_id = :c",
+        {"c": collection_id},
+    )
+    await tx.execute(
+        f"UPDATE {tx.table('collections')} SET deleted_at = :t,"
+        " revision = revision + 1, updated_at = :t WHERE id = :i",
+        {"t": now, "i": collection_id},
+    )
+    tomb_rev = (await tx.fetch_one(
+        f"SELECT revision FROM {tx.table('collections')} WHERE id = :i",
+        {"i": collection_id},
+    ))["revision"]
+    # survivors republish first; tombstone depends on them
+    deps: list[tuple[str, str]] = []
+    for pid in affected_products:
+        prod = await tx.fetch_one(
+            f"SELECT revision, draft, deleted_at FROM {tx.table('products')} "
+            "WHERE id = :i",
+            {"i": pid},
+        )
+        if not prod or prod["deleted_at"] is not None:
+            continue
+        nr = (prod["revision"] or 0) + 1
+        await tx.execute(
+            f"UPDATE {tx.table('products')} SET revision = :r,"
+            " updated_at = :t WHERE id = :i",
+            {"r": nr, "t": now, "i": pid},
+        )
+        intent = await _enqueue_product(
+            tx, merchant_id, pid, nr, pubkey
+        )
+        if intent:
+            deps.append(("products", pid))
+    await enqueue_intent(
+        tx, merchant_id, "collections", collection_id, 5,
+        revision=tomb_rev,
+        event_address=f"30405:{pubkey}:{row['d_tag']}",
+        depends_on=deps,
+    )
+    return {"deleted": True}
+
+
+async def delete_collection(merchant_id: str, user, collection_id: str,
+                            strip: bool = False) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("collections", collection_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("collection not found")
+    async with DomainTransaction() as tx:
+        result = await _delete_collection_locked(
+            tx, merchant_id, collection_id, merchant["pubkey"], strip=strip
+        )
+    return {"deleted": True, "id": collection_id, **result}
+
+
+# --- shipping options -------------------------------------------------------------
+
+
+def _validate_shipping_payload(p: dict, partial: bool = False) -> None:
+    # §4.6: price-distance is rejected outright in v1
+    for key in p:
+        if key.startswith("price_distance") or key == "price-distance":
+            raise unprocessable(
+                "invalid-content",
+                "price-distance shipping is not supported in v1",
+            )
+    if "title" in p or not partial:
+        _check_title(p.get("title"))
+    if "description" in p:
+        _check_description(p["description"])
+    if "service" in p and p["service"] not in SERVICES:
+        raise unprocessable(
+            "invalid-content", f"service must be one of {SERVICES}"
+        )
+    if "currency" in p and p["currency"] is not None:
+        if not CURRENCY_RE.match(p["currency"]):
+            raise unprocessable("invalid-content", "invalid currency")
+    if "countries" in p and p["countries"] is not None:
+        countries = p["countries"]
+        if not isinstance(countries, list) or not countries:
+            raise unprocessable(
+                "invalid-content", "countries must be a non-empty list"
+            )
+        for c in countries:
+            if not isinstance(c, str) or not COUNTRY_RE.match(c):
+                raise unprocessable(
+                    "invalid-content",
+                    "countries must be ISO 3166-1 alpha-2",
+                )
+    if "regions" in p and p["regions"] is not None:
+        for r in p["regions"]:
+            if not isinstance(r, str) or not REGION_RE.match(r):
+                raise unprocessable(
+                    "invalid-content",
+                    "regions must be ISO 3166-2",
+                )
+    if "duration_unit" in p and p["duration_unit"] is not None:
+        if p["duration_unit"] not in DURATION_UNITS:
+            raise unprocessable(
+                "invalid-content", "duration_unit must be H|D|W"
+            )
+    lo, hi = p.get("duration_min"), p.get("duration_max")
+    if lo is not None and hi is not None and lo > hi:
+        raise unprocessable(
+            "invalid-content", "duration_min must be <= duration_max"
+        )
+    if p.get("service") == "pickup" or (partial and p.get("service") is None):
+        pass  # pickup location check needs merged state — done in caller
+
+
+_SHIPPING_FIELDS = (
+    "title", "description", "base_price_minor", "currency", "service",
+    "countries", "regions",
+    "carrier", "duration_min", "duration_max", "duration_unit",
+    "weight_min", "weight_max", "weight_unit",
+    "dim_min_l", "dim_min_w", "dim_min_h",
+    "dim_max_l", "dim_max_w", "dim_max_h", "dim_unit",
+    "price_weight_minor", "price_weight_unit",
+    "price_volume_minor", "price_volume_unit",
+    "location", "geohash", "active",
+)
+
+
+_SHIPPING_PAYLOAD_FIELDS = set(_SHIPPING_FIELDS) | {"d_tag"}
+
+
+async def create_shipping(merchant_id: str, user, payload: dict) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    _reject_unknown(payload, _SHIPPING_PAYLOAD_FIELDS)
+    _validate_shipping_payload(payload)
+    if payload.get("service") == "pickup" and not (
+        payload.get("location") or payload.get("geohash")
+    ):
+        raise unprocessable(
+            "invalid-content", "pickup requires location or geohash"
+        )
+    option_id = uuid.uuid4().hex
+    d_tag = payload.get("d_tag") or _gen_d_tag()
+    _check_d_tag(d_tag)
+    now = _now()
+    cols = ["id", "merchant_id", "d_tag", "service", "revision",
+            "created_at", "updated_at"]
+    vals = [option_id, merchant_id, d_tag,
+            payload.get("service", "standard"), 0, now, now]
+    for f in _SHIPPING_FIELDS:
+        if f in payload and f not in ("service",):
+            v = payload[f]
+            if f in ("countries", "regions"):
+                v = json.dumps(v) if v is not None else None
+            elif f == "description":
+                v = _check_description(v)
+            cols.append(f)
+            vals.append(v)
+    async with DomainTransaction() as tx:
+        await _check_d_tag_free(
+            tx, "shipping_options", merchant_id, d_tag
+        )
+        placeholders = ", ".join(f":p{i}" for i in range(len(cols)))
+        await tx.execute(
+            f"INSERT INTO {tx.table('shipping_options')} "
+            f"({', '.join(cols)}) VALUES ({placeholders})",
+            {f"p{i}": v for i, v in enumerate(vals)},
+        )
+        await _enqueue_shipping(
+            tx, merchant_id, option_id, 0, merchant["pubkey"]
+        )
+    return await get_shipping(merchant_id, user, option_id)
+
+
+async def list_shipping(merchant_id: str, user) -> list[dict]:
+    await _merchant_owned(merchant_id, user)
+    return await _fetchall("shipping_options", merchant_id)
+
+
+async def get_shipping(merchant_id: str, user, option_id: str) -> dict:
+    await _merchant_owned(merchant_id, user)
+    row = await _fetch("shipping_options", option_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("shipping option not found")
+    for f in ("countries", "regions"):
+        if row.get(f):
+            row[f] = json.loads(row[f])
+    return row
+
+
+async def patch_shipping(merchant_id: str, user, option_id: str,
+                         patch: dict) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("shipping_options", option_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("shipping option not found")
+    _reject_unknown(patch, _SHIPPING_PAYLOAD_FIELDS)
+    _validate_shipping_payload(patch, partial=True)
+    merged = dict(row)
+    merged.update(patch)
+    if merged.get("service") == "pickup" and not (
+        merged.get("location") or merged.get("geohash")
+    ):
+        raise unprocessable(
+            "invalid-content", "pickup requires location or geohash"
+        )
+    now = _now()
+    async with DomainTransaction() as tx:
+        for f in _SHIPPING_FIELDS:
+            if f in patch:
+                v = patch[f]
+                if f in ("countries", "regions"):
+                    v = json.dumps(v) if v is not None else None
+                elif f == "description":
+                    v = _check_description(v)
+                elif f == "active":
+                    v = bool(v)
+                await tx.execute(
+                    f"UPDATE {tx.table('shipping_options')} SET {f} = :v"
+                    " WHERE id = :i",
+                    {"v": v, "i": option_id},
+                )
+        nr = (row["revision"] or 0) + 1
+        await tx.execute(
+            f"UPDATE {tx.table('shipping_options')} SET revision = :r,"
+            " updated_at = :t WHERE id = :i",
+            {"r": nr, "t": now, "i": option_id},
+        )
+        await _enqueue_shipping(
+            tx, merchant_id, option_id, nr, merchant["pubkey"]
+        )
+        # referencing collections + products republish (their tags embed
+        # this option's d_tag/address)
+        for r in await tx.fetch_all(
+            f"SELECT collection_id AS i FROM {tx.table('collection_shipping')} "
+            "WHERE shipping_option_id = :s",
+            {"s": option_id},
+        ):
+            col = await tx.fetch_one(
+                f"SELECT revision FROM {tx.table('collections')} WHERE id = :i",
+                {"i": r["i"]},
+            )
+            cnr = (col["revision"] or 0) + 1
+            await tx.execute(
+                f"UPDATE {tx.table('collections')} SET revision = :r,"
+                " updated_at = :t WHERE id = :i",
+                {"r": cnr, "t": now, "i": r["i"]},
+            )
+            await _enqueue_collection(
+                tx, merchant_id, r["i"], cnr, merchant["pubkey"]
+            )
+        for r in await tx.fetch_all(
+            f"SELECT product_id AS i FROM {tx.table('product_shipping_options')} "
+            "WHERE shipping_option_id = :s",
+            {"s": option_id},
+        ):
+            prod = await tx.fetch_one(
+                f"SELECT revision FROM {tx.table('products')} WHERE id = :i",
+                {"i": r["i"]},
+            )
+            pnr = (prod["revision"] or 0) + 1
+            await tx.execute(
+                f"UPDATE {tx.table('products')} SET revision = :r,"
+                " updated_at = :t WHERE id = :i",
+                {"r": pnr, "t": now, "i": r["i"]},
+            )
+            await _enqueue_product(
+                tx, merchant_id, r["i"], pnr, merchant["pubkey"]
+            )
+    return await get_shipping(merchant_id, user, option_id)
+
+
+async def delete_shipping(merchant_id: str, user, option_id: str,
+                          strip: bool = False) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("shipping_options", option_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("shipping option not found")
+    now = _now()
+    async with DomainTransaction() as tx:
+        prod_refs = await tx.fetch_all(
+            f"SELECT product_id AS i FROM {tx.table('product_shipping_options')} "
+            "WHERE shipping_option_id = :s",
+            {"s": option_id},
+        )
+        col_refs = await tx.fetch_all(
+            f"SELECT collection_id AS i FROM {tx.table('collection_shipping')} "
+            "WHERE shipping_option_id = :s",
+            {"s": option_id},
+        )
+        if (prod_refs or col_refs) and not strip:
+            raise conflict(
+                "invalid-transition", "Shipping option is referenced",
+                json.dumps({
+                    "products": [r["i"] for r in prod_refs],
+                    "collections": [r["i"] for r in col_refs],
+                }),
+            )
+        await tx.execute(
+            f"DELETE FROM {tx.table('product_shipping_options')} "
+            "WHERE shipping_option_id = :s",
+            {"s": option_id},
+        )
+        await tx.execute(
+            f"DELETE FROM {tx.table('collection_shipping')} "
+            "WHERE shipping_option_id = :s",
+            {"s": option_id},
+        )
+        await tx.execute(
+            f"UPDATE {tx.table('shipping_options')} SET deleted_at = :t,"
+            " revision = revision + 1, updated_at = :t WHERE id = :i",
+            {"t": now, "i": option_id},
+        )
+        tomb_rev = (await tx.fetch_one(
+            f"SELECT revision FROM {tx.table('shipping_options')} WHERE id = :i",
+            {"i": option_id},
+        ))["revision"]
+        deps: list[tuple[str, str]] = []
+        for r in prod_refs:
+            prod = await tx.fetch_one(
+                f"SELECT revision, draft, deleted_at "
+                f"FROM {tx.table('products')} WHERE id = :i",
+                {"i": r["i"]},
+            )
+            if not prod or prod["deleted_at"] is not None:
+                continue
+            nr = (prod["revision"] or 0) + 1
+            await tx.execute(
+                f"UPDATE {tx.table('products')} SET revision = :r,"
+                " updated_at = :t WHERE id = :i",
+                {"r": nr, "t": now, "i": r["i"]},
+            )
+            if await _enqueue_product(
+                tx, merchant_id, r["i"], nr, merchant["pubkey"]
+            ):
+                deps.append(("products", r["i"]))
+        for r in col_refs:
+            col = await tx.fetch_one(
+                f"SELECT revision FROM {tx.table('collections')} WHERE id = :i",
+                {"i": r["i"]},
+            )
+            cnr = (col["revision"] or 0) + 1
+            await tx.execute(
+                f"UPDATE {tx.table('collections')} SET revision = :r,"
+                " updated_at = :t WHERE id = :i",
+                {"r": cnr, "t": now, "i": r["i"]},
+            )
+            if await _enqueue_collection(
+                tx, merchant_id, r["i"], cnr, merchant["pubkey"]
+            ):
+                deps.append(("collections", r["i"]))
+        await enqueue_intent(
+            tx, merchant_id, "shipping_options", option_id, 5,
+            revision=tomb_rev,
+            event_address=f"30406:{merchant['pubkey']}:{row['d_tag']}",
+            depends_on=deps,
+        )
+    return {"deleted": True, "id": option_id}
+
+
+# --- dry-run event rendering ------------------------------------------------------
+
+
+async def product_events(merchant_id: str, user, product_id: str,
+                         settings: ExtSettings | None = None) -> list[dict]:
+    """GET /products/{id}/events — rendered unsigned events per protocol."""
+    settings = settings or ext_settings()
+    merchant = await _merchant_owned(merchant_id, user)
+    row = await _fetch("products", product_id, merchant_id)
+    if row["deleted_at"] is not None:
+        raise not_found("product not found")
+    if row["draft"]:
+        # drafts produce NO public events (§6.7)
+        return []
+    from ..db import db, table
+
+    async with db.connect() as conn:
+        images = await conn.fetchall(
+            f"SELECT url, dimensions, sort_order "
+            f"FROM {table('product_images')} WHERE product_id = :p "
+            "ORDER BY sort_order, url",
+            {"p": product_id},
+        )
+        specs = await conn.fetchall(
+            f"SELECT key, value FROM {table('product_specs')} "
+            "WHERE product_id = :p ORDER BY key",
+            {"p": product_id},
+        )
+        cats = await conn.fetchall(
+            f"SELECT category FROM {table('product_categories')} "
+            "WHERE product_id = :p",
+            {"p": product_id},
+        )
+        cols = await conn.fetchall(
+            f"SELECT c.d_tag FROM {table('product_collections')} pc "
+            f"JOIN {table('collections')} c ON c.id = pc.collection_id "
+            "WHERE pc.product_id = :p AND c.deleted_at IS NULL",
+            {"p": product_id},
+        )
+        ship_opts = await conn.fetchall(
+            f"SELECT so.d_tag, pso.extra_cost_minor "
+            f"FROM {table('product_shipping_options')} pso "
+            f"JOIN {table('shipping_options')} so "
+            "ON so.id = pso.shipping_option_id "
+            "WHERE pso.product_id = :p AND so.deleted_at IS NULL",
+            {"p": product_id},
+        )
+        ship_cols = await conn.fetchall(
+            f"SELECT c.d_tag, psc.extra_cost_minor "
+            f"FROM {table('product_shipping_collections')} psc "
+            f"JOIN {table('collections')} c ON c.id = psc.collection_id "
+            "WHERE psc.product_id = :p AND c.deleted_at IS NULL",
+            {"p": product_id},
+        )
+    parent_d_tag = None
+    if row["product_type"] == "variation":
+        parent = await _fetch(
+            "products", row["parent_product_id"], merchant_id
+        )
+        parent_d_tag = parent["d_tag"]
+        row["_parent_d_tag"] = parent_d_tag
+    shipping_refs = [
+        {"kind": 30406, "d_tag": r["d_tag"],
+         "extra_cost_minor": r["extra_cost_minor"]}
+        for r in ship_opts
+    ] + [
+        {"kind": 30405, "d_tag": r["d_tag"],
+         "extra_cost_minor": r["extra_cost_minor"]}
+        for r in ship_cols
+    ]
+    from . import events
+
+    rendered = [
+        events.product_event(
+            row,
+            pubkey=merchant["pubkey"],
+            spec_revision=settings.spec_revision,
+            images=[dict(i) for i in images],
+            specs=[dict(s) for s in specs],
+            categories=[c["category"] for c in cats],
+            member_collection_d_tags=[c["d_tag"] for c in cols],
+            shipping_refs=shipping_refs,
+        )
+    ]
+    catalog = await _fetch("catalogs", row["catalog_id"], merchant_id)
+    if catalog["publish_nip15"]:
+        try:
+            rendered.append(
+                events.nip15_product_event(
+                    row,
+                    stall_d=catalog["nip15_stall_d"],
+                    stall_currency=catalog["default_currency"] or "",
+                    parent_d_tag=parent_d_tag,
+                    images=[dict(i) for i in images],
+                    specs=[dict(s) for s in specs],
+                    shipping_surcharges=[
+                        {"d_tag": r["d_tag"],
+                         "extra_cost_minor": r["extra_cost_minor"]}
+                        for r in ship_opts
+                    ],
+                )
+            )
+        except events.CompatibilityError as exc:
+            raise unprocessable("currency-mismatch", str(exc)) from exc
+    return rendered

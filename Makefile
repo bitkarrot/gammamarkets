@@ -14,7 +14,7 @@ PYTHON ?= python3
 # a FAILING test inside a subset still fails the subset.
 SUBSET_OK = rc=$$?; if [ $$rc -eq 5 ]; then echo "subset empty: no tests collected"; exit 0; fi; exit $$rc
 
-.PHONY: host verify verify-fast verify-sdk verify-db verify-protocol verify-host lint
+.PHONY: host verify verify-fast verify-sdk verify-db verify-protocol verify-host verify-runtime lint
 
 # Idempotent checkout of the pinned LNbits host at e336fe1 (must run before any
 # uv usage: pyproject resolves lnbits from this path source).
@@ -40,6 +40,10 @@ verify-protocol: host
 
 verify-host: host
 	uv run pytest -m host -q; $(SUBSET_OK)
+
+# Extension runtime tests (02-01+): real host loader path, no evidence.
+verify-runtime: host
+	uv run pytest -m runtime -q; $(SUBSET_OK)
 
 lint:
 	uv run ruff check .
