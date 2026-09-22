@@ -1,0 +1,333 @@
+"""Theme token backend — UI-SPEC Tiered Controls (sketch 003-D, LOCKED).
+
+Three progressive tiers, persisted as ONE validated token object on
+``merchants.theme`` (plan 02-02 Task 3 decision: a merchant column, not
+the settings KV table — it is part of the merchant document):
+
+1. ``preset`` — warm-market | clean-minimal | high-contrast
+2. ``brand`` — display name, ≤3-char initials, accent color, preset font
+   stack, corner character -> radius set
+3. ``advanced`` — explicit opt-in; bounded allowlisted token overrides
+   only (no free-form CSS, URLs, scripts, or fonts)
+
+WCAG contrast gates are enforced server-side at write time (≥4.5:1 on
+text/bg, text/surface, primary/on-primary); failures name the pair and
+the computed ratio. Emission is `.gm-public`-scoped custom properties —
+themes NEVER reach admin documents.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import time
+
+from ..db import db, table
+from ..security import unprocessable
+
+PRESETS = ("warm-market", "clean-minimal", "high-contrast")
+LAYOUTS = ("editorial", "guided", "compact")
+FONT_STACKS = ("system", "serif", "mono")
+CORNERS = ("sharp", "rounded", "soft")
+
+# Preset palettes — ported values; high-contrast meets WCAG AAA by design.
+PRESET_TOKENS: dict[str, dict[str, str]] = {
+    "warm-market": {
+        "--color-bg": "#faf8f5",
+        "--color-surface": "#ffffff",
+        "--color-surface-alt": "#f2efe9",
+        "--color-border": "#d9d4cc",
+        "--color-text": "#221f1a",
+        "--color-text-muted": "#6b655c",
+        "--color-primary": "#8a5a2b",
+        "--color-on-primary": "#ffffff",
+        "--color-primary-hover": "#74491f",
+        "--color-accent": "#c98f3f",
+    },
+    "clean-minimal": {
+        "--color-bg": "#ffffff",
+        "--color-surface": "#f7f7f8",
+        "--color-surface-alt": "#efeff1",
+        "--color-border": "#d6d6da",
+        "--color-text": "#1b1b1e",
+        "--color-text-muted": "#5d5d66",
+        "--color-primary": "#2b5f8a",
+        "--color-on-primary": "#ffffff",
+        "--color-primary-hover": "#1f4a6d",
+        "--color-accent": "#3f8fc9",
+    },
+    "high-contrast": {
+        "--color-bg": "#000000",
+        "--color-surface": "#111111",
+        "--color-surface-alt": "#1c1c1c",
+        "--color-border": "#8c8c8c",
+        "--color-text": "#ffffff",
+        "--color-text-muted": "#d0d0d0",
+        "--color-primary": "#ffd400",
+        "--color-on-primary": "#000000",
+        "--color-primary-hover": "#e6bf00",
+        "--color-accent": "#66d9ff",
+    },
+}
+
+# Advanced-tier allowlist (UI-SPEC B6): colors, radius, spacing only —
+# semantic/focus keys and anything else are rejected outright.
+ALLOWED_ADVANCED_TOKENS = frozenset(
+    {
+        "--color-bg", "--color-surface", "--color-surface-alt",
+        "--color-border", "--color-text", "--color-text-muted",
+        "--color-primary", "--color-on-primary", "--color-primary-hover",
+        "--color-accent",
+        "--radius-sm", "--radius-md", "--radius-lg",
+        "--space-sm", "--space-md", "--space-lg", "--space-16",
+    }
+)
+_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+_RADIUS = re.compile(r"^([0-9]|1[0-9]|2[0-4])px$")  # 0-24px
+_SPACE = re.compile(r"^([0-9]|[1-9][0-9])px$")  # 0-99px
+
+_CORNER_RADIUS = {
+    "sharp": {"--radius-sm": "0px", "--radius-md": "0px",
+              "--radius-lg": "0px"},
+    "rounded": {"--radius-sm": "4px", "--radius-md": "8px",
+                "--radius-lg": "16px"},
+    "soft": {"--radius-sm": "8px", "--radius-md": "16px",
+             "--radius-lg": "24px"},
+}
+
+_FONT_VALUE = {
+    "system": 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    "serif": 'Georgia, "Times New Roman", serif',
+    "mono": 'ui-monospace, "SF Mono", Menlo, monospace',
+}
+
+# Contrast-gated pairs (WCAG ≥4.5:1).
+_GATED_PAIRS = (
+    ("--color-text", "--color-bg"),
+    ("--color-text", "--color-surface"),
+    ("--color-primary", "--color-on-primary"),
+)
+
+DEFAULT_THEME = {"preset": "warm-market", "layout": "editorial",
+                 "brand": None, "advanced": None}
+
+
+# --- WCAG contrast ---------------------------------------------------------------
+
+
+def _luminance(hex_color: str) -> float:
+    c = hex_color.lstrip("#")
+    r, g, b = (int(c[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    channels = []
+    for ch in (r, g, b):
+        channels.append(
+            ch / 12.92 if ch <= 0.04045 else ((ch + 0.055) / 1.055) ** 2.4
+        )
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def contrast_ratio(fg: str, bg: str) -> float:
+    l1, l2 = _luminance(fg), _luminance(bg)
+    hi, lo = max(l1, l2), min(l1, l2)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _enforce_contrast(tokens: dict[str, str]) -> None:
+    for fg, bg in _GATED_PAIRS:
+        if fg in tokens and bg in tokens:
+            ratio = contrast_ratio(tokens[fg], tokens[bg])
+            if ratio < 4.5:
+                raise unprocessable(
+                    "contrast-gate",
+                    "Theme contrast gate failed",
+                    f"{fg} on {bg} = {ratio:.2f}:1 (needs ≥4.5:1)",
+                )
+
+
+# --- validation + resolution ------------------------------------------------------
+
+
+def _validate_brand(brand: dict) -> dict:
+    out = {}
+    if brand.get("name") is not None:
+        name = str(brand["name"]).strip()[:200]
+        if name:
+            out["name"] = name
+    if brand.get("initials") is not None:
+        initials = str(brand["initials"]).strip()
+        if len(initials) > 3:
+            raise unprocessable(
+                "invalid-content", "logo initials are ≤3 characters"
+            )
+        if initials:
+            out["initials"] = initials
+    if brand.get("accent") is not None:
+        accent = str(brand["accent"])
+        if not _HEX_COLOR.match(accent):
+            raise unprocessable(
+                "invalid-content", "accent must be a #rrggbb color"
+            )
+        out["accent"] = accent.lower()
+    if brand.get("font") is not None:
+        if brand["font"] not in FONT_STACKS:
+            raise unprocessable(
+                "invalid-content",
+                f"font must be one of {FONT_STACKS}",
+            )
+        out["font"] = brand["font"]
+    if brand.get("corners") is not None:
+        if brand["corners"] not in CORNERS:
+            raise unprocessable(
+                "invalid-content",
+                f"corners must be one of {CORNERS}",
+            )
+        out["corners"] = brand["corners"]
+    unknown = set(brand) - {"name", "initials", "accent", "font", "corners"}
+    if unknown:
+        raise unprocessable(
+            "invalid-content", f"unknown brand fields: {sorted(unknown)}"
+        )
+    return out
+
+
+def _validate_advanced(advanced: dict, opted_in: bool) -> dict:
+    if not opted_in:
+        raise unprocessable(
+            "invalid-content",
+            "Advanced tokens are opt-in",
+            "advanced tokens require the explicit opt-in flag",
+        )
+    if not isinstance(advanced, dict):
+        raise unprocessable(
+            "invalid-content", "advanced tokens must be an object"
+        )
+    out = {}
+    for key, value in advanced.items():
+        if key not in ALLOWED_ADVANCED_TOKENS:
+            raise unprocessable(
+                "invalid-content",
+                "Token not allowed",
+                f"token {key!r} is not in the advanced allowlist",
+            )
+        value = str(value).strip()
+        if key.startswith("--color-"):
+            if not _HEX_COLOR.match(value):
+                raise unprocessable(
+                    "invalid-content",
+                    f"{key} must be a #rrggbb color",
+                )
+            out[key] = value.lower()
+        elif key.startswith("--radius-"):
+            if not _RADIUS.match(value):
+                raise unprocessable(
+                    "invalid-content",
+                    f"{key} must be a px radius in 0-24px",
+                )
+            out[key] = value
+        else:  # --space-*
+            if not _SPACE.match(value):
+                raise unprocessable(
+                    "invalid-content",
+                    f"{key} must be a px length in 0-99px",
+                )
+            out[key] = value
+    return out
+
+
+def validate_theme(payload: dict) -> dict:
+    """Validate a theme patch into the persisted token object."""
+    if not isinstance(payload, dict):
+        raise unprocessable("invalid-content", "theme must be an object")
+    unknown = set(payload) - {
+        "preset", "layout", "brand", "advanced", "advanced_opt_in"
+    }
+    if unknown:
+        raise unprocessable(
+            "invalid-content", f"unknown theme fields: {sorted(unknown)}"
+        )
+    theme = dict(DEFAULT_THEME)
+    theme["preset"] = payload.get("preset", theme["preset"])
+    theme["layout"] = payload.get("layout", theme["layout"])
+    if theme["preset"] not in PRESETS:
+        raise unprocessable(
+            "invalid-content", f"preset must be one of {PRESETS}"
+        )
+    if theme["layout"] not in LAYOUTS:
+        raise unprocessable(
+            "invalid-content", f"layout must be one of {LAYOUTS}"
+        )
+    if payload.get("brand") is not None:
+        theme["brand"] = _validate_brand(payload["brand"])
+    if payload.get("advanced") is not None:
+        theme["advanced"] = _validate_advanced(
+            payload["advanced"], bool(payload.get("advanced_opt_in"))
+        )
+        theme["advanced_opt_in"] = True
+    # WCAG gates run against the fully resolved token set — a brand accent
+    # or advanced override can't silently break contrast.
+    _enforce_contrast(resolve_tokens(theme))
+    return theme
+
+
+def resolve_tokens(theme: dict | None) -> dict[str, str]:
+    """Flatten preset + brand + advanced into the emitted token set."""
+    theme = theme or DEFAULT_THEME
+    tokens = dict(PRESET_TOKENS[theme.get("preset", "warm-market")])
+    brand = theme.get("brand") or {}
+    if brand.get("accent"):
+        tokens["--color-accent"] = brand["accent"]
+    if brand.get("corners"):
+        tokens.update(_CORNER_RADIUS[brand["corners"]])
+    if brand.get("font"):
+        tokens["--font-body"] = _FONT_VALUE[brand["font"]]
+    tokens.update(theme.get("advanced") or {})
+    return tokens
+
+
+def emit_css(theme: dict | None) -> str:
+    """Resolved tokens as a `.gm-public`-scoped custom-property block —
+    the ONLY place theme values become CSS."""
+    tokens = resolve_tokens(theme)
+    body = ";\n  ".join(f"{k}: {v}" for k, v in sorted(tokens.items()))
+    return f".gm-public {{\n  {body};\n}}"
+
+
+def theme_layout(theme: dict | None) -> str:
+    return (theme or DEFAULT_THEME).get("layout", "editorial")
+
+
+# --- persistence ------------------------------------------------------------------
+
+
+def parse_theme(raw: str | None) -> dict:
+    if not raw:
+        return dict(DEFAULT_THEME)
+    try:
+        theme = json.loads(raw)
+    except (TypeError, ValueError):
+        return dict(DEFAULT_THEME)
+    if not isinstance(theme, dict) or theme.get("preset") not in PRESETS:
+        return dict(DEFAULT_THEME)
+    return theme
+
+
+async def get_theme(merchant_id: str) -> dict:
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT theme FROM {table('merchants')} WHERE id = :m",
+            {"m": merchant_id},
+        )
+    return parse_theme(row["theme"] if row else None)
+
+
+async def save_theme(merchant_id: str, theme: dict) -> dict:
+    validated = validate_theme(theme)
+    async with db.connect() as conn:
+        await conn.execute(
+            f"UPDATE {table('merchants')} SET theme = :t, "
+            "updated_at = :n WHERE id = :m",
+            {"t": json.dumps(validated, sort_keys=True),
+             "n": int(time.time()),
+             "m": merchant_id},
+        )
+    return validated

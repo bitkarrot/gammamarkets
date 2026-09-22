@@ -1,0 +1,72 @@
+{% extends "templates/gammamarkets/public_base.html" %}
+{% block title %}{{ product.title }}{% endblock %}
+{% block content %}
+<div class="product-layout" data-layout="{{ layout | default('editorial') }}">
+  <section class="product-gallery">
+    {% for img in product.images[:16] %}
+    <img src="{{ img.url }}" alt="{{ product.title }}" loading="lazy"
+         referrerpolicy="no-referrer"
+         {% if img.dimensions %}data-dimensions="{{ img.dimensions }}"{% endif %}>
+    {% endfor %}
+  </section>
+  <section class="product-detail">
+    <header>
+      <h1 class="product-title">{{ product.title }}</h1>
+      {% if product.summary %}<p class="product-summary">{{ product.summary }}</p>{% endif %}
+      <p class="product-price">
+        <span class="amount" data-minor="{{ product.price.amount_minor }}"
+              data-decimals="{{ product.price.decimals }}">
+          {{ product.price.amount_minor }}</span>
+        <span class="currency">{{ product.price.currency }}</span>
+      </p>
+      {% if state == 'sold' %}<span class="chip chip-sold">Sold out</span>{% endif %}
+      {% if state == 'preorder' %}<span class="chip chip-preorder">Pre-order — purchasing opens later.</span>{% endif %}
+      {% if product.stock is not none and state == 'available' %}
+      <p class="product-stock">{{ product.stock }} available</p>
+      {% endif %}
+    </header>
+    {% if description_html %}
+    <div class="product-description gm-sanitized">{{ description_html | safe }}</div>
+    {% endif %}
+    {% if product.specs %}
+    <dl class="product-specs">
+      {% for k, v in product.specs.items() %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
+    </dl>
+    {% endif %}
+    {% if product.variations %}
+    <fieldset class="variation-selector" id="gm-variations">
+      <legend>Options</legend>
+      {% for v in product.variations %}
+      <label class="variation-option{% if v.sold or v.available == 0 %} is-disabled{% endif %}">
+        <input type="radio" name="variation" value="{{ v.d_tag }}"
+               data-price="{{ v.amount_minor }}"
+               {% if v.sold or v.available == 0 %}disabled{% endif %}>
+        {{ v.title or v.d_tag }}
+      </label>
+      {% endfor %}
+      <p class="variation-error" role="alert" hidden>That combination is not available.</p>
+    </fieldset>
+    {% endif %}
+    {% if product.shipping %}
+    <ul class="shipping-options">
+      {% for s in product.shipping %}
+      <li>{{ s.title or s.service }} — {{ s.base_price_minor + s.extra_cost_minor }} {{ s.currency }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if state == 'available' %}
+    <form class="buy-form" id="gm-checkout"
+          data-endpoint="/gammamarkets/api/v1/public/checkout"
+          data-merchant="{{ merchant_pubkey }}"
+          data-d-tag="{{ product.d_tag }}">
+      <label>Quantity
+        <input type="number" name="quantity" value="1" min="1" max="10000">
+      </label>
+      <button type="submit" class="btn-buy">Buy with Lightning</button>
+      <p class="form-error" role="alert" hidden></p>
+    </form>
+    {% endif %}
+    <footer class="merchant-line">Sold by {{ merchant_name or merchant_pubkey }}</footer>
+  </section>
+</div>
+{% endblock %}

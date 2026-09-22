@@ -1,0 +1,222 @@
+"""Theme token backend — UI-SPEC B6 tiered-controls contract.
+
+Pins: preset/layout vocabulary, bounded Brand Basics, explicit opt-in for
+Advanced Tokens, allowlist rejection, WCAG ≥4.5:1 save gates with named
+pair + ratio, `.gm-public` scoping on public docs only, compact ≤560px
+fallback intact.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.runtime
+
+ORIGIN = "https://shop.example"
+API = "/gammamarkets/api/v1"
+
+
+def _csrf(client) -> str:
+    return client.cookies.get("gm_csrf") or ""
+
+
+def _headers(runtime_env) -> dict:
+    csrf = _csrf(runtime_env["client"])
+    return {
+        "Origin": ORIGIN,
+        "X-CSRF-Token": csrf,
+        "Cookie": f"cookie_access_token={runtime_env['token']}"
+                  f"; gm_csrf={csrf}",
+    }
+
+
+async def _merchant(runtime_env) -> dict:
+    client = runtime_env["client"]
+    resp = await client.get(f"{API}/merchants/current")
+    if resp.status_code == 200:
+        return resp.json()
+    resp = await client.post(
+        f"{API}/merchants",
+        json={"wallet_id": runtime_env["wallet"].id},
+        headers=_headers(runtime_env),
+    )
+    assert resp.status_code == 201, resp.text
+    return (await client.get(f"{API}/merchants/current")).json()
+
+
+async def _patch_theme(runtime_env, theme: dict):
+    merchant = await _merchant(runtime_env)
+    return await runtime_env["client"].patch(
+        f"{API}/merchants/{merchant['id']}",
+        json={"theme": theme},
+        headers=_headers(runtime_env),
+    ), merchant
+
+
+async def test_preset_and_layout_persist(runtime_env):
+    resp, merchant = await _patch_theme(
+        runtime_env, {"preset": "high-contrast", "layout": "guided"}
+    )
+    assert resp.status_code == 200, resp.text
+    theme = resp.json()["theme"]
+    assert theme["preset"] == "high-contrast"
+    assert theme["layout"] == "guided"
+
+
+async def test_invalid_preset_and_layout_rejected(runtime_env):
+    for theme in ({"preset": "neon-punk"}, {"layout": "masonry"}):
+        resp, _ = await _patch_theme(runtime_env, theme)
+        assert resp.status_code == 422, (theme, resp.status_code)
+
+
+async def test_brand_basics_bounds(runtime_env):
+    # initials >3 chars rejected
+    resp, _ = await _patch_theme(
+        runtime_env, {"brand": {"initials": "TOOL"}}
+    )
+    assert resp.status_code == 422
+
+    # non-hex accent rejected
+    resp, _ = await _patch_theme(
+        runtime_env, {"brand": {"accent": "blue"}}
+    )
+    assert resp.status_code == 422
+
+    # arbitrary font rejected — preset stacks only
+    resp, _ = await _patch_theme(
+        runtime_env, {"brand": {"font": "https://evil.example/font.woff2"}}
+    )
+    assert resp.status_code == 422
+
+    # valid brand basics accepted
+    resp, _ = await _patch_theme(
+        runtime_env,
+        {"brand": {"name": "Corner Store", "initials": "CS",
+                   "accent": "#0f766e", "font": "serif",
+                   "corners": "soft"}},
+    )
+    assert resp.status_code == 200, resp.text
+
+
+async def test_advanced_tokens_require_opt_in(runtime_env):
+    resp, _ = await _patch_theme(
+        runtime_env, {"advanced": {"--color-bg": "#ffffff"}}
+    )
+    assert resp.status_code == 422, resp.text
+    assert "opt-in" in resp.json()["detail"]
+
+
+async def test_advanced_token_allowlist(runtime_env):
+    # non-allowlisted token rejected
+    resp, _ = await _patch_theme(
+        runtime_env,
+        {"advanced": {"--focus-ring": "#ff0000"}, "advanced_opt_in": True},
+    )
+    assert resp.status_code == 422
+    assert "allowlist" in resp.json()["detail"]
+
+    # free-form CSS value rejected
+    resp, _ = await _patch_theme(
+        runtime_env,
+        {"advanced": {"--color-bg": "url(https://evil.example)"},
+         "advanced_opt_in": True},
+    )
+    assert resp.status_code == 422
+
+    # valid color + radius + space accepted
+    resp, _ = await _patch_theme(
+        runtime_env,
+        {"advanced": {"--color-bg": "#fefefe", "--radius-md": "12px",
+                      "--space-lg": "40px"},
+         "advanced_opt_in": True},
+    )
+    assert resp.status_code == 200, resp.text
+
+
+async def test_contrast_gate_blocks_failing_pairs(runtime_env):
+    """text/bg below 4.5:1 must fail with the pair + computed ratio."""
+    resp, _ = await _patch_theme(
+        runtime_env,
+        {"advanced": {"--color-text": "#999999", "--color-bg": "#888888"},
+         "advanced_opt_in": True},
+    )
+    assert resp.status_code == 422, resp.text
+    detail = resp.json()["detail"]
+    assert "--color-text" in detail and "--color-bg" in detail
+    assert ":1" in detail  # the computed ratio is named
+
+
+async def test_theme_reaches_public_page_only(runtime_env):
+    """Emitted theme CSS is .gm-public-scoped on public docs; admin
+    responses carry the theme OBJECT but never emit CSS."""
+    client = runtime_env["client"]
+    merchant = await _merchant(runtime_env)
+    await _patch_theme(runtime_env, {"preset": "clean-minimal"})
+
+    # admin payload has the object
+    current = await client.get(f"{API}/merchants/current")
+    assert current.json()["theme"]["preset"] == "clean-minimal"
+
+    # a published-state product page carries the scoped emission
+    catalogs = await client.get(f"{API}/catalogs", headers=_headers(runtime_env))
+    if catalogs.json():
+        catalog_id = catalogs.json()[0]["id"]
+    else:
+        catalog_id = (
+            await client.post(
+                f"{API}/catalogs", json={"name": "T"},
+                headers=_headers(runtime_env),
+            )
+        ).json()["id"]
+    product = (
+        await client.post(
+            f"{API}/products",
+            json={
+                "catalog_id": catalog_id,
+                "title": "Themed",
+                "amount_minor": 100,
+                "currency": "USD",
+                "currency_decimals": 2,
+                "product_type": "simple",
+                "format": "physical",
+                "visibility": "on-sale",
+            },
+            headers=_headers(runtime_env),
+        )
+    ).json()
+    resp = await client.get(
+        f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}"
+    )
+    assert ".gm-public {" in resp.text
+    assert "--color-bg: #ffffff" in resp.text  # clean-minimal emitted
+
+    # the admin shell document never carries theme CSS
+    resp = await client.get("/gammamarkets/", headers=_headers(runtime_env))
+    assert ".gm-public" not in resp.text
+
+
+async def test_layout_compact_fallback_in_css(runtime_env):
+    """Layout preference is honored, but ≤560px always renders compact —
+    the media query is unconditional in gm-public.css."""
+    client = runtime_env["client"]
+    css = await client.get(
+        "/gammamarkets/static/gammamarkets/css/gm-public.css"
+    )
+    assert "max-width: 560px" in css.text
+    assert "grid-template-columns: 1fr" in css.text
+
+
+async def test_reset_to_preset_clears_overrides(runtime_env):
+    from gammamarkets.services import themes
+
+    resp, _ = await _patch_theme(
+        runtime_env,
+        {"brand": {"accent": "#0f766e"},
+         "advanced": {"--color-bg": "#fefefe"}, "advanced_opt_in": True},
+    )
+    assert resp.status_code == 200
+    # reset: preset only — advanced + brand cleared
+    resp, _ = await _patch_theme(runtime_env, {"preset": "warm-market"})
+    theme = resp.json()["theme"]
+    tokens = themes.resolve_tokens(theme)
+    assert tokens["--color-bg"] == "#faf8f5"  # preset value restored

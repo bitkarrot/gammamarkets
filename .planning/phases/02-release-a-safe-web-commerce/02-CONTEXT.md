@@ -119,3 +119,11 @@ Ship the production `gammamarkets` LNbits extension as the first vertical slice:
 
 *Phase: 2-Release A — Safe Web Commerce*
 *Context gathered: 2026-09-20*
+
+## Owner directive — relay endpoint configurability (2026-09-22)
+
+Merchant-configurable endpoint sets with starter defaults:
+- Publication/outbox relays: `relay_configs` rows, `direction=public|both`, editable; seed starter defaults when a merchant first publishes with no configured relays.
+- Blossom media endpoints: merchant settings (`settings` table key `blossom_servers`), `https://`-only, same SSRF validation posture as relays; starter defaults exposed for the UI. Actual media-upload plumbing is a later scope — 02-02 ships config + defaults only.
+- Inbox relays: `direction=inbox` rows (schema exists; consumed in Release B).
+- Spec delta: blossom endpoints and starter relay defaults are beyond the spec's §4.11/§12 literals — record in the 02-02 summary.

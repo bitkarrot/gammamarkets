@@ -1,0 +1,7 @@
+{% extends "templates/gammamarkets/public_base.html" %}
+{% block title %}Not found{% endblock %}
+{% block content %}
+<div class="public-error">
+  <h1>{{ message | default("This product link is not valid here.") }}</h1>
+</div>
+{% endblock %}

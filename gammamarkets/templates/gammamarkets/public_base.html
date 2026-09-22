@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+{#- Standalone public document — NEVER extends the admin base.html.
+    Theme tokens render as CSS custom properties scoped under .gm-public
+    (02-02 Task 3 resolves the merchant theme object). -#}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>{% block title %}GammaMarkets{% endblock %}</title>
+  <link rel="stylesheet" href="/gammamarkets/static/gammamarkets/css/gm-public.css">
+  {% if theme_css %}<style>{{ theme_css | safe }}</style>{% endif %}
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="gm-public" data-layout="{{ layout }}">
+  <main class="gm-main">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="/gammamarkets/static/gammamarkets/js/public_storefront.js" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

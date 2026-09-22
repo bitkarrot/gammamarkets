@@ -39,6 +39,9 @@ _EXT_ENV = {
     "GAMMAMARKETS_ACTIVE_KEY_VERSION": "v1",
     "GAMMAMARKETS_PRIVACY_KEY": base64.b64encode(b"p" * 32).decode(),
     "GAMMAMARKETS_PUBLIC_BASE_URL": CANONICAL_ORIGIN,
+    # Never dial real relays from a host-boot test — workers stay live
+    # (claim/evidence paths exercised) but the transport never connects.
+    "GAMMAMARKETS_RELAY_IO": "off",
 }
 
 _RUNTIME_SETTINGS_KEYS = (

@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-09-20)
 
 Phase: 2 of 4 (Release A — Safe Web Commerce)
 Plan: 4 plans written (02-01..02-04), checker-verified, 1/4 complete
-Status: Executing — 02-01 done, next 02-02 (publication transport + storefront)
+Status: Executing — 02-02 done, next 02-03 (orders, checkout, invoice saga, settlement, email)
 Last activity: 2026-09-21 — Plan 02-01 executed and verified
 
 Progress: [█████░░░░░] 57%
@@ -37,7 +37,7 @@ Progress: [█████░░░░░] 57%
 
 **Velocity:**
 
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -108,4 +108,4 @@ None yet.
 
 Last session: 2026-09-22T06:07:44.000Z
 Stopped at: Plan 02-01 complete — extension skeleton, m001, crypto/keystore, §5.1+5.2 APIs, outbox intents
-Resume file: .planning/phases/02-release-a-safe-web-commerce/02-02-PLAN.md
+Resume file: .planning/phases/02-release-a-safe-web-commerce/02-03-PLAN.md

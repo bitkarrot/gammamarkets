@@ -252,9 +252,19 @@ async def test_publish_enqueues_outbox_intents(runtime_env):
             "FROM gammamarkets.outbox_events WHERE merchant_id = :m",
             {"m": mid},
         )
-    kinds = {r["aggregate_type"]: r["event_kind"] for r in rows}
-    assert kinds.get("merchant_profile") == 0
-    assert all(r["state"] == "pending" for r in rows)
+    profile_kinds = {
+        r["event_kind"] for r in rows
+        if r["aggregate_type"] == "merchant_profile"
+    }
+    # publish enqueues the profile + NIP-89 handler pair (02-02)
+    assert {0, 31989, 31990} <= profile_kinds
+    # the publisher worker runs live in this boot — intents may be
+    # claimed/pending while external starter relays time out
+    assert all(
+        r["state"] in ("pending", "claimed", "partially_published",
+                       "published")
+        for r in rows
+    )
 
     # merchant row moved to publication_pending
     current = await runtime_env["client"].get(f"{API}/merchants/current")

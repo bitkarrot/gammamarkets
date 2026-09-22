@@ -1,0 +1,11 @@
+{% extends "templates/gammamarkets/public_base.html" %}
+{% block title %}Unavailable{% endblock %}
+{% block content %}
+<div class="public-error">
+  {% if state == 'hidden' or state == 'inactive' %}
+  <h1>This product is not available.</h1>
+  {% else %}
+  <h1>This product is not available.</h1>
+  {% endif %}
+</div>
+{% endblock %}

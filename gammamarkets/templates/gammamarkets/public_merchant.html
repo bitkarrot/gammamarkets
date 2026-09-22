@@ -1,0 +1,9 @@
+{% extends "templates/gammamarkets/public_base.html" %}
+{% block title %}{{ display_name }}{% endblock %}
+{% block content %}
+<header class="merchant-header">
+  {% if picture %}<img class="merchant-picture" src="{{ picture }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+  <h1>{{ display_name }}</h1>
+  {% if about %}<p class="merchant-about">{{ about }}</p>{% endif %}
+</header>
+{% endblock %}

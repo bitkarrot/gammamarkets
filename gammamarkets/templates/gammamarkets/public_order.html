@@ -1,0 +1,11 @@
+{% extends "templates/gammamarkets/public_base.html" %}
+{% block title %}Order status{% endblock %}
+{% block content %}
+<div class="order-status" id="gm-order">
+  <h1>Order status</h1>
+  <p class="order-prompt">Open your order link to view its status.</p>
+  {#- The bearer token arrives as a URL fragment only (spec §5.4):
+      public_storefront.js strips it with history.replaceState before
+      any network call and sends it as X-Order-Token. -#}
+</div>
+{% endblock %}

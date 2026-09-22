@@ -89,6 +89,7 @@ class PatchMerchantBody(_Strict):
     notify_events: dict | None = None
     theme: Any = None
     relay_configs: list[dict] | None = None
+    blossom_servers: list[str] | None = None
 
 
 class ImportKeyBody(_Strict):
@@ -185,7 +186,52 @@ async def get_relay_health(
     request: Request,
     merchant_id: str, user: User = Depends(check_user_exists)
 ):
-    return await merchant_service.relay_health(merchant_id, str(user.id))
+    from .services import relay as relay_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    health = await relay_service.relay_health(merchant_id)
+    # Starter defaults are exposed so the UI can offer one-click options.
+    health["defaults"] = {
+        "relays": list(relay_service.DEFAULT_RELAYS),
+        "blossom_servers": list(relay_service.DEFAULT_BLOSSOM_SERVERS),
+    }
+    health["blossom_servers"] = await relay_service.get_blossom_servers(
+        merchant_id
+    )
+    return health
+
+
+@gammamarkets_api_router.get("/merchants/{merchant_id}/outbox")
+@problem_boundary
+async def get_outbox(
+    request: Request,
+    merchant_id: str,
+    user: User = Depends(check_user_exists),
+    limit: int = 100,
+):
+    """B2 surface — spec-delta route (W-NEW-1, 02-02 summary)."""
+    from .services import relay as relay_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await relay_service.list_outbox(merchant_id, limit)
+
+
+@gammamarkets_api_router.post(
+    "/merchants/{merchant_id}/outbox/{intent_id}/retry"
+)
+@problem_boundary
+async def retry_outbox_intent(
+    request: Request,
+    merchant_id: str,
+    intent_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """Retry a failed/partially_published intent — spec-delta route
+    (W-NEW-1). Accepted relay targets are never resent."""
+    from .services import relay as relay_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await relay_service.retry_intent(merchant_id, intent_id)
 
 
 @gammamarkets_api_router.get("/merchants/{merchant_id}/notifications")

@@ -58,18 +58,18 @@ Plans:
 4. Merchant can triage and manage legal order/fulfillment/exception actions in a responsive split list/detail workspace with embedded chronology and per-recipient notifications.
 5. Release-A security, accessibility/contrast, public/admin theme separation, retention, logging, unsupported-topology, failure-drill, and applicable Phase 0 assertions pass through the real implementation.
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 **UI prerequisite:** Before Phase 2 plan execution, generate and approve the Phase 2 UI contract using `.devin/skills/sketch-findings-gammamarkets/` and the normative technical specification. *(Satisfied: `02-UI-SPEC.md` approved.)*
 
 Plans:
 
 - [x] 02-01-PLAN.md
-- [ ] 02-02-PLAN.md
+- [x] 02-02-PLAN.md
 - [ ] 02-03-PLAN.md
 - [ ] 02-04-PLAN.md
 
 - [x] 02-01: Extension skeleton, key custody, database/migrations, merchant and catalog domain
-- [ ] 02-02: Relay transport + durable outbox publication, NIP-89 handler, public storefront, theme backend
+- [x] 02-02: Relay transport + durable outbox publication, NIP-89 handler, public storefront, theme backend
 - [ ] 02-03: Checkout, reservation + invoice saga, settlement/reconciliation, order admin API, email
 - [ ] 02-04: Buyer checkout/status UI and merchant admin surfaces (orders, catalog, publications, settings, appearance)
 

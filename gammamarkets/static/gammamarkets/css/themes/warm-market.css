@@ -1,0 +1,16 @@
+/* warm-market preset — the .gm-public-scoped token set. Emitted
+   inline by services/themes.py emit_css(); this file is the
+   canonical reference + static fallback. */
+
+.gm-public {
+  --color-bg: #faf8f5;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f2efe9;
+  --color-border: #d9d4cc;
+  --color-text: #221f1a;
+  --color-text-muted: #6b655c;
+  --color-primary: #8a5a2b;
+  --color-on-primary: #ffffff;
+  --color-primary-hover: #74491f;
+  --color-accent: #c98f3f;
+}

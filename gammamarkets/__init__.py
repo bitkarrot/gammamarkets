@@ -66,18 +66,30 @@ def gammamarkets_start() -> None:
     # startup (admin banner repeats it via GET /merchants/current).
     for warning in audit_capture_warnings():
         logger.warning(warning)
+    # section 10 workers — the relay-manager tick lazily creates the owned
+    # transport (this hook is sync; async init happens inside the loop).
+    from .services.tasks import start_workers
+
+    for task in start_workers():
+        register_owned_task(task)
     started_at = int(time.time())
 
 
-def gammamarkets_stop() -> None:
-    """Cancel exactly the handles this extension owns (spec section 10)."""
+async def gammamarkets_stop() -> None:
+    """Cancel exactly the handles this extension owns (spec section 10),
+    then close the owned transport (the host awaits coroutine stops)."""
     for task in _owned_tasks:
         task.cancel()
     _owned_tasks.clear()
+    from .services.transport import transport
+
+    await transport().close()
 
 
 from .views import gammamarkets_generic_router  # noqa: E402
 from .views_api import gammamarkets_api_router  # noqa: E402
+from .views_public_api import gammamarkets_public_api_router  # noqa: E402
 
 gammamarkets_ext.include_router(gammamarkets_generic_router)
 gammamarkets_ext.include_router(gammamarkets_api_router)
+gammamarkets_ext.include_router(gammamarkets_public_api_router)

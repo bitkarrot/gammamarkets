@@ -24,7 +24,6 @@ from ..security import (
     conflict,
     not_found,
     unprocessable,
-    validate_relay_url,
 )
 from ..settings import ExtSettings, ext_settings
 
@@ -203,7 +202,9 @@ async def current_merchant(user, settings: ExtSettings | None = None) -> dict:
     if not row:
         raise not_found("no merchant for this user")
     merchant = _public_merchant(dict(row))
-    merchant["relay_health"] = await relay_health(row["id"], str(user.id))
+    from . import relay as relay_service
+
+    merchant["relay_health"] = await relay_service.relay_health(row["id"])
     merchant["warnings"] = audit_capture_warnings()
     ok, reason = topology_supported()
     if not ok:
@@ -227,6 +228,7 @@ async def patch_merchant(merchant_id: str, user, patch: dict,
     allowed = {
         "display_name", "profile_json", "recommended_app_d",
         "notify_emails", "notify_events", "theme", "relay_configs",
+        "blossom_servers",
     }
     wallet_id = patch.pop("wallet_id", None)
     unknown = set(patch) - allowed
@@ -262,9 +264,10 @@ async def patch_merchant(merchant_id: str, user, patch: dict,
     if "recommended_app_d" in patch:
         updates["recommended_app_d"] = patch["recommended_app_d"]
     if "theme" in patch:
-        updates["theme"] = json.dumps(patch["theme"]) if not isinstance(
-            patch["theme"], str
-        ) else patch["theme"]
+        from . import themes as theme_service
+
+        validated = theme_service.validate_theme(patch["theme"])
+        updates["theme"] = json.dumps(validated, sort_keys=True)
     if "notify_emails" in patch:
         emails = patch["notify_emails"] or []
         if not isinstance(emails, list) or len(emails) > MAX_NOTIFY_EMAILS:
@@ -288,6 +291,11 @@ async def patch_merchant(merchant_id: str, user, patch: dict,
         updates["notify_events"] = json.dumps(events)
 
     relay_configs = patch.pop("relay_configs", None) if "relay_configs" in patch else None
+    blossom_servers = (
+        patch.pop("blossom_servers", None)
+        if "blossom_servers" in patch
+        else None
+    )
 
     async with DomainTransaction() as tx:
         for col, val in updates.items():
@@ -305,6 +313,12 @@ async def patch_merchant(merchant_id: str, user, patch: dict,
             await _enqueue_intent(
                 tx, merchant_id, "merchant_profile", merchant_id, 0
             )
+    if blossom_servers is not None:
+        # media endpoints persist outside relay_configs (spec delta —
+        # blossom is https, not a nostr relay)
+        from . import relay as relay_service
+
+        await relay_service.set_blossom_servers(merchant_id, blossom_servers)
     row = await get_merchant_row(merchant_id, str(user.id))
     return _public_merchant(row)
 
@@ -322,11 +336,13 @@ async def _replace_relay_configs(tx: DomainTransaction, merchant_id: str,
             raise unprocessable(
                 "invalid-relay", "each relay_config needs relay_url"
             )
-        url = validate_relay_url(cfg["relay_url"])
-        direction = cfg.get("direction", "outbox")
-        if direction not in ("outbox", "inbox", "both"):
+        from .transport import validate_relay_target
+
+        url = validate_relay_target(cfg["relay_url"])
+        direction = cfg.get("direction", "public")
+        if direction not in ("public", "inbox", "both"):
             raise unprocessable(
-                "invalid-relay", "direction must be outbox|inbox|both"
+                "invalid-relay", "direction must be public|inbox|both"
             )
         enabled = bool(cfg.get("enabled", True))
         if (url, direction) in seen:
@@ -409,13 +425,19 @@ async def publish(merchant_id: str, user,
             f"merchant state is {row['state']}",
         )
     now = _now()
+    # Owner directive: merchants with no configured relays are seeded with
+    # the visible starter set (editable rows — no hidden fallback).
+    from . import relay as relay_service
+
+    await relay_service.ensure_default_relays(merchant_id)
     async with DomainTransaction() as tx:
-        # Merchant profile is always republished; catalog aggregates are
-        # enqueued by services/catalog.py on their own mutations — a full
-        # republish enqueues one intent per live aggregate.
-        await _enqueue_intent(
-            tx, merchant_id, "merchant_profile", merchant_id, 0
-        )
+        # Merchant profile + NIP-89 handler pair are always republished;
+        # catalog aggregates are enqueued by services/catalog.py on their
+        # own mutations — a full republish enqueues one per live aggregate.
+        for kind in (0, 31989, 31990):
+            await _enqueue_intent(
+                tx, merchant_id, "merchant_profile", merchant_id, kind
+            )
         for agg_table, kind in (
             ("products", 30402), ("collections", 30405), ("shipping_options", 30406),
         ):
@@ -429,6 +451,27 @@ async def publish(merchant_id: str, user,
                     tx, merchant_id, agg_table, r["id"], kind,
                     revision=r["revision"],
                 )
+        # NIP-15 projection: stall + products for nip15-enabled catalogs
+        nip15_catalogs = await tx.fetch_all(
+            f"SELECT id FROM {tx.table('catalogs')} "
+            "WHERE merchant_id = :m AND publish_nip15 AND deleted_at IS NULL",
+            {"m": merchant_id},
+        )
+        for cat in nip15_catalogs:
+            await _enqueue_intent(
+                tx, merchant_id, "catalogs", cat["id"], 30017
+            )
+            prods = await tx.fetch_all(
+                f"SELECT id, revision FROM {tx.table('products')} "
+                "WHERE catalog_id = :c AND merchant_id = :m"
+                " AND deleted_at IS NULL",
+                {"c": cat["id"], "m": merchant_id},
+            )
+            for r in prods:
+                await _enqueue_intent(
+                    tx, merchant_id, "products", r["id"], 30018,
+                    revision=r["revision"],
+                )
         if row["state"] == "draft":
             await tx.execute(
                 f"UPDATE {tx.table('merchants')} "
@@ -437,28 +480,6 @@ async def publish(merchant_id: str, user,
                 {"t": now, "i": merchant_id},
             )
     return {"enqueued": True, "state": "publication_pending"}
-
-
-async def relay_health(merchant_id: str, user_id: str) -> dict:
-    """Per-relay config summary — publication evidence lands in 02-02."""
-    await get_merchant_row(merchant_id, user_id)
-    async with db.connect() as conn:
-        rows = await conn.fetchall(
-            f"SELECT relay_url, direction, enabled FROM {table('relay_configs')} "
-            "WHERE merchant_id = :m ORDER BY relay_url",
-            {"m": merchant_id},
-        )
-    return {
-        "relays": [
-            {
-                "relay_url": r["relay_url"],
-                "direction": r["direction"],
-                "enabled": bool(r["enabled"]),
-                "status": "unknown",  # populated by 02-02 relay manager
-            }
-            for r in rows
-        ]
-    }
 
 
 async def get_notifications(merchant_id: str, user) -> dict:

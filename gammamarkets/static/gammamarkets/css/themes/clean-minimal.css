@@ -1,0 +1,16 @@
+/* clean-minimal preset — the .gm-public-scoped token set. Emitted
+   inline by services/themes.py emit_css(); this file is the
+   canonical reference + static fallback. */
+
+.gm-public {
+  --color-bg: #ffffff;
+  --color-surface: #f7f7f8;
+  --color-surface-alt: #efeff1;
+  --color-border: #d6d6da;
+  --color-text: #1b1b1e;
+  --color-text-muted: #5d5d66;
+  --color-primary: #2b5f8a;
+  --color-on-primary: #ffffff;
+  --color-primary-hover: #1f4a6d;
+  --color-accent: #3f8fc9;
+}
