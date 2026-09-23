@@ -371,12 +371,18 @@
                   <q-td>{{ props.row.visibility }}</q-td>
                   <q-td>{{ props.row.nip99_status }}</q-td>
                   <q-td>
-                    <q-btn flat dense label="Edit"
-                           @click="gmEditProduct(props.row)"></q-btn>
-                    <q-btn flat dense label="Preview events"
-                           @click="gmDryRun(props.row)"></q-btn>
-                    <q-btn flat dense color="negative" label="Delete"
-                           @click="gmAskDelete('product', props.row)"></q-btn>
+                    <q-btn flat dense round icon="edit"
+                           @click="gmEditProduct(props.row)">
+                      <q-tooltip>Edit</q-tooltip>
+                    </q-btn>
+                    <q-btn flat dense round icon="visibility"
+                           @click="gmDryRun(props.row)">
+                      <q-tooltip>Preview events</q-tooltip>
+                    </q-btn>
+                    <q-btn flat dense round color="negative" icon="delete"
+                           @click="gmAskDelete('product', props.row)">
+                      <q-tooltip>Delete</q-tooltip>
+                    </q-btn>
                   </q-td>
                 </q-tr>
               </template>
@@ -397,10 +403,14 @@
                   <q-td>{{ props.row.title || props.row.d_tag }}</q-td>
                   <q-td>{{ gmTrunc(props.row.d_tag, 8, 4) }}</q-td>
                   <q-td>
-                    <q-btn flat dense label="Edit"
-                           @click="gmEditCollection(props.row)"></q-btn>
-                    <q-btn flat dense color="negative" label="Delete"
-                           @click="gmAskDelete('collection', props.row)"></q-btn>
+                    <q-btn flat dense round icon="edit"
+                           @click="gmEditCollection(props.row)">
+                      <q-tooltip>Edit</q-tooltip>
+                    </q-btn>
+                    <q-btn flat dense round color="negative" icon="delete"
+                           @click="gmAskDelete('collection', props.row)">
+                      <q-tooltip>Delete</q-tooltip>
+                    </q-btn>
                   </q-td>
                 </q-tr>
               </template>
@@ -427,10 +437,14 @@
                   <q-td>{{ (props.row.countries || []).join(', ') || 'All' }}</q-td>
                   <q-td>{{ props.row.active ? 'Yes' : 'No' }}</q-td>
                   <q-td>
-                    <q-btn flat dense label="Edit"
-                           @click="gmEditShipping(props.row)"></q-btn>
-                    <q-btn flat dense color="negative" label="Delete"
-                           @click="gmAskDelete('shipping', props.row)"></q-btn>
+                    <q-btn flat dense round icon="edit"
+                           @click="gmEditShipping(props.row)">
+                      <q-tooltip>Edit</q-tooltip>
+                    </q-btn>
+                    <q-btn flat dense round color="negative" icon="delete"
+                           @click="gmAskDelete('shipping', props.row)">
+                      <q-tooltip>Delete</q-tooltip>
+                    </q-btn>
                   </q-td>
                 </q-tr>
               </template>
