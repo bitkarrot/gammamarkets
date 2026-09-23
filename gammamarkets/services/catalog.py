@@ -1422,7 +1422,12 @@ async def create_shipping(merchant_id: str, user, payload: dict) -> dict:
 
 async def list_shipping(merchant_id: str, user) -> list[dict]:
     await _merchant_owned(merchant_id, user)
-    return await _fetchall("shipping_options", merchant_id)
+    rows = await _fetchall("shipping_options", merchant_id)
+    for row in rows:
+        for f in ("countries", "regions"):
+            if row.get(f):
+                row[f] = json.loads(row[f])
+    return rows
 
 
 async def get_shipping(merchant_id: str, user, option_id: str) -> dict:
