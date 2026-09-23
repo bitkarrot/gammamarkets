@@ -1,0 +1,1325 @@
+{% extends "base.html" %}
+{% block page %}
+{#- GammaMarkets admin shell — one nav section (Orders / Catalog /
+    Publications / Settings). Every mutating control carries a text
+    label — no icon-only mutators (UI-SPEC). Admin surfaces NEVER receive
+    merchant theme tokens; host palette only. Vue {{ }} markup lives in
+    {% raw %} so Jinja passes it through untouched. -#}
+{% raw %}
+<div id="gm-admin-root" class="gm-admin q-pa-md">
+
+  <q-banner v-if="gm.blocked" class="bg-negative text-white q-mb-md"
+            data-gm="topology-banner">
+    This database topology is not supported for production
+  </q-banner>
+  <q-banner v-for="(w, i) in gm.warnings" :key="'w' + i"
+            class="bg-warning text-dark q-mb-sm" data-gm="audit-banner">
+    {{ w }}
+  </q-banner>
+
+  <div v-if="!gm.loaded" class="q-pa-md">
+    <q-skeleton type="rect" height="64px" class="q-mb-md"></q-skeleton>
+    <q-skeleton type="rect" height="240px"></q-skeleton>
+  </div>
+
+  <q-banner v-else-if="gm.loadError" class="bg-negative text-white">
+    {{ gm.loadError }}
+    <template v-slot:action>
+      <q-btn flat label="Retry" @click="gmLoad"></q-btn>
+    </template>
+  </q-banner>
+
+  <q-card v-else-if="!gm.merchant" class="gm-setup q-pa-lg" style="max-width: 560px">
+    <h1 class="text-h5 q-mb-sm">Set up your store</h1>
+    <p class="text-body2">
+      Create your merchant profile to start selling — pick a wallet and a
+      display name; relays, checkout, and order tracking work out of the
+      box with safe defaults.
+    </p>
+    <q-input v-model="gm.createForm.display_name" outlined
+             label="Store display name" class="q-mb-md"></q-input>
+    <q-select v-model="gm.createForm.wallet_id" outlined
+              label="LNbits wallet (receives payments)"
+              :options="gm.wallets" option-value="id" option-label="name"
+              emit-value map-options class="q-mb-md"></q-select>
+    <q-btn unelevated color="primary" label="Create merchant profile"
+           :loading="gm.creating" :disable="!gm.createForm.wallet_id"
+           @click="gmCreateMerchant"></q-btn>
+  </q-card>
+
+  <div v-else class="gm-shell">
+    <nav class="gm-nav" aria-label="GammaMarkets sections">
+      <q-list padding>
+        <q-item clickable :active="gm.view === 'orders'"
+                @click="gmNav('orders')" data-gm-nav="orders">
+          <q-item-section avatar><q-icon name="receipt_long"></q-icon></q-item-section>
+          <q-item-section>Orders</q-item-section>
+        </q-item>
+        <q-item clickable :active="gm.view === 'catalog'"
+                @click="gmNav('catalog')" data-gm-nav="catalog">
+          <q-item-section avatar><q-icon name="inventory_2"></q-icon></q-item-section>
+          <q-item-section>Catalog</q-item-section>
+        </q-item>
+        <q-item clickable :active="gm.view === 'publications'"
+                @click="gmNav('publications')" data-gm-nav="publications">
+          <q-item-section avatar><q-icon name="rss_feed"></q-icon></q-item-section>
+          <q-item-section>Publications</q-item-section>
+        </q-item>
+        <q-item clickable :active="gm.view === 'settings'"
+                @click="gmNav('settings')" data-gm-nav="settings">
+          <q-item-section avatar><q-icon name="settings"></q-icon></q-item-section>
+          <q-item-section>Settings</q-item-section>
+        </q-item>
+      </q-list>
+    </nav>
+
+    <main class="gm-content">
+
+      <!-- ================= B1: order workspace ================= -->
+      <section v-show="gm.view === 'orders'" data-gm-surface="orders">
+        <div class="row items-center q-mb-md">
+          <h1 class="text-h6 q-my-none col">Orders</h1>
+          <span class="text-caption" data-gm="orders-summary">
+            {{ gmOrdersSummary }}
+          </span>
+        </div>
+
+        <q-banner v-if="gmOrders.error" class="bg-negative text-white q-mb-md">
+          Orders could not be loaded. The durable queue remains safe —
+          retry without changing order state.
+          <template v-slot:action>
+            <q-btn flat label="Retry" @click="gmLoadOrders"></q-btn>
+          </template>
+        </q-banner>
+
+        <div class="gm-workspace">
+          <div class="gm-order-list"
+               v-show="!gmOrders.mobileDetail || !$q.screen.lt.sm">
+            <div class="row q-gutter-sm q-mb-sm">
+              <q-input v-model="gmOrders.q" dense outlined class="col"
+                       placeholder="Search order or buyer"
+                       @update:model-value="gmLoadOrders" debounce="300">
+              </q-input>
+              <q-select v-model="gmOrders.stateFilter" dense outlined
+                        :options="gmOrders.stateFilters"
+                        option-value="value" option-label="label"
+                        emit-value map-options style="min-width: 170px"
+                        @update:model-value="gmLoadOrders">
+              </q-select>
+            </div>
+
+            <div v-if="gmOrders.loading">
+              <q-skeleton v-for="i in 4" :key="i" type="rect"
+                          height="56px" class="q-mb-sm"></q-skeleton>
+            </div>
+            <div v-else-if="!gmOrders.list.length" class="q-pa-lg text-center">
+              <template v-if="gmOrders.q || gmOrders.stateFilter">
+                <p>No matching orders — adjust search or status filters.</p>
+              </template>
+              <template v-else>
+                <h2 class="text-subtitle1">No orders yet</h2>
+                <p class="text-caption">
+                  New web and protocol orders will appear here.
+                </p>
+              </template>
+            </div>
+            <q-list v-else separator>
+              <q-item v-for="o in gmOrders.list" :key="o.id" clickable
+                      class="gm-order-row"
+                      :class="{ 'gm-order-active': gmOrders.selectedId === o.id }"
+                      @click="gmSelectOrder(o.id)">
+                <q-item-section>
+                  <q-item-label>
+                    <strong>{{ gmTrunc(o.id, 8, 4) }}</strong>
+                    <q-chip dense size="sm" class="q-ml-xs">
+                      {{ gmChannelLabel(o.protocol) }}
+                    </q-chip>
+                  </q-item-label>
+                  <q-item-label caption>
+                    {{ o.buyer || 'no contact' }} ·
+                    {{ o.first_item ? o.first_item + (o.item_count > 1 ? ' +' + (o.item_count - 1) + ' more' : '') : 'no items' }}
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-item-label><strong>{{ gmSats(o.total_sat) }}</strong></q-item-label>
+                  <q-item-label>
+                    <q-badge :color="o.payment_exception || o.oversold ? 'negative' : 'grey-6'"
+                             :label="o.payment_exception ? 'Needs attention' : gmOrderStateLabel(o.state)">
+                    </q-badge>
+                  </q-item-label>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+
+          <div class="gm-order-detail"
+               v-show="gmOrders.mobileDetail || !$q.screen.lt.sm || gmOrders.selectedId">
+            <div v-if="!gmOrders.selectedId" class="q-pa-lg text-center text-grey-6">
+              Select an order to see its detail.
+            </div>
+            <div v-else>
+              <q-btn v-if="$q.screen.lt.sm" flat dense
+                     label="← Back to orders" class="q-mb-sm"
+                     @click="gmOrderBack"></q-btn>
+              <div v-if="gmOrders.detailLoading">
+                <q-skeleton type="rect" height="48px" class="q-mb-sm"></q-skeleton>
+                <q-skeleton type="rect" height="180px"></q-skeleton>
+              </div>
+              <template v-else-if="gmOrders.detail">
+                <!-- ① heading: ref / channel / buyer / state -->
+                <div class="row items-center q-gutter-sm q-mb-sm">
+                  <h2 class="text-h6 q-my-none">{{ gmTrunc(gmOrders.detail.id, 10, 6) }}</h2>
+                  <q-chip dense>{{ gmChannelLabel(gmOrders.detail.protocol) }}</q-chip>
+                  <span class="text-caption">{{ gmOrders.detail.contact ? (gmOrders.detail.contact.email || '') : (gmOrders.list.find(o => o.id === gmOrders.selectedId) || {}).buyer || 'no contact' }}</span>
+                  <q-badge :color="gmOrders.detail.payment_exception ? 'negative' : 'primary'"
+                           :label="gmOrders.detail.payment_exception ? 'Needs attention' : gmOrderStateLabel(gmOrders.detail.state)">
+                  </q-badge>
+                </div>
+
+                <!-- ② exception banner — names the exception -->
+                <q-banner v-if="gmOrders.detail.payment_exception"
+                          class="bg-negative text-white q-mb-md"
+                          data-gm="exception-banner">
+                  Payment exception:
+                  {{ gmOrders.detail.payment_exception_reason || 'settlement could not be verified' }}
+                  — settlement is being held for review; no order state
+                  was advanced automatically.
+                </q-banner>
+                <q-banner v-else-if="gmOrders.detail.oversold"
+                          class="bg-warning text-dark q-mb-md"
+                          data-gm="oversold-banner">
+                  Oversold: payment settled for stock that was not
+                  available — review and resolve below.
+                </q-banner>
+
+                <q-banner v-if="gmOrders.actionError"
+                          class="bg-negative text-white q-mb-sm">
+                  {{ gmOrders.actionError }}
+                </q-banner>
+
+                <!-- ③ legal contextual actions only -->
+                <div class="row q-gutter-sm q-mb-md">
+                  <q-btn v-for="a in gmOrderActions" :key="a.key"
+                         :unelevated="a.kind === 'primary'"
+                         :outline="a.kind === 'secondary'"
+                         :flat="a.kind === 'disabled'"
+                         :color="a.kind === 'danger' ? 'negative' : 'primary'"
+                         :label="a.label" :disable="a.kind === 'disabled'"
+                         @click="gmDoAction(a)">
+                    <q-tooltip v-if="a.reason">{{ a.reason }}</q-tooltip>
+                  </q-btn>
+                </div>
+
+                <!-- ④ metrics grid -->
+                <div class="row q-col-gutter-sm q-mb-md">
+                  <div class="col-6 col-sm-3">
+                    <q-card flat bordered class="q-pa-sm">
+                      <div class="text-caption">Total</div>
+                      <div class="text-subtitle1"><strong>{{ gmSats(gmOrders.detail.total_sat) }}</strong></div>
+                    </q-card>
+                  </div>
+                  <div class="col-6 col-sm-3">
+                    <q-card flat bordered class="q-pa-sm">
+                      <div class="text-caption">Payment</div>
+                      <div>{{ (gmOrders.detail.payment || {}).status || '—' }}</div>
+                    </q-card>
+                  </div>
+                  <div class="col-6 col-sm-3">
+                    <q-card flat bordered class="q-pa-sm">
+                      <div class="text-caption">Inventory</div>
+                      <div>{{ gmOrders.detail.oversold ? 'oversold' : 'reserved' }}</div>
+                    </q-card>
+                  </div>
+                  <div class="col-6 col-sm-3">
+                    <q-card flat bordered class="q-pa-sm">
+                      <div class="text-caption">Protocol</div>
+                      <div>{{ gmChannelLabel(gmOrders.detail.protocol) }}</div>
+                    </q-card>
+                  </div>
+                </div>
+
+                <!-- ⑤ items + fulfillment (address owner-decrypted) -->
+                <q-card flat bordered class="q-mb-md">
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">Items</div>
+                    <div v-for="i in gmOrders.detail.items" :key="i.product_id"
+                         class="row justify-between">
+                      <span>{{ i.title }} ×{{ i.quantity }}</span>
+                      <strong>{{ gmSats(i.line_total_sat) }}</strong>
+                    </div>
+                    <div v-if="gmOrders.detail.address" class="q-mt-sm">
+                      <div class="text-subtitle2">Ship to</div>
+                      <div class="text-caption">
+                        {{ [gmOrders.detail.address.line1, gmOrders.detail.address.city, gmOrders.detail.address.region, gmOrders.detail.address.postal_code, gmOrders.detail.address.country].filter(Boolean).join(', ') }}
+                      </div>
+                    </div>
+                    <div v-if="gmOrders.detail.fulfillment" class="q-mt-sm">
+                      <div class="text-subtitle2">Fulfillment</div>
+                      <div class="text-caption">
+                        {{ gmOrders.detail.shipping_state }}
+                        <template v-if="gmOrders.detail.fulfillment.tracking">
+                          · {{ gmOrders.detail.fulfillment.carrier || '' }}
+                          {{ gmOrders.detail.fulfillment.tracking }}
+                        </template>
+                      </div>
+                    </div>
+                  </q-card-section>
+                </q-card>
+
+                <!-- ⑥ order_events chronology -->
+                <q-card flat bordered class="q-mb-md">
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">History</div>
+                    <q-timeline dense>
+                      <q-timeline-entry v-for="(e, i) in gmOrders.events"
+                                        :key="i"
+                                        :subtitle="gmTime(e.created_at)">
+                        {{ e.actor }}:
+                        {{ e.from_state || '—' }} → {{ e.to_state }}
+                        <span v-if="e.detail && e.detail.reason" class="text-caption">
+                          ({{ e.detail.reason }})
+                        </span>
+                      </q-timeline-entry>
+                    </q-timeline>
+                  </q-card-section>
+                </q-card>
+
+                <!-- ⑦ collapsed technical delivery details -->
+                <q-expansion-item dense label="Technical delivery details"
+                                  class="q-mb-md">
+                  <div class="q-pa-sm text-caption">
+                    <div>
+                      Order reference:
+                      <code>{{ gmTrunc(gmOrders.detail.id, 12, 8) }}</code>
+                    </div>
+                    <div v-if="gmOrders.detail.invoice_expiry">
+                      Invoice expiry: {{ gmTime(gmOrders.detail.invoice_expiry) }}
+                    </div>
+                    <div v-if="gmOrders.detail.payment_exception_resolution">
+                      Exception resolution:
+                      {{ gmOrders.detail.payment_exception_resolution }}
+                    </div>
+                  </div>
+                </q-expansion-item>
+              </template>
+              <q-banner v-else-if="gmOrders.detailError"
+                        class="bg-negative text-white">
+                {{ gmOrders.detailError }}
+                <template v-slot:action>
+                  <q-btn flat label="Retry"
+                         @click="gmSelectOrder(gmOrders.selectedId)"></q-btn>
+                </template>
+              </q-banner>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= B3: catalog ================= -->
+      <section v-show="gm.view === 'catalog'" data-gm-surface="catalog">
+        <div class="row items-center q-mb-md">
+          <h1 class="text-h6 q-my-none col">Catalog</h1>
+          <q-btn unelevated color="primary" label="New product"
+                 class="q-mr-sm" @click="gmNewProduct"></q-btn>
+          <q-btn outline color="primary" label="New collection"
+                 class="q-mr-sm" @click="gmNewCollection"></q-btn>
+          <q-btn outline color="primary" label="New shipping option"
+                 @click="gmNewShipping"></q-btn>
+        </div>
+        <q-banner v-if="gmCatalog.error" class="bg-negative text-white q-mb-md">
+          {{ gmCatalog.error }}
+          <template v-slot:action>
+            <q-btn flat label="Retry" @click="gmLoadCatalog"></q-btn>
+          </template>
+        </q-banner>
+        <q-tabs v-model="gmCatalog.tab" dense class="q-mb-md">
+          <q-tab name="products" label="Products"></q-tab>
+          <q-tab name="collections" label="Collections"></q-tab>
+          <q-tab name="shipping" label="Shipping"></q-tab>
+        </q-tabs>
+
+        <div v-if="gmCatalog.loading">
+          <q-skeleton v-for="i in 3" :key="i" type="rect" height="44px"
+                      class="q-mb-sm"></q-skeleton>
+        </div>
+
+        <q-tab-panels v-else v-model="gmCatalog.tab" animated>
+          <q-tab-panel name="products" class="q-pa-none">
+            <div v-if="!gmCatalog.products.length" class="q-pa-lg text-center">
+              <p>No products yet — create a product or save a draft to begin.</p>
+            </div>
+            <q-table v-else dense flat bordered :rows="gmProductRows"
+                     row-key="id" :pagination="{ rowsPerPage: 20 }">
+              <template v-slot:header>
+                <q-tr>
+                  <q-th>Title</q-th><q-th>Type</q-th><q-th>Price</q-th>
+                  <q-th>Stock</q-th><q-th>Visibility</q-th><q-th>State</q-th>
+                  <q-th>Actions</q-th>
+                </q-tr>
+              </template>
+              <template v-slot:body="props">
+                <q-tr>
+                  <q-td>
+                    {{ props.row.title || props.row.d_tag }}
+                    <q-badge v-if="props.row.draft" color="warning"
+                             text-color="dark" class="q-ml-xs"
+                             label="Draft — never published"></q-badge>
+                  </q-td>
+                  <q-td>{{ props.row.product_type }} / {{ props.row.format }}</q-td>
+                  <q-td>{{ props.row._price }}</q-td>
+                  <q-td>{{ props.row._stock }}</q-td>
+                  <q-td>{{ props.row.visibility }}</q-td>
+                  <q-td>{{ props.row.nip99_status }}</q-td>
+                  <q-td>
+                    <q-btn flat dense label="Edit"
+                           @click="gmEditProduct(props.row)"></q-btn>
+                    <q-btn flat dense label="Preview events"
+                           @click="gmDryRun(props.row)"></q-btn>
+                    <q-btn flat dense color="negative" label="Delete"
+                           @click="gmAskDelete('product', props.row)"></q-btn>
+                  </q-td>
+                </q-tr>
+              </template>
+            </q-table>
+          </q-tab-panel>
+
+          <q-tab-panel name="collections" class="q-pa-none">
+            <div v-if="!gmCatalog.collections.length" class="q-pa-lg text-center">
+              <p>No collections yet — create a collection to group products; every published product belongs to at least one.</p>
+            </div>
+            <q-table v-else dense flat bordered :rows="gmCatalog.collections"
+                     row-key="id" :pagination="{ rowsPerPage: 20 }">
+              <template v-slot:header>
+                <q-tr><q-th>Title</q-th><q-th>ID</q-th><q-th>Actions</q-th></q-tr>
+              </template>
+              <template v-slot:body="props">
+                <q-tr>
+                  <q-td>{{ props.row.title || props.row.d_tag }}</q-td>
+                  <q-td>{{ gmTrunc(props.row.d_tag, 8, 4) }}</q-td>
+                  <q-td>
+                    <q-btn flat dense label="Edit"
+                           @click="gmEditCollection(props.row)"></q-btn>
+                    <q-btn flat dense color="negative" label="Delete"
+                           @click="gmAskDelete('collection', props.row)"></q-btn>
+                  </q-td>
+                </q-tr>
+              </template>
+            </q-table>
+          </q-tab-panel>
+
+          <q-tab-panel name="shipping" class="q-pa-none">
+            <div v-if="!gmCatalog.shipping.length" class="q-pa-lg text-center">
+              <p>No shipping options yet — create one for physical products.</p>
+            </div>
+            <q-table v-else dense flat bordered :rows="gmCatalog.shipping"
+                     row-key="id" :pagination="{ rowsPerPage: 20 }">
+              <template v-slot:header>
+                <q-tr>
+                  <q-th>Title</q-th><q-th>Service</q-th><q-th>Price</q-th>
+                  <q-th>Countries</q-th><q-th>Active</q-th><q-th>Actions</q-th>
+                </q-tr>
+              </template>
+              <template v-slot:body="props">
+                <q-tr>
+                  <q-td>{{ props.row.title }}</q-td>
+                  <q-td>{{ props.row.service }}</q-td>
+                  <q-td>{{ props.row.base_price_minor }} {{ props.row.currency }}</q-td>
+                  <q-td>{{ (props.row.countries || []).join(', ') || 'All' }}</q-td>
+                  <q-td>{{ props.row.active ? 'Yes' : 'No' }}</q-td>
+                  <q-td>
+                    <q-btn flat dense label="Edit"
+                           @click="gmEditShipping(props.row)"></q-btn>
+                    <q-btn flat dense color="negative" label="Delete"
+                           @click="gmAskDelete('shipping', props.row)"></q-btn>
+                  </q-td>
+                </q-tr>
+              </template>
+            </q-table>
+          </q-tab-panel>
+        </q-tab-panels>
+      </section>
+
+      <!-- ================= B2: publication health ================= -->
+      <section v-show="gm.view === 'publications'" data-gm-surface="publications">
+        <div class="row items-center q-mb-md">
+          <h1 class="text-h6 q-my-none col">Publications</h1>
+          <span class="text-caption">Relay ACKs are delivery evidence — they never mean payment settled.</span>
+        </div>
+        <q-banner v-if="gmPubs.error" class="bg-negative text-white q-mb-md">
+          {{ gmPubs.error }}
+          <template v-slot:action>
+            <q-btn flat label="Retry" @click="gmLoadPublications"></q-btn>
+          </template>
+        </q-banner>
+
+        <q-card flat bordered class="q-mb-md" v-if="gmPubs.exceptionOrders.length">
+          <q-card-section>
+            <div class="text-subtitle2 q-mb-sm">Orders needing attention</div>
+            <q-list dense separator>
+              <q-item v-for="o in gmPubs.exceptionOrders" :key="o.id"
+                      clickable @click="gmNav('orders'); gmSelectOrder(o.id)">
+                <q-item-section>{{ gmTrunc(o.id, 10, 6) }}</q-item-section>
+                <q-item-section side>
+                  <q-badge color="negative" label="Needs attention"></q-badge>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <q-card flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="text-subtitle2 q-mb-sm">
+              Relay delivery evidence
+            </div>
+            <div v-if="!gmPubs.relays.length" class="text-grey-7">
+              No write relays configured — add at least one relay to
+              publish your catalog.
+            </div>
+            <q-markup-table v-else dense flat>
+              <thead>
+                <tr>
+                  <th class="text-left">Relay</th>
+                  <th class="text-left">Direction</th>
+                  <th class="text-left">Connection</th>
+                  <th class="text-left">Last positive ACK</th>
+                  <th class="text-left">Rejected / timed out</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in gmPubs.relays" :key="r.relay_url + r.direction">
+                  <td><code>{{ r.relay_url }}</code></td>
+                  <td>{{ r.direction }}</td>
+                  <td>{{ r.enabled ? 'enabled' : 'disabled' }}</td>
+                  <td>{{ r.accepted ? r.accepted + ' accepted · ' + gmTime(r.last_attempt_at) : '—' }}</td>
+                  <td>{{ r.rejected || r.timeout ? (r.rejected + ' rejected · ' + r.timeout + ' timed out') : '—' }}</td>
+                </tr>
+              </tbody>
+            </q-markup-table>
+          </q-card-section>
+        </q-card>
+
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-subtitle2 q-mb-sm">Outbox</div>
+            <div v-if="gmPubs.loading">
+              <q-skeleton type="rect" height="44px" class="q-mb-sm"></q-skeleton>
+            </div>
+            <div v-else-if="!gmPubs.intents.length" class="text-grey-7">
+              No publications pending
+            </div>
+            <q-table v-else dense flat :rows="gmPubs.intents" row-key="id"
+                     :pagination="{ rowsPerPage: 20 }">
+              <template v-slot:header>
+                <q-tr>
+                  <q-th>Kind</q-th><q-th>Reference</q-th><q-th>State</q-th>
+                  <q-th>Attempts</q-th><q-th>Relays</q-th><q-th></q-th>
+                </q-tr>
+              </template>
+              <template v-slot:body="props">
+                <q-tr>
+                  <q-td>{{ gmKindLabel(props.row.event_kind || props.row.intent_type) }}</q-td>
+                  <q-td><code>{{ gmTrunc(props.row.aggregate_id, 8, 4) }}</code>
+                    <q-badge v-if="props.row.state === 'superseded'" color="grey"
+                             label="superseded" class="q-ml-xs"></q-badge>
+                  </q-td>
+                  <q-td>
+                    <q-badge :color="props.row.state === 'failed' ? 'negative' : props.row.state === 'partially_published' ? 'warning' : 'primary'"
+                             :text-color="props.row.state === 'partially_published' ? 'dark' : 'white'"
+                             :label="gmPubStateLabel(props.row.state)"></q-badge>
+                  </q-td>
+                  <q-td>{{ props.row.attempts }}</q-td>
+                  <q-td>
+                    <span v-for="p in (props.row.relay_publications || [])"
+                          :key="p.relay_url" class="q-mr-xs">
+                      <q-badge outline
+                               :color="p.result === 'accepted' ? 'positive' : 'negative'"
+                               :label="gmPubCellLabel(p) + ' ' + gmTrunc(p.relay_url.replace('wss://', ''), 10, 4)">
+                      </q-badge>
+                    </span>
+                    <div v-if="props.row.state === 'partially_published'"
+                         class="text-caption text-warning q-mt-xs">
+                      Not yet accepted by:
+                      {{ gmMissingRelays(props.row).join(', ') }}
+                    </div>
+                  </q-td>
+                  <q-td>
+                    <q-btn v-if="['failed', 'partially_published'].includes(props.row.state)"
+                           flat dense label="Retry"
+                           :loading="gmPubs.retrying === props.row.id"
+                           @click="gmRetryIntent(props.row)"></q-btn>
+                  </q-td>
+                </q-tr>
+              </template>
+            </q-table>
+          </q-card-section>
+        </q-card>
+      </section>
+
+      <!-- ================= B4/B5/B6: settings ================= -->
+      <section v-show="gm.view === 'settings'" data-gm-surface="settings">
+        <h1 class="text-h6 q-mb-md">Settings</h1>
+        <q-tabs v-model="gm.settingsTab" dense class="q-mb-md">
+          <q-tab name="merchant" label="Merchant"></q-tab>
+          <q-tab name="notifications" label="Notifications"></q-tab>
+          <q-tab name="appearance" label="Appearance"></q-tab>
+        </q-tabs>
+        <q-banner v-if="gmSettings.error" class="bg-negative text-white q-mb-md">
+          {{ gmSettings.error }}
+        </q-banner>
+        <q-banner v-if="gmSettings.notice" class="bg-positive text-white q-mb-md">
+          {{ gmSettings.notice }}
+        </q-banner>
+
+        <q-tab-panels v-model="gm.settingsTab" animated>
+
+          <!-- B4 merchant -->
+          <q-tab-panel name="merchant" class="q-pa-none">
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-md-6">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">Identity</div>
+                    <q-input v-model="gmSettings.displayName" outlined dense
+                             label="Display name" class="q-mb-sm"></q-input>
+                    <q-btn outline dense label="Save display name"
+                           @click="gmSaveDisplayName"></q-btn>
+                    <div class="q-mt-md text-caption">Store pubkey (public)</div>
+                    <div class="row items-center q-gutter-sm">
+                      <code>{{ gmTrunc(gm.merchant.pubkey, 12, 8) }}</code>
+                      <q-btn flat dense label="Copy pubkey"
+                             @click="gmCopy(gm.merchant.pubkey)"></q-btn>
+                    </div>
+                    <div class="q-mt-sm">
+                      <q-badge outline label="Payment preference: manual"></q-badge>
+                    </div>
+                    <div class="q-mt-xs text-caption">
+                      Spec revision: {{ gmSettings.specRevision }}
+                    </div>
+                  </q-card-section>
+                </q-card>
+
+                <q-card flat bordered class="q-mt-md">
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">Wallet</div>
+                    <q-select :options="gmSettings.wallets" option-value="id"
+                              option-label="name" emit-value map-options
+                              outlined dense label="Receiving wallet"
+                              :model-value="null"
+                              @update:model-value="gmChangeWallet">
+                      <q-tooltip v-if="gmSettings.walletBlocked">
+                        Wallet change is blocked while orders are awaiting
+                        payment.
+                      </q-tooltip>
+                    </q-select>
+                    <div v-if="gmSettings.walletBlocked"
+                         class="text-caption text-negative q-mt-xs">
+                      Wallet change is blocked while orders are
+                      invoice_pending or awaiting_payment.
+                    </div>
+                  </q-card-section>
+                </q-card>
+
+                <q-card flat bordered class="q-mt-md">
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">Import Nostr secret key</div>
+                    <q-input v-model="gmSettings.nsecInput" outlined dense
+                             type="password" label="nsec…"
+                             autocomplete="off" class="q-mb-xs"></q-input>
+                    <div class="text-caption q-mb-sm">
+                      {{ gmSettings.nsecNote }}
+                    </div>
+                    <q-btn outline dense label="Import key"
+                           :loading="gmSettings.importing"
+                           :disable="!gmSettings.nsecInput"
+                           @click="gmImportKey"></q-btn>
+                  </q-card-section>
+                </q-card>
+              </div>
+
+              <div class="col-12 col-md-6">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">Relays</div>
+                    <q-list dense separator v-if="gmSettings.relays.length">
+                      <q-item v-for="(r, i) in gmSettings.relays" :key="i">
+                        <q-item-section>
+                          <code>{{ r.relay_url }}</code>
+                        </q-item-section>
+                        <q-item-section side>
+                          <q-select v-model="r.direction" dense outlined
+                                    :options="gmSettings.directions"
+                                    option-value="value" option-label="label"
+                                    emit-value map-options
+                                    style="min-width: 130px"></q-select>
+                        </q-item-section>
+                        <q-item-section side>
+                          <q-btn flat dense color="negative" label="Remove"
+                                 @click="gmRemoveRelay(i)"></q-btn>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                    <div v-else class="text-caption q-mb-sm">
+                      No write relays configured — add at least one relay to
+                      publish your catalog.
+                    </div>
+                    <div class="row q-gutter-sm q-mt-sm items-center">
+                      <q-input v-model="gmSettings.newRelay" dense outlined
+                               class="col" label="wss://relay.example"
+                               hint="Relay URLs must use wss://"></q-input>
+                      <q-select v-model="gmSettings.newRelayDirection" dense
+                                outlined :options="gmSettings.directions"
+                                option-value="value" option-label="label"
+                                emit-value map-options
+                                style="min-width: 130px"></q-select>
+                      <q-btn outline dense label="Add relay"
+                             @click="gmAddRelay"></q-btn>
+                    </div>
+                    <div class="text-subtitle2 q-mt-md q-mb-sm">
+                      Media (Blossom) servers
+                    </div>
+                    <q-list dense v-if="gmSettings.blossom.length">
+                      <q-item v-for="(b, i) in gmSettings.blossom" :key="i">
+                        <q-item-section><code>{{ b }}</code></q-item-section>
+                        <q-item-section side>
+                          <q-btn flat dense color="negative" label="Remove"
+                                 @click="gmRemoveBlossom(i)"></q-btn>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                    <div class="row q-gutter-sm q-mt-sm items-center">
+                      <q-input v-model="gmSettings.newBlossom" dense outlined
+                               class="col" label="https://blossom.example"></q-input>
+                      <q-btn outline dense label="Add media server"
+                             @click="gmAddBlossom"></q-btn>
+                    </div>
+                    <q-btn unelevated color="primary" class="q-mt-md"
+                           label="Save relay configuration"
+                           @click="gmSaveRelays"></q-btn>
+                  </q-card-section>
+                </q-card>
+
+                <q-card flat bordered class="q-mt-md">
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">Store status</div>
+                    <div class="q-mb-sm">
+                      State: <q-badge outline :label="gm.merchant.state"></q-badge>
+                    </div>
+                    <q-btn unelevated color="primary" class="q-mr-sm"
+                           label="Publish everything"
+                           :loading="gmSettings.publishing"
+                           @click="gmPublishEverything"></q-btn>
+                    <q-btn outline color="negative" label="Begin deactivation"
+                           @click="gmSettings.deactivate.show = true"></q-btn>
+                    <div class="text-caption q-mt-md">
+                      Gamma orders (NIP-17): Not available in this release
+                    </div>
+                  </q-card-section>
+                </q-card>
+              </div>
+            </div>
+          </q-tab-panel>
+
+          <!-- B5 notifications -->
+          <q-tab-panel name="notifications" class="q-pa-none">
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-md-6">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">
+                      Notification addresses
+                    </div>
+                    <div v-if="!gmNotify.emails.length" class="text-caption q-mb-sm">
+                      No notification addresses — add an email to receive
+                      order notifications.
+                    </div>
+                    <q-list dense separator v-else>
+                      <q-item v-for="e in gmNotify.emails" :key="e">
+                        <q-item-section>{{ e }}</q-item-section>
+                        <q-item-section side>
+                          <q-btn flat dense label="Send test"
+                                 :loading="gmNotify.testing === e"
+                                 @click="gmSendTest(e)"></q-btn>
+                          <q-btn flat dense color="negative" label="Remove"
+                                 @click="gmRemoveEmail(e)"></q-btn>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                    <div class="row q-gutter-sm q-mt-sm">
+                      <q-input v-model="gmNotify.newEmail" dense outlined
+                               class="col" label="you@example.com"
+                               type="email"></q-input>
+                      <q-btn outline dense label="Add address"
+                             :disable="gmNotify.emails.length >= 5"
+                             @click="gmAddEmail"></q-btn>
+                    </div>
+                    <q-banner v-if="gmNotify.error"
+                              class="bg-negative text-white q-mt-sm">
+                      {{ gmNotify.error }}
+                    </q-banner>
+                    <q-banner v-if="gmNotify.notice"
+                              class="bg-positive text-white q-mt-sm">
+                      {{ gmNotify.notice }}
+                    </q-banner>
+                    <div class="text-subtitle2 q-mt-md q-mb-sm">Events</div>
+                    <q-list dense>
+                      <q-item v-for="ev in gmNotify.eventDefs" :key="ev.key">
+                        <q-item-section>{{ ev.label }}</q-item-section>
+                        <q-item-section side>
+                          <q-toggle :model-value="gmEventOn(ev.key)"
+                                    :label="gmEventOn(ev.key) ? 'On' : 'Off'"
+                                    @update:model-value="gmToggleEvent(ev.key, $event)">
+                          </q-toggle>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                  </q-card-section>
+                </q-card>
+              </div>
+              <div class="col-12 col-md-6">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">Recent email queue</div>
+                    <div class="text-caption q-mb-sm">
+                      Customer email is strictly per-order opt-in and
+                      transactional only. The order-status link is a bearer
+                      token — anyone holding it can view that order.
+                    </div>
+                    <div v-if="!gmNotify.queue.length" class="text-grey-7">
+                      Nothing sent yet.
+                    </div>
+                    <q-list v-else dense separator>
+                      <q-item v-for="(r, i) in gmNotify.queue" :key="i">
+                        <q-item-section>
+                          {{ r.event_type }} · {{ r.channel }}
+                        </q-item-section>
+                        <q-item-section side>
+                          {{ gmQueueLabel(r) }}
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                  </q-card-section>
+                </q-card>
+              </div>
+            </div>
+          </q-tab-panel>
+
+          <!-- B6 appearance -->
+          <q-tab-panel name="appearance" class="q-pa-none">
+            <q-banner class="bg-info text-white q-mb-md" data-gm="boundary-note">
+              {{ gmSettings.boundaryNote }}
+            </q-banner>
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-md-7">
+                <div class="text-subtitle2 q-mb-sm">Preset</div>
+                <div class="row q-gutter-sm q-mb-md">
+                  <q-card v-for="p in ['warm-market', 'clean-minimal', 'high-contrast']"
+                          :key="p" flat bordered class="cursor-pointer q-pa-sm"
+                          :class="{ 'gm-preset-active': gmSettings.theme.preset === p }"
+                          style="min-width: 140px"
+                          @click="gmSetPreset(p)">
+                    <div class="text-body2">{{ gmSettings.presetNames[p] }}</div>
+                    <div class="row q-gutter-xs q-mt-xs">
+                      <span v-for="(c, i) in gmSwatches(p)" :key="i"
+                            :style="{ background: c, width: '20px', height: '20px', borderRadius: '4px', border: '1px solid rgba(0,0,0,.2)' }">
+                      </span>
+                    </div>
+                  </q-card>
+                </div>
+
+                <div class="text-subtitle2 q-mb-sm">Layout preset</div>
+                <div class="row q-gutter-sm q-mb-xs">
+                  <q-card v-for="l in gmSettings.layouts" :key="l.value"
+                          flat bordered class="cursor-pointer q-pa-sm"
+                          :class="{ 'gm-preset-active': gmSettings.theme.layout === l.value }"
+                          @click="gmSetLayout(l.value)">
+                    <div class="text-body2">{{ l.label }}</div>
+                  </q-card>
+                </div>
+                <div class="text-caption q-mb-md">{{ gmSettings.layoutNote }}</div>
+
+                <q-expansion-item label="Brand Basics" class="q-mb-sm"
+                                  data-gm="brand-basics">
+                  <div class="q-pa-sm">
+                    <q-input v-model="gmSettings.theme.brand.name" dense
+                             outlined label="Store display name"
+                             class="q-mb-sm"></q-input>
+                    <q-input v-model="gmSettings.theme.brand.initials" dense
+                             outlined label="Logo initials (up to 3 characters)"
+                             maxlength="3" class="q-mb-sm"></q-input>
+                    <q-input v-model="gmSettings.theme.brand.accent" dense
+                             outlined label="Accent color (#rrggbb)"
+                             class="q-mb-sm"></q-input>
+                    <q-select v-model="gmSettings.theme.brand.font" dense
+                              outlined label="Type style"
+                              :options="gmSettings.fontStacks"
+                              option-value="value" option-label="label"
+                              emit-value map-options class="q-mb-sm"></q-select>
+                    <q-select v-model="gmSettings.theme.brand.corners" dense
+                              outlined label="Corner character"
+                              :options="gmSettings.cornerOptions"
+                              option-value="value" option-label="label"
+                              emit-value map-options></q-select>
+                    <q-btn flat dense label="Reset to preset"
+                           class="q-mt-sm"
+                           @click="gmResetTier('brand')"></q-btn>
+                  </div>
+                </q-expansion-item>
+
+                <q-expansion-item label="Advanced Tokens"
+                                  data-gm="advanced-tokens">
+                  <div class="q-pa-sm">
+                    <q-checkbox v-model="gmSettings.theme.advanced_opt_in"
+                                label="Enable advanced tokens — bounded token overrides only; no custom CSS, scripts, or fonts.">
+                    </q-checkbox>
+                    <div v-if="gmSettings.theme.advanced_opt_in" class="q-mt-sm">
+                      <q-input v-for="t in gmSettings.advancedTokens" :key="t"
+                               v-model="gmSettings.theme.advanced[t]" dense
+                               outlined :label="t" class="q-mb-xs"></q-input>
+                    </div>
+                    <q-btn flat dense label="Reset to preset"
+                           class="q-mt-sm"
+                           @click="gmResetTier('advanced')"></q-btn>
+                  </div>
+                </q-expansion-item>
+
+                <div class="q-mt-md">
+                  <q-banner v-if="gmSettings.themeError"
+                            class="bg-negative text-white q-mb-sm">
+                    {{ gmSettings.themeError }}
+                  </q-banner>
+                  <q-banner v-if="gmSettings.themeNotice"
+                            class="bg-positive text-white q-mb-sm">
+                    {{ gmSettings.themeNotice }}
+                  </q-banner>
+                  <q-btn unelevated color="primary" label="Save appearance"
+                         :loading="gmSettings.saving"
+                         :disable="!gmContrastOk"
+                         @click="gmSaveTheme"></q-btn>
+                  <q-btn flat label="Reset to preset" class="q-ml-sm"
+                         @click="gmResetTier('preset')"></q-btn>
+                </div>
+              </div>
+
+              <div class="col-12 col-md-5">
+                <div class="text-subtitle2 q-mb-sm">
+                  Public storefront preview
+                </div>
+                <div class="gm-preview gm-public" :style="gmPreviewStyle"
+                     data-gm="theme-preview">
+                  <div class="gm-preview-inner">
+                    <strong>{{ gmSettings.theme.brand.name || gm.merchant.display_name || 'Your store' }}</strong>
+                    <p :style="{ color: 'var(--color-text-muted)' }">
+                      A sample product card on your public storefront.
+                    </p>
+                    <span class="gm-preview-btn"
+                          :style="{ background: 'var(--color-primary)', color: 'var(--color-on-primary)', borderRadius: 'var(--radius-md)' }">
+                      Review payment
+                    </span>
+                  </div>
+                </div>
+                <div class="q-mt-md">
+                  <div class="text-subtitle2 q-mb-xs">Contrast</div>
+                  <div v-for="p in gmContrastPairs" :key="p.pair"
+                       class="text-caption">
+                    {{ p.pair }} — {{ p.ratio.toFixed(2) }}:1
+                    <q-badge :color="p.ok ? 'positive' : 'negative'"
+                             :label="p.ok ? 'passes' : 'fails'"></q-badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </q-tab-panel>
+        </q-tab-panels>
+      </section>
+    </main>
+  </div>
+
+  <!-- ======== dialogs ======== -->
+
+  <q-dialog v-model="gmOrders.cancelDialog.show">
+    <q-card style="min-width: 420px">
+      <q-card-section>
+        <div class="text-h6">Cancel order {{ gmTrunc(gmOrders.selectedId, 10, 6) }}</div>
+      </q-card-section>
+      <q-card-section>
+        Cancelling releases reserved stock and does not refund a settled
+        payment. A reason is required and is recorded in the audit log.
+        <q-input v-model="gmOrders.cancelDialog.reason" outlined
+                 label="Reason (required)" class="q-mt-md"
+                 type="textarea"></q-input>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Keep order"
+               @click="gmOrders.cancelDialog.show = false"></q-btn>
+        <q-btn unelevated color="negative" label="Cancel order"
+               :loading="gmOrders.cancelDialog.busy"
+               :disable="!gmOrders.cancelDialog.reason.trim()"
+               @click="gmCancelConfirm"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmOrders.shipDialog.show">
+    <q-card style="min-width: 420px">
+      <q-card-section>
+        <div class="text-h6">
+          {{ gmOrders.shipDialog.target === 'delivered' ? 'Mark delivered' : gmOrders.shipDialog.target === 'shipped' ? 'Mark shipped' : 'Start fulfillment' }}
+        </div>
+      </q-card-section>
+      <q-card-section>
+        <q-input v-model="gmOrders.shipDialog.tracking" outlined dense
+                 label="Tracking number (optional)" class="q-mb-sm"></q-input>
+        <q-input v-model="gmOrders.shipDialog.carrier" outlined dense
+                 label="Carrier (optional)" class="q-mb-sm"></q-input>
+        <q-input v-model="gmOrders.shipDialog.eta" outlined dense
+                 label="ETA (optional)"></q-input>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Back"
+               @click="gmOrders.shipDialog.show = false"></q-btn>
+        <q-btn unelevated color="primary"
+               :label="gmOrders.shipDialog.target === 'delivered' ? 'Mark delivered' : gmOrders.shipDialog.target === 'shipped' ? 'Mark shipped' : 'Start fulfillment'"
+               :loading="gmOrders.shipDialog.busy"
+               @click="gmShipConfirm"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmOrders.refundDialog.show">
+    <q-card style="min-width: 420px">
+      <q-card-section>
+        <div class="text-h6">Confirm refund sent</div>
+      </q-card-section>
+      <q-card-section>
+        Records your attestation that a refund was paid from the wallet UI.
+        gammamarkets cannot verify outgoing payments.
+        <q-input v-model="gmOrders.refundDialog.reference" outlined
+                 label="Refund reference (optional)" class="q-mt-md"></q-input>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Back"
+               @click="gmOrders.refundDialog.show = false"></q-btn>
+        <q-btn unelevated color="primary" label="Confirm refund sent"
+               :loading="gmOrders.refundDialog.busy"
+               @click="gmRefundConfirm"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmOrders.reissue.show">
+    <q-card style="min-width: 420px">
+      <q-card-section>
+        <div class="text-h6">Reissue status link</div>
+      </q-card-section>
+      <q-card-section>
+        The old link stops working immediately. Share the new link only
+        with the buyer.
+        <q-input :model-value="gmOrders.reissue.link" outlined readonly
+                 class="q-mt-md"></q-input>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Copy link"
+               @click="gmCopy(window.location.origin + gmOrders.reissue.link)"></q-btn>
+        <q-btn unelevated color="primary" label="Done"
+               @click="gmOrders.reissue.show = false"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmCatalog.editor.show">
+    <q-card style="min-width: 520px; max-width: 640px">
+      <q-card-section>
+        <div class="text-h6">
+          {{ gmCatalog.editor.isNew ? 'New product' : 'Edit product' }}
+        </div>
+      </q-card-section>
+      <q-card-section class="q-gutter-sm">
+        <q-select v-model="gmCatalog.editor.form.catalog_id" dense outlined
+                  label="Catalog" :options="gmCatalog.catalogs"
+                  option-value="id" option-label="name"
+                  emit-value map-options></q-select>
+        <q-input v-model="gmCatalog.editor.form.title" dense outlined
+                 label="Title"></q-input>
+        <q-input v-model="gmCatalog.editor.form.summary" dense outlined
+                 label="Summary (optional)"></q-input>
+        <q-input v-model="gmCatalog.editor.form.description_md" dense
+                 outlined type="textarea" label="Description (markdown)">
+        </q-input>
+        <div class="row q-gutter-sm">
+          <q-select v-model="gmCatalog.editor.form.product_type" dense
+                    outlined class="col" label="Type"
+                    :options="gmCatalog.productTypes"></q-select>
+          <q-select v-model="gmCatalog.editor.form.format" dense outlined
+                    class="col" label="Format"
+                    :options="gmCatalog.formats"></q-select>
+        </div>
+        <div class="row q-gutter-sm">
+          <q-input v-model.number="gmCatalog.editor.form.amount_minor" dense
+                   outlined class="col" type="number" min="0"
+                   label="Price (minor units)"></q-input>
+          <q-input v-model="gmCatalog.editor.form.currency" dense outlined
+                   class="col" label="Currency (SAT or fiat code)"
+                   maxlength="8"></q-input>
+        </div>
+        <q-input v-model.number="gmCatalog.editor.form.stock_on_hand" dense
+                 outlined type="number" min="0"
+                 label="Stock on hand (blank = unlimited)"></q-input>
+        <q-input v-if="gmCatalog.editor.form.product_type === 'variation'"
+                 v-model="gmCatalog.editor.form.parent_product_id" dense
+                 outlined label="Parent product ID"></q-input>
+        <q-select v-model="gmCatalog.editor.form.collection_ids" dense
+                  outlined multiple label="Collections"
+                  :options="gmCatalog.collections" option-value="id"
+                  option-label="title" emit-value map-options></q-select>
+        <q-select v-model="gmCatalog.editor.form.visibility" dense outlined
+                  label="Visibility"
+                  :options="gmCatalog.visibilities"></q-select>
+        <q-checkbox v-model="gmCatalog.editor.form.draft"
+                    label="Save as draft — never published until unchecked">
+        </q-checkbox>
+        <q-input v-model="gmCatalog.editor.form.images_text" dense outlined
+                 type="textarea" label="Image URLs (one per line)"></q-input>
+        <div class="text-caption">{{ gmCatalog.imageDisclosure }}</div>
+        <q-banner v-if="gmCatalog.editor.error"
+                  class="bg-negative text-white">
+          {{ gmCatalog.editor.error }}
+        </q-banner>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Cancel"
+               @click="gmCatalog.editor.show = false"></q-btn>
+        <q-btn unelevated color="primary"
+               :label="gmCatalog.editor.isNew ? 'Create product' : 'Save product'"
+               :loading="gmCatalog.editor.saving"
+               @click="gmSaveProduct"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmCatalog.collectionEditor.show">
+    <q-card style="min-width: 480px">
+      <q-card-section>
+        <div class="text-h6">
+          {{ gmCatalog.collectionEditor.isNew ? 'New collection' : 'Edit collection' }}
+        </div>
+      </q-card-section>
+      <q-card-section class="q-gutter-sm">
+        <q-input v-model="gmCatalog.collectionEditor.form.title" dense
+                 outlined label="Title"></q-input>
+        <q-input v-model="gmCatalog.collectionEditor.form.description" dense
+                 outlined label="Description (optional)"></q-input>
+        <q-input v-model="gmCatalog.collectionEditor.form.image" dense
+                 outlined label="Image URL (optional)"></q-input>
+        <q-input v-model="gmCatalog.collectionEditor.form.location" dense
+                 outlined label="Location (optional)"></q-input>
+        <q-banner v-if="gmCatalog.collectionEditor.error"
+                  class="bg-negative text-white">
+          {{ gmCatalog.collectionEditor.error }}
+        </q-banner>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Cancel"
+               @click="gmCatalog.collectionEditor.show = false"></q-btn>
+        <q-btn unelevated color="primary"
+               :label="gmCatalog.collectionEditor.isNew ? 'Create collection' : 'Save collection'"
+               :loading="gmCatalog.collectionEditor.saving"
+               @click="gmSaveCollection"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmCatalog.shippingEditor.show">
+    <q-card style="min-width: 480px">
+      <q-card-section>
+        <div class="text-h6">
+          {{ gmCatalog.shippingEditor.isNew ? 'New shipping option' : 'Edit shipping option' }}
+        </div>
+      </q-card-section>
+      <q-card-section class="q-gutter-sm">
+        <q-input v-model="gmCatalog.shippingEditor.form.title" dense
+                 outlined label="Title"></q-input>
+        <q-select v-model="gmCatalog.shippingEditor.form.service" dense
+                  outlined label="Service"
+                  :options="gmCatalog.services"></q-select>
+        <div class="row q-gutter-sm">
+          <q-input v-model.number="gmCatalog.shippingEditor.form.base_price_minor"
+                   dense outlined class="col" type="number" min="0"
+                   label="Base price (minor units)"></q-input>
+          <q-input v-model="gmCatalog.shippingEditor.form.currency" dense
+                   outlined class="col" label="Currency" maxlength="8">
+          </q-input>
+        </div>
+        <q-input v-model="gmCatalog.shippingEditor.form.countries_text" dense
+                 outlined label="Countries (comma-separated ISO codes, blank = all)">
+        </q-input>
+        <q-input v-model="gmCatalog.shippingEditor.form.regions_text" dense
+                 outlined label="Regions (comma-separated, optional)">
+        </q-input>
+        <div class="row q-gutter-sm">
+          <q-input v-model.number="gmCatalog.shippingEditor.form.duration_min"
+                   dense outlined class="col" type="number" min="0"
+                   label="Duration min"></q-input>
+          <q-input v-model.number="gmCatalog.shippingEditor.form.duration_max"
+                   dense outlined class="col" type="number" min="0"
+                   label="Duration max"></q-input>
+          <q-select v-model="gmCatalog.shippingEditor.form.duration_unit"
+                    dense outlined class="col" label="Unit"
+                    :options="gmCatalog.durationUnits"></q-select>
+        </div>
+        <q-input v-model="gmCatalog.shippingEditor.form.location" dense
+                 outlined label="Location (optional)"></q-input>
+        <q-checkbox v-model="gmCatalog.shippingEditor.form.active"
+                    label="Active"></q-checkbox>
+        <q-banner v-if="gmCatalog.shippingEditor.error"
+                  class="bg-negative text-white">
+          {{ gmCatalog.shippingEditor.error }}
+        </q-banner>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Cancel"
+               @click="gmCatalog.shippingEditor.show = false"></q-btn>
+        <q-btn unelevated color="primary"
+               :label="gmCatalog.shippingEditor.isNew ? 'Create shipping option' : 'Save shipping option'"
+               :loading="gmCatalog.shippingEditor.saving"
+               @click="gmSaveShipping"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmCatalog.deleteDialog.show">
+    <q-card style="min-width: 440px">
+      <q-card-section>
+        <div class="text-h6">Delete {{ gmCatalog.deleteDialog.title }}</div>
+      </q-card-section>
+      <q-card-section>
+        {{ gmCatalog.deleteDisclosure }}
+        <q-banner v-if="gmCatalog.deleteDialog.refs"
+                  class="bg-warning text-dark q-mt-sm">
+          Still referenced: {{ gmCatalog.deleteDialog.refs }}
+        </q-banner>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Keep"
+               @click="gmCatalog.deleteDialog.show = false"></q-btn>
+        <q-btn v-if="gmCatalog.deleteDialog.refs" outline color="warning"
+               label="Delete and strip references"
+               :loading="gmCatalog.deleteDialog.busy"
+               @click="gmDeleteConfirm(true)"></q-btn>
+        <q-btn unelevated color="negative" label="Delete"
+               :loading="gmCatalog.deleteDialog.busy"
+               @click="gmDeleteConfirm(false)"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmCatalog.dryRun.show" maximized>
+    <q-card>
+      <q-card-section class="row items-center">
+        <div class="text-h6 col">Rendered events (unsigned preview)</div>
+        <q-btn flat label="Close" @click="gmCatalog.dryRun.show = false"></q-btn>
+      </q-card-section>
+      <q-card-section>
+        <pre class="gm-dryrun-json">{{ gmCatalog.dryRun.json }}</pre>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmSettings.deactivate.show">
+    <q-card style="min-width: 460px">
+      <q-card-section>
+        <div class="text-h6">Begin deactivation</div>
+      </q-card-section>
+      <q-card-section>
+        <template v-if="gmSettings.deactivate.blockers.length">
+          <p>These blockers must be resolved first:</p>
+          <q-list dense>
+            <q-item v-for="(b, i) in gmSettings.deactivate.blockers" :key="i">
+              <q-item-section>
+                {{ b.type }}: {{ b.count }} blocking
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </template>
+        <template v-else>
+          <p>
+            Deactivation publishes deletion tombstones for your catalog and
+            handler events. Your profile (kind-0) and messaging relays
+            (kind-10050) stay published unless you retire the key below.
+          </p>
+          <q-checkbox v-model="gmSettings.deactivate.retireKeys"
+                      label="Also retire the Nostr key (tombstone profile + messaging relays)">
+          </q-checkbox>
+        </template>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Back"
+               @click="gmSettings.deactivate.show = false"></q-btn>
+        <q-btn unelevated color="negative" label="Confirm deactivation"
+               :loading="gmSettings.deactivate.busy"
+               @click="gmBeginDeactivate"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+</div>
+{% endraw %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/gammamarkets/static/gammamarkets/js/admin_app.js"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_orders.js"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_catalog.js"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_publications.js"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_settings.js"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_notifications.js"></script>
+<style>
+.gm-shell { display: flex; gap: 24px; }
+.gm-nav { width: 200px; flex-shrink: 0; }
+.gm-content { flex: 1; min-width: 0; }
+.gm-workspace {
+  display: grid;
+  grid-template-columns: 390px minmax(0, 1fr);
+  gap: 16px;
+}
+.gm-order-row { border-radius: 8px; }
+.gm-order-active {
+  background: rgba(37, 99, 235, 0.1);
+  box-shadow: inset 3px 0 var(--q-primary);
+}
+.gm-preset-active {
+  outline: 2px solid var(--q-primary);
+}
+.gm-preview {
+  border: 1px solid #d9d4cc;
+  border-radius: 12px;
+  min-height: 200px;
+  background: var(--color-bg, #faf8f5);
+  color: var(--color-text, #221f1a);
+  font-family: var(--font-body, system-ui, sans-serif);
+  padding: 16px;
+}
+.gm-preview-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  font-weight: 600;
+}
+.gm-dryrun-json {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1023px) {
+  .gm-nav { width: 72px; }
+  .gm-nav .q-item__section:not(.q-item__section--avatar) { display: none; }
+  .gm-workspace { grid-template-columns: 320px minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .gm-shell { flex-direction: column; }
+  .gm-nav { width: 100%; }
+  .gm-nav .q-list { display: flex; }
+  .gm-nav .q-item__section:not(.q-item__section--avatar) { display: block; }
+  .gm-workspace { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}

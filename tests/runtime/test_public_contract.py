@@ -144,6 +144,9 @@ async def test_order_status_exact_field_set(runtime_env):
     assert set(body) == {
         "state", "shipping_state", "total_sat", "bolt11",
         "payment_status", "items", "expires_at", "email_opt_in",
+        # 02-04: buyer-safe hold flag for the "On hold" label (never
+        # the exception reason).
+        "payment_exception",
     }
     assert set(body["items"][0]) == {
         "title", "quantity", "line_total_sat",

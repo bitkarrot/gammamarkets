@@ -66,7 +66,7 @@ async def _public_guard(request: Request) -> HTMLResponse | None:
 async def index(request: Request, user: User = Depends(check_user_exists)):
     return gammamarkets_renderer().TemplateResponse(
         request,
-        "templates/gammamarkets/index.html",
+        "templates/gammamarkets/admin.html",
         {
             # pydantic's own encoder first: UUID/datetime values inside
             # user.dict() break the host's globally patched JSONEncoder.

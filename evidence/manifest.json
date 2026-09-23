@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-09-22T20:50:13.751204+00:00",
+  "generated_at": "2026-09-22T23:47:55.206723+00:00",
   "verify_command": "make verify",
   "rerun_policy": "Single run only (D-10 clean-pass policy): the tooling performs one run per verify command and has no retry loop; a rerun does not flip a recorded outcome.",
   "profile": {
@@ -3124,7 +3124,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_evidence_pins_block_matches_recorded_values",
       "outcome": "passed",
-      "duration_s": 0.128183,
+      "duration_s": 0.127789,
       "markers": [
         "fast"
       ],
@@ -3135,7 +3135,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_harness_lock_wheel_parity_with_host_lock",
       "outcome": "passed",
-      "duration_s": 0.046802,
+      "duration_s": 0.046623,
       "markers": [
         "fast"
       ],
@@ -3146,7 +3146,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_host_checkout_head_is_pinned_commit",
       "outcome": "passed",
-      "duration_s": 0.079368,
+      "duration_s": 0.020101,
       "markers": [
         "fast"
       ],
@@ -3157,7 +3157,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_host_lock_and_pypi_are_wheels_only",
       "outcome": "passed",
-      "duration_s": 0.032458,
+      "duration_s": 0.031881,
       "markers": [
         "fast"
       ],
@@ -3168,7 +3168,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_installed_nostr_sdk_is_exactly_pinned",
       "outcome": "passed",
-      "duration_s": 0.000805,
+      "duration_s": 0.000756,
       "markers": [
         "fast"
       ],
@@ -3179,7 +3179,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_installed_wheel_matches_machine_platform",
       "outcome": "passed",
-      "duration_s": 0.000493,
+      "duration_s": 0.000444,
       "markers": [
         "fast"
       ],
@@ -3190,7 +3190,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_native_library_hash_recorded_into_evidence_pins",
       "outcome": "passed",
-      "duration_s": 0.02434,
+      "duration_s": 0.0237,
       "markers": [
         "fast"
       ],
@@ -3201,7 +3201,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[0.44.8-nostr-sdk candidate pin]",
       "outcome": "passed",
-      "duration_s": 0.000225,
+      "duration_s": 0.00022,
       "markers": [
         "fast",
         "parametrize"
@@ -3213,7 +3213,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[5dc79c5-GammaMarkets market-spec pin]",
       "outcome": "passed",
-      "duration_s": 0.001227,
+      "duration_s": 0.001329,
       "markers": [
         "fast",
         "parametrize"
@@ -3225,7 +3225,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[APPROVED-approval section (D-11)]",
       "outcome": "passed",
-      "duration_s": 0.000216,
+      "duration_s": 0.000206,
       "markers": [
         "fast",
         "parametrize"
@@ -3237,7 +3237,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux ARM64-blocking platform (ARM64)]",
       "outcome": "passed",
-      "duration_s": 0.000231,
+      "duration_s": 0.000203,
       "markers": [
         "fast",
         "parametrize"
@@ -3249,7 +3249,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux x86_64-blocking platform (x86_64)]",
       "outcome": "passed",
-      "duration_s": 0.000241,
+      "duration_s": 0.000215,
       "markers": [
         "fast",
         "parametrize"
@@ -3261,7 +3261,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[PostgreSQL-blocking database]",
       "outcome": "passed",
-      "duration_s": 0.000231,
+      "duration_s": 0.000214,
       "markers": [
         "fast",
         "parametrize"
@@ -3273,7 +3273,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Python 3.12 only-Python 3.12-only claim (D-02)]",
       "outcome": "passed",
-      "duration_s": 0.000222,
+      "duration_s": 0.000213,
       "markers": [
         "fast",
         "parametrize"
@@ -3285,7 +3285,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[SQLite-blocking database]",
       "outcome": "passed",
-      "duration_s": 0.000218,
+      "duration_s": 0.000211,
       "markers": [
         "fast",
         "parametrize"
@@ -3297,7 +3297,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[a2494f4f81d46684e5814a9bf35e2b1df978f955-Nostr NIPs pin]",
       "outcome": "passed",
-      "duration_s": 0.00026,
+      "duration_s": 0.000271,
       "markers": [
         "fast",
         "parametrize"
@@ -3309,7 +3309,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[a600c2a7186559b371030fe5fc5585c37b3a0931-release-source revision]",
       "outcome": "passed",
-      "duration_s": 0.00023,
+      "duration_s": 0.000207,
       "markers": [
         "fast",
         "parametrize"
@@ -3321,7 +3321,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[chacha20poly1305-native Cargo dependency pin]",
       "outcome": "passed",
-      "duration_s": 0.000204,
+      "duration_s": 0.000208,
       "markers": [
         "fast",
         "parametrize"
@@ -3333,7 +3333,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[e336fe14b841d6f0c940e75b3d343e3ab5cf8433-LNbits commit pin]",
       "outcome": "passed",
-      "duration_s": 0.000232,
+      "duration_s": 0.000216,
       "markers": [
         "fast",
         "parametrize"
@@ -3345,7 +3345,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[hashed artifacts-D-15 contingency criterion]",
       "outcome": "passed",
-      "duration_s": 0.000225,
+      "duration_s": 0.000207,
       "markers": [
         "fast",
         "parametrize"
@@ -3357,7 +3357,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[macOS ARM64-advisory smoke profile]",
       "outcome": "passed",
-      "duration_s": 0.000215,
+      "duration_s": 0.000208,
       "markers": [
         "fast",
         "parametrize"
@@ -3369,7 +3369,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[owner approval-D-15 contingency criterion]",
       "outcome": "passed",
-      "duration_s": 0.000243,
+      "duration_s": 0.000207,
       "markers": [
         "fast",
         "parametrize"
@@ -3381,7 +3381,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[pinned native revision-D-15 contingency criterion]",
       "outcome": "passed",
-      "duration_s": 0.000303,
+      "duration_s": 0.000202,
       "markers": [
         "fast",
         "parametrize"
@@ -3393,7 +3393,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[reproducible build-D-15 contingency criterion]",
       "outcome": "passed",
-      "duration_s": 0.000241,
+      "duration_s": 0.00021,
       "markers": [
         "fast",
         "parametrize"
@@ -3405,7 +3405,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[rust-nostr/nostr-sdk-ffi-release-source repository]",
       "outcome": "passed",
-      "duration_s": 0.000229,
+      "duration_s": 0.000207,
       "markers": [
         "fast",
         "parametrize"
@@ -3417,7 +3417,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[secp256k1-native Cargo dependency pin]",
       "outcome": "passed",
-      "duration_s": 0.000212,
+      "duration_s": 0.000211,
       "markers": [
         "fast",
         "parametrize"
@@ -3429,7 +3429,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[uv.lock-lockfile identity]",
       "outcome": "passed",
-      "duration_s": 0.000213,
+      "duration_s": 0.00021,
       "markers": [
         "fast",
         "parametrize"
@@ -3441,7 +3441,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[v1.6.2-rc1-LNbits tag]",
       "outcome": "passed",
-      "duration_s": 0.000219,
+      "duration_s": 0.000213,
       "markers": [
         "fast",
         "parametrize"
@@ -3453,7 +3453,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[v2 payload only-NIP-44 v2-only pin]",
       "outcome": "passed",
-      "duration_s": 0.00026,
+      "duration_s": 0.000247,
       "markers": [
         "fast",
         "parametrize"
@@ -3477,7 +3477,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_release_source_and_native_cargo_provenance",
       "outcome": "passed",
-      "duration_s": 0.049833,
+      "duration_s": 0.049209,
       "markers": [
         "fast"
       ],
@@ -3488,7 +3488,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_requires_python_is_3_12_only",
       "outcome": "passed",
-      "duration_s": 0.000316,
+      "duration_s": 0.000317,
       "markers": [
         "fast"
       ],
@@ -3499,7 +3499,7 @@
     {
       "nodeid": "tests/qualification/test_p0_01_pins.py::test_running_interpreter_is_3_12",
       "outcome": "passed",
-      "duration_s": 0.000147,
+      "duration_s": 0.000134,
       "markers": [
         "fast"
       ],
@@ -3510,7 +3510,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_auth_flood_bounded_with_signing_paused",
       "outcome": "passed",
-      "duration_s": 1.164603,
+      "duration_s": 1.534629,
       "markers": [
         "asyncio",
         "sdk"
@@ -3527,7 +3527,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_build_sign_and_verify_event",
       "outcome": "passed",
-      "duration_s": 0.000974,
+      "duration_s": 0.001258,
       "markers": [
         "asyncio",
         "sdk"
@@ -3539,7 +3539,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_d16_subcheck_attribution_recorded",
       "outcome": "passed",
-      "duration_s": 0.000766,
+      "duration_s": 0.000695,
       "markers": [
         "asyncio",
         "sdk"
@@ -3551,7 +3551,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_ffi_import_and_keypair_generation",
       "outcome": "passed",
-      "duration_s": 0.001071,
+      "duration_s": 0.001147,
       "markers": [
         "asyncio",
         "sdk"
@@ -3563,7 +3563,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_invalid_events_rejected_before_trusted_processing",
       "outcome": "passed",
-      "duration_s": 0.000839,
+      "duration_s": 0.000856,
       "markers": [
         "asyncio",
         "sdk"
@@ -3580,7 +3580,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_known_id_repetition_admitted_exactly_once",
       "outcome": "passed",
-      "duration_s": 0.000597,
+      "duration_s": 0.000594,
       "markers": [
         "asyncio",
         "sdk"
@@ -3597,7 +3597,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_nip44_encrypt_decrypt_roundtrip",
       "outcome": "passed",
-      "duration_s": 0.000701,
+      "duration_s": 0.000678,
       "markers": [
         "asyncio",
         "sdk"
@@ -3609,7 +3609,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_oversized_nip44_input_rejected_with_bounded_cost",
       "outcome": "passed",
-      "duration_s": 2.585967,
+      "duration_s": 2.584572,
       "markers": [
         "asyncio",
         "sdk"
@@ -3626,7 +3626,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_tampered_event_fails_verification",
       "outcome": "passed",
-      "duration_s": 0.000873,
+      "duration_s": 0.000935,
       "markers": [
         "asyncio",
         "sdk"
@@ -3638,7 +3638,7 @@
     {
       "nodeid": "tests/qualification/test_p0_02_sdk_security.py::test_tested_binary_identity_recorded_into_evidence_pins",
       "outcome": "passed",
-      "duration_s": 0.049013,
+      "duration_s": 0.032385,
       "markers": [
         "asyncio",
         "sdk"
@@ -3655,7 +3655,7 @@
     {
       "nodeid": "tests/qualification/test_p0_03_host_contract.py::test_invoice_listener_lifecycle_and_owned_handle_cancellation",
       "outcome": "passed",
-      "duration_s": 2.347997,
+      "duration_s": 2.516584,
       "markers": [
         "asyncio",
         "host"
@@ -3667,7 +3667,7 @@
     {
       "nodeid": "tests/qualification/test_p0_03_host_contract.py::test_invoice_metadata_persisted_and_exactly_queryable",
       "outcome": "passed",
-      "duration_s": 1.164106,
+      "duration_s": 1.378023,
       "markers": [
         "asyncio",
         "host"
@@ -3679,7 +3679,7 @@
     {
       "nodeid": "tests/qualification/test_p0_03_host_contract.py::test_no_durable_callback_delivery_across_restart",
       "outcome": "passed",
-      "duration_s": 5.212625,
+      "duration_s": 5.417376,
       "markers": [
         "asyncio",
         "host"
@@ -3691,7 +3691,7 @@
     {
       "nodeid": "tests/qualification/test_p0_04_relay_ack.py::test_external_relay_smoke",
       "outcome": "skipped",
-      "duration_s": 0.000305,
+      "duration_s": 0.000506,
       "markers": [
         "asyncio",
         "protocol",
@@ -3704,7 +3704,7 @@
     {
       "nodeid": "tests/qualification/test_p0_04_relay_ack.py::test_positive_negative_and_timeout_acks_classified_per_relay",
       "outcome": "passed",
-      "duration_s": 10.014482,
+      "duration_s": 10.027978,
       "markers": [
         "asyncio",
         "protocol"
@@ -3713,16 +3713,16 @@
       "subchecks": [],
       "observations": {
         "relay_ack_classification": {
-          "ws://127.0.0.1:62808": "accepted",
-          "ws://127.0.0.1:62809": "rejected",
-          "ws://127.0.0.1:62810": "timeout"
+          "ws://127.0.0.1:54044": "accepted",
+          "ws://127.0.0.1:54045": "rejected",
+          "ws://127.0.0.1:54046": "timeout"
         }
       }
     },
     {
       "nodeid": "tests/qualification/test_p0_04_relay_ack.py::test_targeted_send_never_reaches_unlisted_relay",
       "outcome": "passed",
-      "duration_s": 0.008136,
+      "duration_s": 0.033082,
       "markers": [
         "asyncio",
         "protocol"
@@ -3734,7 +3734,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_copies_route_only_to_their_partys_relays",
       "outcome": "passed",
-      "duration_s": 0.002978,
+      "duration_s": 0.002914,
       "markers": [
         "asyncio",
         "protocol"
@@ -3746,7 +3746,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_duplicate_common_tag_rejected",
       "outcome": "passed",
-      "duration_s": 0.002914,
+      "duration_s": 0.003327,
       "markers": [
         "asyncio",
         "protocol"
@@ -3758,7 +3758,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_golden_recipient_copy_unwraps_to_golden_rumor",
       "outcome": "passed",
-      "duration_s": 0.008235,
+      "duration_s": 0.015323,
       "markers": [
         "asyncio",
         "protocol"
@@ -3770,7 +3770,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_golden_sender_copy_unwraps_to_golden_rumor",
       "outcome": "passed",
-      "duration_s": 0.002755,
+      "duration_s": 0.007121,
       "markers": [
         "asyncio",
         "protocol"
@@ -3782,7 +3782,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_golden_wraps_are_independent_copies",
       "outcome": "passed",
-      "duration_s": 0.0017,
+      "duration_s": 0.003811,
       "markers": [
         "asyncio",
         "protocol"
@@ -3794,7 +3794,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_no_plaintext_or_key_material_in_logs",
       "outcome": "passed",
-      "duration_s": 0.00489,
+      "duration_s": 0.006242,
       "markers": [
         "asyncio",
         "protocol"
@@ -3806,7 +3806,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_noncanonical_rumor_id_rejected",
       "outcome": "passed",
-      "duration_s": 0.002315,
+      "duration_s": 0.0021,
       "markers": [
         "asyncio",
         "protocol"
@@ -3818,7 +3818,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_retry_wrap_preserves_rumor_id",
       "outcome": "passed",
-      "duration_s": 0.00352,
+      "duration_s": 0.003115,
       "markers": [
         "asyncio",
         "protocol"
@@ -3830,7 +3830,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_rumor_seal_pubkey_mismatch_rejected",
       "outcome": "passed",
-      "duration_s": 0.002525,
+      "duration_s": 0.002247,
       "markers": [
         "asyncio",
         "protocol"
@@ -3842,7 +3842,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_seal_with_nonempty_tags_rejected",
       "outcome": "passed",
-      "duration_s": 0.001956,
+      "duration_s": 0.002873,
       "markers": [
         "asyncio",
         "protocol"
@@ -3854,7 +3854,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_seeded_generated_mutations_rejected[bit-flipped-signature]",
       "outcome": "passed",
-      "duration_s": 0.000777,
+      "duration_s": 0.000842,
       "markers": [
         "asyncio",
         "parametrize",
@@ -3867,7 +3867,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_seeded_generated_mutations_rejected[duplicate-p-tag]",
       "outcome": "passed",
-      "duration_s": 0.000876,
+      "duration_s": 0.000936,
       "markers": [
         "asyncio",
         "parametrize",
@@ -3880,7 +3880,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_seeded_generated_mutations_rejected[missing-p-tag]",
       "outcome": "passed",
-      "duration_s": 0.00073,
+      "duration_s": 0.000885,
       "markers": [
         "asyncio",
         "parametrize",
@@ -3893,7 +3893,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_seeded_generated_mutations_rejected[noncanonical-outer-id]",
       "outcome": "passed",
-      "duration_s": 0.000742,
+      "duration_s": 0.000776,
       "markers": [
         "asyncio",
         "parametrize",
@@ -3906,7 +3906,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_seeded_generated_mutations_rejected[oversized-content]",
       "outcome": "passed",
-      "duration_s": 0.00176,
+      "duration_s": 0.001639,
       "markers": [
         "asyncio",
         "parametrize",
@@ -3919,7 +3919,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_seeded_generated_mutations_rejected[truncated-content]",
       "outcome": "passed",
-      "duration_s": 0.000562,
+      "duration_s": 0.001535,
       "markers": [
         "asyncio",
         "parametrize",
@@ -3932,7 +3932,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_seeded_generated_mutations_rejected[wrong-outer-kind]",
       "outcome": "passed",
-      "duration_s": 0.000762,
+      "duration_s": 0.000943,
       "markers": [
         "asyncio",
         "parametrize",
@@ -3945,7 +3945,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_signed_rumor_rejected",
       "outcome": "passed",
-      "duration_s": 0.002103,
+      "duration_s": 0.002208,
       "markers": [
         "asyncio",
         "protocol"
@@ -3957,7 +3957,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_tampered_outer_content_rejected",
       "outcome": "passed",
-      "duration_s": 0.000908,
+      "duration_s": 0.001517,
       "markers": [
         "asyncio",
         "protocol"
@@ -3969,7 +3969,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_tampered_outer_signature_rejected",
       "outcome": "passed",
-      "duration_s": 0.001053,
+      "duration_s": 0.00431,
       "markers": [
         "asyncio",
         "protocol"
@@ -3981,7 +3981,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_tampered_seal_content_rejected",
       "outcome": "passed",
-      "duration_s": 0.002152,
+      "duration_s": 0.003926,
       "markers": [
         "asyncio",
         "protocol"
@@ -3993,7 +3993,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_tampered_seal_signature_rejected",
       "outcome": "passed",
-      "duration_s": 0.002049,
+      "duration_s": 0.001693,
       "markers": [
         "asyncio",
         "protocol"
@@ -4005,7 +4005,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_valid_wrap_with_undecryptable_content_rejected",
       "outcome": "passed",
-      "duration_s": 0.001101,
+      "duration_s": 0.004245,
       "markers": [
         "asyncio",
         "protocol"
@@ -4017,7 +4017,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_validate_kind16_tags_counts_on_raw_json",
       "outcome": "passed",
-      "duration_s": 0.000487,
+      "duration_s": 0.000771,
       "markers": [
         "asyncio",
         "protocol"
@@ -4029,7 +4029,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_wrap_for_other_recipient_rejected",
       "outcome": "passed",
-      "duration_s": 0.001053,
+      "duration_s": 0.003147,
       "markers": [
         "asyncio",
         "protocol"
@@ -4041,7 +4041,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_wrong_outer_kind_rejected",
       "outcome": "passed",
-      "duration_s": 0.000739,
+      "duration_s": 0.004183,
       "markers": [
         "asyncio",
         "protocol"
@@ -4053,7 +4053,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_wrong_recipient_key_decrypt_fails",
       "outcome": "passed",
-      "duration_s": 0.001055,
+      "duration_s": 0.001005,
       "markers": [
         "asyncio",
         "protocol"
@@ -4065,7 +4065,7 @@
     {
       "nodeid": "tests/qualification/test_p0_05_encrypted_fixtures.py::test_wrong_rumor_kind_rejected",
       "outcome": "passed",
-      "duration_s": 0.001786,
+      "duration_s": 0.001852,
       "markers": [
         "asyncio",
         "protocol"
@@ -4077,7 +4077,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_adapter_only_transaction_rolls_back_cleanly",
       "outcome": "passed",
-      "duration_s": 0.014239,
+      "duration_s": 0.015018,
       "markers": [
         "asyncio",
         "db"
@@ -4089,7 +4089,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_adapter_performs_in_transaction_writes_without_host_helpers",
       "outcome": "passed",
-      "duration_s": 0.013776,
+      "duration_s": 0.02016,
       "markers": [
         "asyncio",
         "db"
@@ -4101,7 +4101,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_concurrent_duplicate_scoped_order_inserts_yield_one_row",
       "outcome": "passed",
-      "duration_s": 0.012148,
+      "duration_s": 0.015849,
       "markers": [
         "asyncio",
         "db"
@@ -4113,7 +4113,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_dialect_selection_matches_environment",
       "outcome": "passed",
-      "duration_s": 0.000176,
+      "duration_s": 0.000181,
       "markers": [
         "db"
       ],
@@ -4124,7 +4124,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_duplicate_scoped_order_insert_conflicts",
       "outcome": "passed",
-      "duration_s": 0.01235,
+      "duration_s": 0.014885,
       "markers": [
         "asyncio",
         "db"
@@ -4136,7 +4136,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_guard_failure_mid_claim_rolls_back_everything",
       "outcome": "passed",
-      "duration_s": 0.023799,
+      "duration_s": 0.024412,
       "markers": [
         "asyncio",
         "db"
@@ -4148,7 +4148,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_host_auto_commit_helper_splits_domain_transaction",
       "outcome": "passed",
-      "duration_s": 0.014081,
+      "duration_s": 0.020685,
       "markers": [
         "asyncio",
         "db"
@@ -4160,7 +4160,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_idempotency_record_scope_conflict",
       "outcome": "passed",
-      "duration_s": 0.013245,
+      "duration_s": 0.011813,
       "markers": [
         "asyncio",
         "db"
@@ -4172,7 +4172,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_last_unit_concurrency_yields_exactly_one_reservation",
       "outcome": "passed",
-      "duration_s": 0.044127,
+      "duration_s": 0.067156,
       "markers": [
         "asyncio",
         "db"
@@ -4184,7 +4184,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_lost_cas_rolls_back_the_entire_transaction",
       "outcome": "passed",
-      "duration_s": 0.014132,
+      "duration_s": 0.030932,
       "markers": [
         "asyncio",
         "db"
@@ -4196,7 +4196,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_order_state_machine_table_exhaustive",
       "outcome": "passed",
-      "duration_s": 0.186888,
+      "duration_s": 0.220582,
       "markers": [
         "asyncio",
         "db"
@@ -4208,7 +4208,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[inventory_reservations-params0]",
       "outcome": "passed",
-      "duration_s": 0.013453,
+      "duration_s": 0.024515,
       "markers": [
         "asyncio",
         "db",
@@ -4221,7 +4221,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[inventory_reservations-params1]",
       "outcome": "passed",
-      "duration_s": 0.01412,
+      "duration_s": 0.023509,
       "markers": [
         "asyncio",
         "db",
@@ -4234,7 +4234,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[order_items-params2]",
       "outcome": "passed",
-      "duration_s": 0.012489,
+      "duration_s": 0.020147,
       "markers": [
         "asyncio",
         "db",
@@ -4247,7 +4247,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[order_items-params3]",
       "outcome": "passed",
-      "duration_s": 0.012663,
+      "duration_s": 0.015598,
       "markers": [
         "asyncio",
         "db",
@@ -4260,7 +4260,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_orphan_inserts_violate_foreign_keys[relay_publications-params4]",
       "outcome": "passed",
-      "duration_s": 0.015893,
+      "duration_s": 0.023911,
       "markers": [
         "asyncio",
         "db",
@@ -4273,7 +4273,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_sorted_id_locking_avoids_deadlock",
       "outcome": "passed",
-      "duration_s": 0.386095,
+      "duration_s": 0.394184,
       "markers": [
         "asyncio",
         "db"
@@ -4285,7 +4285,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_task_lease_fencing_rejects_stale_writes",
       "outcome": "passed",
-      "duration_s": 0.017005,
+      "duration_s": 0.026849,
       "markers": [
         "asyncio",
         "db"
@@ -4297,7 +4297,7 @@
     {
       "nodeid": "tests/qualification/test_p0_06_transactions.py::test_winning_cas_leaves_one_held_reservation",
       "outcome": "passed",
-      "duration_s": 0.015643,
+      "duration_s": 0.031345,
       "markers": [
         "asyncio",
         "db"
@@ -4309,7 +4309,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_cancel_during_inflight_invoice_creation[rejected]",
       "outcome": "passed",
-      "duration_s": 0.018733,
+      "duration_s": 0.018193,
       "markers": [
         "asyncio",
         "db",
@@ -4322,7 +4322,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_cancel_during_inflight_invoice_creation[success]",
       "outcome": "passed",
-      "duration_s": 0.020896,
+      "duration_s": 0.020909,
       "markers": [
         "asyncio",
         "db",
@@ -4335,7 +4335,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_cancel_during_inflight_invoice_creation[unknown]",
       "outcome": "passed",
-      "duration_s": 0.017927,
+      "duration_s": 0.017766,
       "markers": [
         "asyncio",
         "db",
@@ -4348,7 +4348,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_cancel_from_awaiting_payment_then_late_settlement",
       "outcome": "passed",
-      "duration_s": 0.025019,
+      "duration_s": 0.027939,
       "markers": [
         "asyncio",
         "db"
@@ -4360,7 +4360,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_cancel_from_received_never_creates_an_invoice[rejected]",
       "outcome": "passed",
-      "duration_s": 0.018829,
+      "duration_s": 0.019467,
       "markers": [
         "asyncio",
         "db",
@@ -4373,7 +4373,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_cancel_from_received_never_creates_an_invoice[success]",
       "outcome": "passed",
-      "duration_s": 0.015864,
+      "duration_s": 0.017205,
       "markers": [
         "asyncio",
         "db",
@@ -4386,7 +4386,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_cancel_from_received_never_creates_an_invoice[unknown]",
       "outcome": "passed",
-      "duration_s": 0.016057,
+      "duration_s": 0.017077,
       "markers": [
         "asyncio",
         "db",
@@ -4399,7 +4399,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_creation_unknown_reconciliation_attaches_exactly_one",
       "outcome": "passed",
-      "duration_s": 0.022795,
+      "duration_s": 0.021916,
       "markers": [
         "asyncio",
         "db"
@@ -4411,7 +4411,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_multiple_core_payments_with_one_external_id_quarantines",
       "outcome": "passed",
-      "duration_s": 0.020075,
+      "duration_s": 0.019717,
       "markers": [
         "asyncio",
         "db"
@@ -4423,7 +4423,7 @@
     {
       "nodeid": "tests/qualification/test_p0_07_cancellation_saga.py::test_zero_matches_after_window_fails_projection_only_for_invoice_pending",
       "outcome": "passed",
-      "duration_s": 0.028627,
+      "duration_s": 0.028553,
       "markers": [
         "asyncio",
         "db"
@@ -4435,7 +4435,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_claim_respects_dependencies_and_supersede",
       "outcome": "passed",
-      "duration_s": 0.025527,
+      "duration_s": 0.023366,
       "markers": [
         "asyncio",
         "db"
@@ -4447,7 +4447,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_lease_expired_mid_claim_requeues_and_reclaims",
       "outcome": "passed",
-      "duration_s": 0.015603,
+      "duration_s": 0.015149,
       "markers": [
         "asyncio",
         "db"
@@ -4459,7 +4459,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_merchant_sender_copy_recovered_without_dispatch",
       "outcome": "passed",
-      "duration_s": 0.018958,
+      "duration_s": 0.031597,
       "markers": [
         "asyncio",
         "db"
@@ -4471,7 +4471,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_order_msg_keeps_stable_rumor_id_across_retries",
       "outcome": "passed",
-      "duration_s": 0.02166,
+      "duration_s": 0.024629,
       "markers": [
         "asyncio",
         "db"
@@ -4483,7 +4483,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_pre_reservation_crash_resume_is_idempotent",
       "outcome": "passed",
-      "duration_s": 0.022664,
+      "duration_s": 0.032851,
       "markers": [
         "asyncio",
         "db"
@@ -4495,7 +4495,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_relay_cursors_advance_only_after_eose",
       "outcome": "passed",
-      "duration_s": 0.01599,
+      "duration_s": 0.015665,
       "markers": [
         "asyncio",
         "db"
@@ -4507,7 +4507,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_restart_admitted_not_validated",
       "outcome": "passed",
-      "duration_s": 0.017161,
+      "duration_s": 0.021547,
       "markers": [
         "asyncio",
         "db"
@@ -4519,7 +4519,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_restart_after_attach_before_enqueue",
       "outcome": "passed",
-      "duration_s": 0.021015,
+      "duration_s": 0.027621,
       "markers": [
         "asyncio",
         "db"
@@ -4531,7 +4531,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_restart_after_invoice_before_attach",
       "outcome": "passed",
-      "duration_s": 0.020034,
+      "duration_s": 0.019938,
       "markers": [
         "asyncio",
         "db"
@@ -4543,7 +4543,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_restart_after_reservation_before_invoice_call",
       "outcome": "passed",
-      "duration_s": 0.021227,
+      "duration_s": 0.022327,
       "markers": [
         "asyncio",
         "db"
@@ -4555,7 +4555,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_restart_between_settlement_and_callback",
       "outcome": "passed",
-      "duration_s": 0.024743,
+      "duration_s": 0.030608,
       "markers": [
         "asyncio",
         "db"
@@ -4567,7 +4567,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_restart_claimed_not_published",
       "outcome": "passed",
-      "duration_s": 0.025166,
+      "duration_s": 0.032898,
       "markers": [
         "asyncio",
         "db"
@@ -4579,7 +4579,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_restart_partially_published_retries_only_missing",
       "outcome": "passed",
-      "duration_s": 0.022515,
+      "duration_s": 0.021897,
       "markers": [
         "asyncio",
         "db"
@@ -4591,7 +4591,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_restart_validated_not_dispatched",
       "outcome": "passed",
-      "duration_s": 0.016306,
+      "duration_s": 0.022049,
       "markers": [
         "asyncio",
         "db"
@@ -4603,7 +4603,7 @@
     {
       "nodeid": "tests/qualification/test_p0_08_recovery_closure.py::test_zero_positive_oks_backoff_then_failed",
       "outcome": "passed",
-      "duration_s": 0.026857,
+      "duration_s": 0.026788,
       "markers": [
         "asyncio",
         "db"
@@ -4615,7 +4615,7 @@
     {
       "nodeid": "tests/qualification/test_p0_09_email_persistence.py::test_equality_hashes_are_purpose_separated_and_irreversible",
       "outcome": "passed",
-      "duration_s": 0.012599,
+      "duration_s": 0.012107,
       "markers": [
         "asyncio",
         "db"
@@ -4627,7 +4627,7 @@
     {
       "nodeid": "tests/qualification/test_p0_09_email_persistence.py::test_malformed_and_noncanonical_tokens_rejected_before_lookup",
       "outcome": "passed",
-      "duration_s": 0.01184,
+      "duration_s": 0.011825,
       "markers": [
         "asyncio",
         "db"
@@ -4639,7 +4639,7 @@
     {
       "nodeid": "tests/qualification/test_p0_09_email_persistence.py::test_no_plaintext_recipients_or_tokens_in_database",
       "outcome": "passed",
-      "duration_s": 0.023649,
+      "duration_s": 0.024799,
       "markers": [
         "asyncio",
         "db"
@@ -4651,7 +4651,7 @@
     {
       "nodeid": "tests/qualification/test_p0_09_email_persistence.py::test_opt_out_revokes_consent_and_cancels_queued_customer_rows",
       "outcome": "passed",
-      "duration_s": 0.017797,
+      "duration_s": 0.016551,
       "markers": [
         "asyncio",
         "db"
@@ -4663,7 +4663,7 @@
     {
       "nodeid": "tests/qualification/test_p0_09_email_persistence.py::test_token_rotation_and_revocation_invalidate_immediately",
       "outcome": "passed",
-      "duration_s": 0.016341,
+      "duration_s": 0.015999,
       "markers": [
         "asyncio",
         "db"
@@ -4675,7 +4675,7 @@
     {
       "nodeid": "tests/qualification/test_p0_09_email_persistence.py::test_token_survives_idempotency_retention_then_expires",
       "outcome": "passed",
-      "duration_s": 0.018588,
+      "duration_s": 0.019049,
       "markers": [
         "asyncio",
         "db"
@@ -4687,7 +4687,7 @@
     {
       "nodeid": "tests/qualification/test_p0_09_email_persistence.py::test_two_merchant_recipients_two_rows_delivered_independently",
       "outcome": "passed",
-      "duration_s": 0.026558,
+      "duration_s": 0.101136,
       "markers": [
         "asyncio",
         "db"
@@ -4699,7 +4699,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_crash_after_smtp_acceptance_redelivers_on_resume",
       "outcome": "passed",
-      "duration_s": 0.023245,
+      "duration_s": 0.019854,
       "markers": [
         "asyncio",
         "db"
@@ -4711,7 +4711,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_customer_rate_limit_waits_rather_than_delivering",
       "outcome": "passed",
-      "duration_s": 0.049913,
+      "duration_s": 0.055623,
       "markers": [
         "asyncio",
         "db"
@@ -4723,7 +4723,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_exhausted_attempts_enter_failed_never_sent",
       "outcome": "passed",
-      "duration_s": 0.029543,
+      "duration_s": 0.044345,
       "markers": [
         "asyncio",
         "db"
@@ -4735,7 +4735,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_logs_expose_neither_recipients_nor_bearer_links",
       "outcome": "passed",
-      "duration_s": 0.022761,
+      "duration_s": 0.0224,
       "markers": [
         "asyncio",
         "db"
@@ -4747,7 +4747,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_merchant_alert_rate_limit_at_60_per_hour",
       "outcome": "passed",
-      "duration_s": 0.163855,
+      "duration_s": 0.18816,
       "markers": [
         "asyncio",
         "db"
@@ -4759,7 +4759,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_only_true_enters_sent_false_retries_with_bound",
       "outcome": "passed",
-      "duration_s": 0.018826,
+      "duration_s": 0.025639,
       "markers": [
         "asyncio",
         "db"
@@ -4771,7 +4771,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_raised_exception_and_recipient_rejection_surface_identically",
       "outcome": "passed",
-      "duration_s": 0.023775,
+      "duration_s": 0.056183,
       "markers": [
         "asyncio",
         "db"
@@ -4783,7 +4783,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_suppressed_rows_never_touch_smtp",
       "outcome": "passed",
-      "duration_s": 0.03897,
+      "duration_s": 0.052347,
       "markers": [
         "asyncio",
         "db"
@@ -4795,7 +4795,7 @@
     {
       "nodeid": "tests/qualification/test_p0_10_smtp_boundary.py::test_true_enters_sent_with_sent_at",
       "outcome": "passed",
-      "duration_s": 0.016941,
+      "duration_s": 0.019952,
       "markers": [
         "asyncio",
         "db"
@@ -4807,7 +4807,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_foreign_merchant_naddr_rejected",
       "outcome": "passed",
-      "duration_s": 0.00032,
+      "duration_s": 0.000309,
       "markers": [
         "protocol"
       ],
@@ -4818,7 +4818,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_golden_naddr_resolves_locally",
       "outcome": "passed",
-      "duration_s": 0.001003,
+      "duration_s": 0.005696,
       "markers": [
         "protocol"
       ],
@@ -4829,7 +4829,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_golden_nip89_pair_validates",
       "outcome": "passed",
-      "duration_s": 0.001103,
+      "duration_s": 0.002381,
       "markers": [
         "protocol"
       ],
@@ -4840,7 +4840,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_hidden_and_preorder_map_to_quantity_zero",
       "outcome": "passed",
-      "duration_s": 0.000225,
+      "duration_s": 0.001577,
       "markers": [
         "protocol"
       ],
@@ -4851,7 +4851,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_invalid_d_naddr_rejected[bad-alphabet]",
       "outcome": "passed",
-      "duration_s": 0.000278,
+      "duration_s": 0.00027,
       "markers": [
         "parametrize",
         "protocol"
@@ -4863,7 +4863,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_invalid_d_naddr_rejected[too-long]",
       "outcome": "passed",
-      "duration_s": 0.000292,
+      "duration_s": 0.000286,
       "markers": [
         "parametrize",
         "protocol"
@@ -4875,7 +4875,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_invalid_d_naddr_rejected[too-short]",
       "outcome": "passed",
-      "duration_s": 0.000323,
+      "duration_s": 0.000343,
       "markers": [
         "parametrize",
         "protocol"
@@ -4887,7 +4887,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_invalid_d_naddr_rejected[uppercase]",
       "outcome": "passed",
-      "duration_s": 0.000299,
+      "duration_s": 0.0003,
       "markers": [
         "parametrize",
         "protocol"
@@ -4899,7 +4899,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_invalid_product_variants_rejected[invalid_missing_shipping_id.json-product-shipping-missing-id]",
       "outcome": "passed",
-      "duration_s": 0.000302,
+      "duration_s": 0.00128,
       "markers": [
         "parametrize",
         "protocol"
@@ -4911,7 +4911,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_invalid_product_variants_rejected[invalid_quantity_float.json-product-quantity-not-int-or-null]",
       "outcome": "passed",
-      "duration_s": 0.000312,
+      "duration_s": 0.001259,
       "markers": [
         "parametrize",
         "protocol"
@@ -4923,7 +4923,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_invalid_product_variants_rejected[invalid_quantity_string.json-product-quantity-not-int-or-null]",
       "outcome": "passed",
-      "duration_s": 0.00029,
+      "duration_s": 0.001476,
       "markers": [
         "parametrize",
         "protocol"
@@ -4935,7 +4935,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_invalid_product_variants_rejected[invalid_specs_object.json-product-specs-not-pair-array]",
       "outcome": "passed",
-      "duration_s": 0.000451,
+      "duration_s": 0.002779,
       "markers": [
         "parametrize",
         "protocol"
@@ -4959,7 +4959,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_malformed_naddr_rejected[empty]",
       "outcome": "passed",
-      "duration_s": 0.000209,
+      "duration_s": 0.000206,
       "markers": [
         "parametrize",
         "protocol"
@@ -4971,7 +4971,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_malformed_naddr_rejected[npub-not-naddr]",
       "outcome": "passed",
-      "duration_s": 0.000205,
+      "duration_s": 0.000219,
       "markers": [
         "parametrize",
         "protocol"
@@ -4983,7 +4983,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_malformed_naddr_rejected[plain-text]",
       "outcome": "passed",
-      "duration_s": 0.000324,
+      "duration_s": 0.000279,
       "markers": [
         "parametrize",
         "protocol"
@@ -4995,7 +4995,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_mismatched_currencies_rejected",
       "outcome": "passed",
-      "duration_s": 0.000282,
+      "duration_s": 0.001721,
       "markers": [
         "protocol"
       ],
@@ -5006,7 +5006,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_opaque_address_physical_order_shape",
       "outcome": "passed",
-      "duration_s": 0.000221,
+      "duration_s": 0.001348,
       "markers": [
         "protocol"
       ],
@@ -5017,7 +5017,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_relay_hint_never_fetched",
       "outcome": "passed",
-      "duration_s": 0.000775,
+      "duration_s": 0.000764,
       "markers": [
         "asyncio",
         "protocol"
@@ -5029,7 +5029,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_tampered_nip89_pair_rejected[a-tag-not-web]",
       "outcome": "passed",
-      "duration_s": 0.000319,
+      "duration_s": 0.000312,
       "markers": [
         "parametrize",
         "protocol"
@@ -5041,7 +5041,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_tampered_nip89_pair_rejected[handler-d-equalized]",
       "outcome": "passed",
-      "duration_s": 0.000405,
+      "duration_s": 0.000407,
       "markers": [
         "parametrize",
         "protocol"
@@ -5053,7 +5053,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_tampered_nip89_pair_rejected[handler-k-tag-wrong]",
       "outcome": "passed",
-      "duration_s": 0.000318,
+      "duration_s": 0.000313,
       "markers": [
         "parametrize",
         "protocol"
@@ -5065,7 +5065,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_tampered_nip89_pair_rejected[handler-wrong-kind]",
       "outcome": "passed",
-      "duration_s": 0.000329,
+      "duration_s": 0.000315,
       "markers": [
         "parametrize",
         "protocol"
@@ -5077,7 +5077,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_tampered_nip89_pair_rejected[rec-d-equalized-to-app-id]",
       "outcome": "passed",
-      "duration_s": 0.000374,
+      "duration_s": 0.000346,
       "markers": [
         "parametrize",
         "protocol"
@@ -5089,7 +5089,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_tampered_nip89_pair_rejected[rec-foreign-author]",
       "outcome": "passed",
-      "duration_s": 0.000307,
+      "duration_s": 0.000306,
       "markers": [
         "parametrize",
         "protocol"
@@ -5101,7 +5101,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_unmapped_product_naddr_rejected",
       "outcome": "passed",
-      "duration_s": 0.000277,
+      "duration_s": 0.000275,
       "markers": [
         "protocol"
       ],
@@ -5112,7 +5112,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_valid_stall_and_product_dtos",
       "outcome": "passed",
-      "duration_s": 0.000554,
+      "duration_s": 0.004618,
       "markers": [
         "protocol"
       ],
@@ -5123,7 +5123,7 @@
     {
       "nodeid": "tests/qualification/test_p0_11_nip89_route.py::test_wrong_kind_naddr_rejected",
       "outcome": "passed",
-      "duration_s": 0.000293,
+      "duration_s": 0.000282,
       "markers": [
         "protocol"
       ],
@@ -5134,7 +5134,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_approved_cookie_same_origin_path_passes",
       "outcome": "passed",
-      "duration_s": 0.220076,
+      "duration_s": 0.218906,
       "markers": [
         "asyncio",
         "host"
@@ -5146,7 +5146,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_audit_rows_redact_secrets_and_pii",
       "outcome": "passed",
-      "duration_s": 0.000261,
+      "duration_s": 0.000244,
       "markers": [
         "asyncio",
         "host"
@@ -5158,7 +5158,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_cookie_only_without_origin_rejected",
       "outcome": "passed",
-      "duration_s": 0.228513,
+      "duration_s": 0.236717,
       "markers": [
         "asyncio",
         "host"
@@ -5170,7 +5170,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_cross_origin_cookie_mutation_rejected",
       "outcome": "passed",
-      "duration_s": 0.219599,
+      "duration_s": 0.21869,
       "markers": [
         "asyncio",
         "host"
@@ -5182,7 +5182,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_id_only_login_method_refused",
       "outcome": "passed",
-      "duration_s": 0.654141,
+      "duration_s": 0.695853,
       "markers": [
         "asyncio",
         "host"
@@ -5194,7 +5194,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_mutation_requires_authenticated_session",
       "outcome": "passed",
-      "duration_s": 0.001901,
+      "duration_s": 0.001972,
       "markers": [
         "asyncio",
         "host"
@@ -5206,7 +5206,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_order_status_audit_capture_redacts_token",
       "outcome": "passed",
-      "duration_s": 0.001305,
+      "duration_s": 0.001267,
       "markers": [
         "asyncio",
         "host"
@@ -5218,7 +5218,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_order_status_requires_x_order_token_header",
       "outcome": "passed",
-      "duration_s": 0.001448,
+      "duration_s": 0.001371,
       "markers": [
         "asyncio",
         "host"
@@ -5230,7 +5230,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_order_status_token_in_path_not_routed",
       "outcome": "passed",
-      "duration_s": 0.001579,
+      "duration_s": 0.001515,
       "markers": [
         "asyncio",
         "host"
@@ -5242,7 +5242,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_order_status_token_in_query_rejected",
       "outcome": "passed",
-      "duration_s": 0.001456,
+      "duration_s": 0.001399,
       "markers": [
         "asyncio",
         "host"
@@ -5254,7 +5254,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_order_status_wrong_token_rejected",
       "outcome": "passed",
-      "duration_s": 0.001408,
+      "duration_s": 0.001361,
       "markers": [
         "asyncio",
         "host"
@@ -5266,7 +5266,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_production_topology_refusal[-1-False-unsupported-dialect:unknown]",
       "outcome": "passed",
-      "duration_s": 0.103601,
+      "duration_s": 0.102328,
       "markers": [
         "asyncio",
         "host",
@@ -5279,7 +5279,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_production_topology_refusal[cockroachdb-1-False-unsupported-dialect:cockroachdb]",
       "outcome": "passed",
-      "duration_s": 0.000756,
+      "duration_s": 0.000469,
       "markers": [
         "asyncio",
         "host",
@@ -5292,7 +5292,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_production_topology_refusal[postgresql-1-True-supported]",
       "outcome": "passed",
-      "duration_s": 0.000927,
+      "duration_s": 0.00053,
       "markers": [
         "asyncio",
         "host",
@@ -5305,7 +5305,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_production_topology_refusal[postgresql-4-True-supported]",
       "outcome": "passed",
-      "duration_s": 0.000801,
+      "duration_s": 0.000514,
       "markers": [
         "asyncio",
         "host",
@@ -5318,7 +5318,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_production_topology_refusal[sqlite-1-True-supported]",
       "outcome": "passed",
-      "duration_s": 0.001154,
+      "duration_s": 0.000678,
       "markers": [
         "asyncio",
         "host",
@@ -5331,7 +5331,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_production_topology_refusal[sqlite-2-False-sqlite-multi-process-refused]",
       "outcome": "passed",
-      "duration_s": 0.000918,
+      "duration_s": 0.000569,
       "markers": [
         "asyncio",
         "host",
@@ -5344,7 +5344,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_production_topology_refusal[sqlite-8-False-sqlite-multi-process-refused]",
       "outcome": "passed",
-      "duration_s": 0.00091,
+      "duration_s": 0.000552,
       "markers": [
         "asyncio",
         "host",
@@ -5357,7 +5357,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_request_header_logging_redacts_order_token",
       "outcome": "passed",
-      "duration_s": 0.000239,
+      "duration_s": 0.000228,
       "markers": [
         "asyncio",
         "host"
@@ -5369,7 +5369,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_sdk_client_cleanup_on_direct_task_cancel",
       "outcome": "passed",
-      "duration_s": 0.16017,
+      "duration_s": 0.155135,
       "markers": [
         "asyncio",
         "host"
@@ -5381,7 +5381,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_startup_registers_only_bounded_tasks",
       "outcome": "passed",
-      "duration_s": 0.051461,
+      "duration_s": 0.051468,
       "markers": [
         "asyncio",
         "host"
@@ -5393,7 +5393,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_stop_hook_cancels_only_owned_handles",
       "outcome": "passed",
-      "duration_s": 0.103452,
+      "duration_s": 0.102859,
       "markers": [
         "asyncio",
         "host"
@@ -5405,7 +5405,7 @@
     {
       "nodeid": "tests/qualification/test_p0_12_auth_privacy_lifecycle.py::test_wrong_origin_subdomain_rejected",
       "outcome": "passed",
-      "duration_s": 0.232094,
+      "duration_s": 0.218227,
       "markers": [
         "asyncio",
         "host"
@@ -5417,7 +5417,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_all_providers_failed_rejects_no_provenance",
       "outcome": "passed",
-      "duration_s": 0.000697,
+      "duration_s": 0.000517,
       "markers": [
         "db"
       ],
@@ -5428,7 +5428,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_ceiling_applies_per_component_not_on_summed_total",
       "outcome": "passed",
-      "duration_s": 0.000425,
+      "duration_s": 0.000329,
       "markers": [
         "db"
       ],
@@ -5439,7 +5439,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_checked_total_sum_and_minimum_one_sat",
       "outcome": "passed",
-      "duration_s": 0.000606,
+      "duration_s": 0.00058,
       "markers": [
         "db"
       ],
@@ -5450,7 +5450,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_empty_quote_rejected",
       "outcome": "passed",
-      "duration_s": 0.000908,
+      "duration_s": 0.00046,
       "markers": [
         "db"
       ],
@@ -5461,7 +5461,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_failed_nonfinite_nonpositive_providers_filtered",
       "outcome": "passed",
-      "duration_s": 0.000559,
+      "duration_s": 0.000423,
       "markers": [
         "db"
       ],
@@ -5472,7 +5472,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_float_boundary_measurement_is_deterministic_and_recorded",
       "outcome": "passed",
-      "duration_s": 0.000838,
+      "duration_s": 0.000836,
       "markers": [
         "db"
       ],
@@ -5483,7 +5483,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_fractional_minor_unit_conversion_ceils",
       "outcome": "passed",
-      "duration_s": 0.000454,
+      "duration_s": 0.000574,
       "markers": [
         "db"
       ],
@@ -5494,7 +5494,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_invalid_quote_inputs_rejected",
       "outcome": "passed",
-      "duration_s": 0.000766,
+      "duration_s": 0.000681,
       "markers": [
         "db"
       ],
@@ -5505,7 +5505,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_mixed_currency_cart_converts_each_line_with_own_quote",
       "outcome": "passed",
-      "duration_s": 0.000431,
+      "duration_s": 0.000329,
       "markers": [
         "db"
       ],
@@ -5516,7 +5516,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_mixed_currency_shipping_components",
       "outcome": "passed",
-      "duration_s": 0.000331,
+      "duration_s": 0.000327,
       "markers": [
         "db"
       ],
@@ -5527,7 +5527,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_model_never_calls_host_cached_fiat_helper",
       "outcome": "passed",
-      "duration_s": 0.011771,
+      "duration_s": 0.004831,
       "markers": [
         "db"
       ],
@@ -5538,7 +5538,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_nonfinite_rate_rejected",
       "outcome": "passed",
-      "duration_s": 0.00054,
+      "duration_s": 0.000485,
       "markers": [
         "db"
       ],
@@ -5549,7 +5549,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_order_fx_quotes_persists_decimal_strings",
       "outcome": "passed",
-      "duration_s": 0.022046,
+      "duration_s": 0.026881,
       "markers": [
         "asyncio",
         "db"
@@ -5561,7 +5561,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_order_fx_quotes_unique_per_currency",
       "outcome": "passed",
-      "duration_s": 0.015662,
+      "duration_s": 0.017981,
       "markers": [
         "asyncio",
         "db"
@@ -5573,7 +5573,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_provenance_free_quote_rejected",
       "outcome": "passed",
-      "duration_s": 0.000434,
+      "duration_s": 0.0004,
       "markers": [
         "db"
       ],
@@ -5584,7 +5584,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_provider_floats_cross_once_via_decimal_str",
       "outcome": "passed",
-      "duration_s": 0.000892,
+      "duration_s": 0.001064,
       "markers": [
         "db"
       ],
@@ -5595,7 +5595,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_quote_ttl_is_five_minutes",
       "outcome": "passed",
-      "duration_s": 0.000839,
+      "duration_s": 0.000626,
       "markers": [
         "db"
       ],
@@ -5606,7 +5606,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_rejection_leaves_no_reservation_or_stock_or_quote_rows",
       "outcome": "passed",
-      "duration_s": 0.013779,
+      "duration_s": 0.015133,
       "markers": [
         "asyncio",
         "db"
@@ -5618,7 +5618,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_stale_quote_rejected_at_conversion_edge",
       "outcome": "passed",
-      "duration_s": 0.000445,
+      "duration_s": 0.000418,
       "markers": [
         "db"
       ],
@@ -5629,7 +5629,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_valid_quote_then_reservation_flow",
       "outcome": "passed",
-      "duration_s": 0.013563,
+      "duration_s": 0.017647,
       "markers": [
         "asyncio",
         "db"
@@ -5641,7 +5641,7 @@
     {
       "nodeid": "tests/qualification/test_p0_13_decimal_fx.py::test_zero_and_negative_rate_rejected",
       "outcome": "passed",
-      "duration_s": 0.000686,
+      "duration_s": 0.000527,
       "markers": [
         "db"
       ],
@@ -5652,7 +5652,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_fixture_coverage_for_required_kinds",
       "outcome": "passed",
-      "duration_s": 0.000683,
+      "duration_s": 0.000515,
       "markers": [
         "protocol"
       ],
@@ -5663,7 +5663,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_identifier_closure",
       "outcome": "passed",
-      "duration_s": 0.009801,
+      "duration_s": 0.009695,
       "markers": [
         "protocol"
       ],
@@ -5674,7 +5674,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_p0_evidence_closure",
       "outcome": "passed",
-      "duration_s": 0.001092,
+      "duration_s": 0.001117,
       "markers": [
         "protocol"
       ],
@@ -5685,7 +5685,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_registered_literals_appear_in_spec",
       "outcome": "passed",
-      "duration_s": 0.000352,
+      "duration_s": 0.000341,
       "markers": [
         "protocol"
       ],
@@ -5696,7 +5696,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_release_gates_scope_event_kinds",
       "outcome": "passed",
-      "duration_s": 0.000154,
+      "duration_s": 0.000153,
       "markers": [
         "protocol"
       ],
@@ -5707,7 +5707,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_routes_match_spec_bidirectional",
       "outcome": "passed",
-      "duration_s": 0.00032,
+      "duration_s": 0.000297,
       "markers": [
         "protocol"
       ],
@@ -5718,7 +5718,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_schema_fields_match_registry_bidirectional",
       "outcome": "passed",
-      "duration_s": 0.004947,
+      "duration_s": 0.004722,
       "markers": [
         "protocol"
       ],
@@ -5729,7 +5729,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_section4_table_classification_complete",
       "outcome": "passed",
-      "duration_s": 0.000807,
+      "duration_s": 0.000768,
       "markers": [
         "protocol"
       ],
@@ -5740,7 +5740,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_state_machines_match_spec_bidirectional",
       "outcome": "passed",
-      "duration_s": 0.001323,
+      "duration_s": 0.001711,
       "markers": [
         "protocol"
       ],
@@ -5762,7 +5762,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_topology_refusal_registered",
       "outcome": "passed",
-      "duration_s": 0.000321,
+      "duration_s": 0.000307,
       "markers": [
         "protocol"
       ],
@@ -5773,7 +5773,7 @@
     {
       "nodeid": "tests/qualification/test_p0_14_contract_closure.py::test_transitions_classified_exhaustively",
       "outcome": "passed",
-      "duration_s": 0.00018,
+      "duration_s": 0.000178,
       "markers": [
         "protocol"
       ],
@@ -5782,9 +5782,165 @@
       "observations": {}
     },
     {
+      "nodeid": "tests/runtime/test_admin_ui.py::test_admin_js_legal_actions",
+      "outcome": "passed",
+      "duration_s": 0.002275,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_admin_ui.py::test_admin_no_secrets",
+      "outcome": "passed",
+      "duration_s": 0.105236,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_admin_ui.py::test_admin_notifications_copy",
+      "outcome": "passed",
+      "duration_s": 0.002122,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_admin_ui.py::test_admin_publications_copy",
+      "outcome": "passed",
+      "duration_s": 0.002213,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_admin_ui.py::test_admin_shell_document",
+      "outcome": "passed",
+      "duration_s": 1.458303,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_admin_ui.py::test_admin_theme_editor",
+      "outcome": "passed",
+      "duration_s": 0.103239,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_admin_ui.py::test_admin_verbatim_copy",
+      "outcome": "passed",
+      "duration_s": 0.108908,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_admin_ui.py::test_admin_workspace_layout",
+      "outcome": "passed",
+      "duration_s": 0.102307,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_buyer_ui.py::test_digital_product_hides_address_fields",
+      "outcome": "passed",
+      "duration_s": 0.015357,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_buyer_ui.py::test_order_page_shell",
+      "outcome": "passed",
+      "duration_s": 0.005437,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_buyer_ui.py::test_product_page_checkout_card",
+      "outcome": "passed",
+      "duration_s": 1.35008,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_buyer_ui.py::test_public_js_contracts",
+      "outcome": "passed",
+      "duration_s": 0.006644,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_buyer_ui.py::test_theme_emission_scoped",
+      "outcome": "passed",
+      "duration_s": 0.236406,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
       "nodeid": "tests/runtime/test_catalog_api.py::test_catalog_crud",
       "outcome": "passed",
-      "duration_s": 1.37147,
+      "duration_s": 1.365066,
       "markers": [
         "asyncio",
         "runtime"
@@ -5796,7 +5952,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_collection_zero_members_no_intent",
       "outcome": "passed",
-      "duration_s": 0.015768,
+      "duration_s": 0.016887,
       "markers": [
         "asyncio",
         "runtime"
@@ -5808,7 +5964,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_delete_reference_report_and_strip",
       "outcome": "passed",
-      "duration_s": 0.024093,
+      "duration_s": 0.027404,
       "markers": [
         "asyncio",
         "runtime"
@@ -5820,7 +5976,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_draft_produces_no_intent",
       "outcome": "passed",
-      "duration_s": 0.022242,
+      "duration_s": 0.023377,
       "markers": [
         "asyncio",
         "runtime"
@@ -5832,7 +5988,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_dry_run_deterministic",
       "outcome": "passed",
-      "duration_s": 0.025681,
+      "duration_s": 0.028707,
       "markers": [
         "asyncio",
         "runtime"
@@ -5844,7 +6000,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_membership_enqueues_collection_and_product_dep",
       "outcome": "passed",
-      "duration_s": 0.02428,
+      "duration_s": 0.024978,
       "markers": [
         "asyncio",
         "runtime"
@@ -5856,7 +6012,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_owner_scoping",
       "outcome": "passed",
-      "duration_s": 0.554465,
+      "duration_s": 0.555803,
       "markers": [
         "asyncio",
         "runtime"
@@ -5868,7 +6024,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_product_crud_and_outbox_intent",
       "outcome": "passed",
-      "duration_s": 0.023528,
+      "duration_s": 0.024953,
       "markers": [
         "asyncio",
         "runtime"
@@ -5880,7 +6036,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_product_delete_enqueues_tombstone",
       "outcome": "passed",
-      "duration_s": 0.020045,
+      "duration_s": 0.022766,
       "markers": [
         "asyncio",
         "runtime"
@@ -5892,7 +6048,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_product_validation_bounds",
       "outcome": "passed",
-      "duration_s": 0.090047,
+      "duration_s": 0.104612,
       "markers": [
         "asyncio",
         "runtime"
@@ -5904,7 +6060,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_published_at_preserved_across_edits",
       "outcome": "passed",
-      "duration_s": 0.037063,
+      "duration_s": 0.039446,
       "markers": [
         "asyncio",
         "runtime"
@@ -5916,7 +6072,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_shipping_validation",
       "outcome": "passed",
-      "duration_s": 0.045836,
+      "duration_s": 0.05335,
       "markers": [
         "asyncio",
         "runtime"
@@ -5928,7 +6084,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_api.py::test_variation_rules",
       "outcome": "passed",
-      "duration_s": 0.082311,
+      "duration_s": 0.087785,
       "markers": [
         "asyncio",
         "runtime"
@@ -5940,7 +6096,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_collection_event",
       "outcome": "passed",
-      "duration_s": 0.000553,
+      "duration_s": 0.000523,
       "markers": [
         "asyncio",
         "runtime"
@@ -5952,7 +6108,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_identity_and_handler_events_have_no_labels",
       "outcome": "passed",
-      "duration_s": 0.000568,
+      "duration_s": 0.000511,
       "markers": [
         "asyncio",
         "runtime"
@@ -5964,7 +6120,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_nip15_currency_mismatch_is_error",
       "outcome": "passed",
-      "duration_s": 0.000511,
+      "duration_s": 0.00048,
       "markers": [
         "asyncio",
         "runtime"
@@ -5976,7 +6132,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_nip15_hidden_and_digital",
       "outcome": "passed",
-      "duration_s": 0.000536,
+      "duration_s": 0.000495,
       "markers": [
         "asyncio",
         "runtime"
@@ -5988,7 +6144,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_nip15_projection",
       "outcome": "passed",
-      "duration_s": 0.000563,
+      "duration_s": 0.000559,
       "markers": [
         "asyncio",
         "runtime"
@@ -6000,7 +6156,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_nip15_variation_id_composition_and_fallback",
       "outcome": "passed",
-      "duration_s": 0.000505,
+      "duration_s": 0.000466,
       "markers": [
         "asyncio",
         "runtime"
@@ -6012,7 +6168,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_outbox_dependency_edges",
       "outcome": "passed",
-      "duration_s": 0.008478,
+      "duration_s": 0.008033,
       "markers": [
         "asyncio",
         "runtime"
@@ -6024,7 +6180,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_outbox_enqueue_and_supersession",
       "outcome": "passed",
-      "duration_s": 0.060897,
+      "duration_s": 0.057516,
       "markers": [
         "asyncio",
         "runtime"
@@ -6036,7 +6192,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_product_event_deterministic",
       "outcome": "passed",
-      "duration_s": 0.000873,
+      "duration_s": 0.000832,
       "markers": [
         "asyncio",
         "runtime"
@@ -6048,7 +6204,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_product_event_recurring_and_sold",
       "outcome": "passed",
-      "duration_s": 0.000607,
+      "duration_s": 0.00064,
       "markers": [
         "asyncio",
         "runtime"
@@ -6060,7 +6216,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_product_event_required_tags",
       "outcome": "passed",
-      "duration_s": 0.000641,
+      "duration_s": 0.000656,
       "markers": [
         "asyncio",
         "runtime"
@@ -6072,7 +6228,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_product_event_unlimited_stock_omits_stock_tag",
       "outcome": "passed",
-      "duration_s": 0.000568,
+      "duration_s": 0.000538,
       "markers": [
         "asyncio",
         "runtime"
@@ -6084,7 +6240,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_product_event_variation_single_parent_a",
       "outcome": "passed",
-      "duration_s": 0.000597,
+      "duration_s": 0.000569,
       "markers": [
         "asyncio",
         "runtime"
@@ -6096,7 +6252,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_shipping_event",
       "outcome": "passed",
-      "duration_s": 0.000575,
+      "duration_s": 0.00053,
       "markers": [
         "asyncio",
         "runtime"
@@ -6108,7 +6264,7 @@
     {
       "nodeid": "tests/runtime/test_catalog_events.py::test_tombstone_descriptor",
       "outcome": "passed",
-      "duration_s": 0.000524,
+      "duration_s": 0.000496,
       "markers": [
         "asyncio",
         "runtime"
@@ -6120,7 +6276,7 @@
     {
       "nodeid": "tests/runtime/test_checkout.py::test_fresh_checkout_creates_order",
       "outcome": "passed",
-      "duration_s": 0.026463,
+      "duration_s": 0.027287,
       "markers": [
         "asyncio",
         "runtime"
@@ -6132,7 +6288,7 @@
     {
       "nodeid": "tests/runtime/test_checkout.py::test_fx_usd_conversion",
       "outcome": "passed",
-      "duration_s": 0.02423,
+      "duration_s": 0.025168,
       "markers": [
         "asyncio",
         "runtime"
@@ -6144,7 +6300,7 @@
     {
       "nodeid": "tests/runtime/test_checkout.py::test_idempotency_crash_resume",
       "outcome": "passed",
-      "duration_s": 0.029168,
+      "duration_s": 0.03038,
       "markers": [
         "asyncio",
         "runtime"
@@ -6156,7 +6312,7 @@
     {
       "nodeid": "tests/runtime/test_checkout.py::test_idempotency_replay_and_conflict",
       "outcome": "passed",
-      "duration_s": 0.029593,
+      "duration_s": 0.032327,
       "markers": [
         "asyncio",
         "runtime"
@@ -6168,7 +6324,7 @@
     {
       "nodeid": "tests/runtime/test_checkout.py::test_intake_rejects_bad_items",
       "outcome": "passed",
-      "duration_s": 1.356408,
+      "duration_s": 1.429006,
       "markers": [
         "asyncio",
         "runtime"
@@ -6180,7 +6336,7 @@
     {
       "nodeid": "tests/runtime/test_checkout.py::test_intake_rejects_unpurchasable",
       "outcome": "passed",
-      "duration_s": 0.014406,
+      "duration_s": 0.014424,
       "markers": [
         "asyncio",
         "runtime"
@@ -6192,7 +6348,7 @@
     {
       "nodeid": "tests/runtime/test_checkout.py::test_missing_fx_rejected",
       "outcome": "passed",
-      "duration_s": 0.110635,
+      "duration_s": 0.110606,
       "markers": [
         "asyncio",
         "runtime"
@@ -6204,7 +6360,7 @@
     {
       "nodeid": "tests/runtime/test_checkout.py::test_oversell_rejected",
       "outcome": "passed",
-      "duration_s": 0.014041,
+      "duration_s": 0.014413,
       "markers": [
         "asyncio",
         "runtime"
@@ -6216,7 +6372,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_envelope_prefix_ambiguity_blocked",
       "outcome": "passed",
-      "duration_s": 0.000346,
+      "duration_s": 0.000364,
       "markers": [
         "runtime"
       ],
@@ -6227,7 +6383,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_envelope_rejects_wrong_aad_parts",
       "outcome": "passed",
-      "duration_s": 0.000546,
+      "duration_s": 0.000543,
       "markers": [
         "runtime"
       ],
@@ -6238,7 +6394,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_envelope_roundtrip_and_layout",
       "outcome": "passed",
-      "duration_s": 0.000463,
+      "duration_s": 0.000479,
       "markers": [
         "runtime"
       ],
@@ -6249,7 +6405,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_envelope_version_absent_from_keyring",
       "outcome": "passed",
-      "duration_s": 0.000273,
+      "duration_s": 0.000279,
       "markers": [
         "runtime"
       ],
@@ -6260,7 +6416,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_hmac_index_normalization",
       "outcome": "passed",
-      "duration_s": 0.000221,
+      "duration_s": 0.000223,
       "markers": [
         "runtime"
       ],
@@ -6271,7 +6427,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_hmac_index_purpose_separation",
       "outcome": "passed",
-      "duration_s": 0.000225,
+      "duration_s": 0.000232,
       "markers": [
         "runtime"
       ],
@@ -6282,7 +6438,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_imported_nsec_never_stored_plaintext",
       "outcome": "passed",
-      "duration_s": 0.00401,
+      "duration_s": 0.004203,
       "markers": [
         "asyncio",
         "runtime"
@@ -6294,7 +6450,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_keyring_validation_via_env",
       "outcome": "passed",
-      "duration_s": 0.000556,
+      "duration_s": 0.000811,
       "markers": [
         "runtime"
       ],
@@ -6305,7 +6461,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_keystore_backup_restore_drill",
       "outcome": "passed",
-      "duration_s": 0.010082,
+      "duration_s": 0.010067,
       "markers": [
         "asyncio",
         "runtime"
@@ -6317,7 +6473,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_keystore_generate_sign_roundtrip",
       "outcome": "passed",
-      "duration_s": 0.119599,
+      "duration_s": 0.060731,
       "markers": [
         "asyncio",
         "runtime"
@@ -6329,7 +6485,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_keystore_import_validates_nsec",
       "outcome": "passed",
-      "duration_s": 0.00176,
+      "duration_s": 0.001832,
       "markers": [
         "asyncio",
         "runtime"
@@ -6341,7 +6497,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_keystore_release_gated_methods",
       "outcome": "passed",
-      "duration_s": 0.000416,
+      "duration_s": 0.000458,
       "markers": [
         "asyncio",
         "runtime"
@@ -6353,7 +6509,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_keystore_rewrap_resume_drill",
       "outcome": "passed",
-      "duration_s": 0.022652,
+      "duration_s": 0.023697,
       "markers": [
         "asyncio",
         "runtime"
@@ -6365,7 +6521,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_keystore_rewrap_rotation_drill",
       "outcome": "passed",
-      "duration_s": 0.010126,
+      "duration_s": 0.00979,
       "markers": [
         "asyncio",
         "runtime"
@@ -6377,7 +6533,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_public_base_url_must_be_canonical_https",
       "outcome": "passed",
-      "duration_s": 0.000456,
+      "duration_s": 0.000454,
       "markers": [
         "runtime"
       ],
@@ -6388,7 +6544,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_public_token_rejects_noncanonical",
       "outcome": "passed",
-      "duration_s": 0.000223,
+      "duration_s": 0.00022,
       "markers": [
         "runtime"
       ],
@@ -6399,7 +6555,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_public_token_roundtrip",
       "outcome": "passed",
-      "duration_s": 0.00021,
+      "duration_s": 0.000217,
       "markers": [
         "runtime"
       ],
@@ -6410,7 +6566,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_relay_url_validation",
       "outcome": "passed",
-      "duration_s": 0.000397,
+      "duration_s": 0.000425,
       "markers": [
         "runtime"
       ],
@@ -6421,7 +6577,7 @@
     {
       "nodeid": "tests/runtime/test_crypto_keystore.py::test_start_hook_fails_before_activation",
       "outcome": "passed",
-      "duration_s": 0.000302,
+      "duration_s": 0.000298,
       "markers": [
         "runtime"
       ],
@@ -6432,7 +6588,7 @@
     {
       "nodeid": "tests/runtime/test_db.py::test_commit_persists",
       "outcome": "passed",
-      "duration_s": 0.017329,
+      "duration_s": 0.020299,
       "markers": [
         "asyncio",
         "runtime"
@@ -6444,7 +6600,7 @@
     {
       "nodeid": "tests/runtime/test_db.py::test_concurrent_writers_serialize",
       "outcome": "passed",
-      "duration_s": 0.121502,
+      "duration_s": 0.121164,
       "markers": [
         "asyncio",
         "runtime"
@@ -6456,7 +6612,7 @@
     {
       "nodeid": "tests/runtime/test_db.py::test_fencing_update_inside_tx",
       "outcome": "passed",
-      "duration_s": 0.003207,
+      "duration_s": 0.003406,
       "markers": [
         "asyncio",
         "runtime"
@@ -6468,7 +6624,7 @@
     {
       "nodeid": "tests/runtime/test_db.py::test_fk_enforced_inside_tx",
       "outcome": "passed",
-      "duration_s": 0.001429,
+      "duration_s": 0.001362,
       "markers": [
         "asyncio",
         "runtime"
@@ -6480,7 +6636,7 @@
     {
       "nodeid": "tests/runtime/test_db.py::test_rollback_discards",
       "outcome": "passed",
-      "duration_s": 0.001894,
+      "duration_s": 0.001984,
       "markers": [
         "asyncio",
         "runtime"
@@ -6492,7 +6648,7 @@
     {
       "nodeid": "tests/runtime/test_email_queue.py::test_claim_token_fencing",
       "outcome": "passed",
-      "duration_s": 0.027226,
+      "duration_s": 0.030978,
       "markers": [
         "asyncio",
         "runtime"
@@ -6504,7 +6660,7 @@
     {
       "nodeid": "tests/runtime/test_email_queue.py::test_consent_revocation_suppresses",
       "outcome": "passed",
-      "duration_s": 0.032951,
+      "duration_s": 0.032319,
       "markers": [
         "asyncio",
         "runtime"
@@ -6516,7 +6672,7 @@
     {
       "nodeid": "tests/runtime/test_email_queue.py::test_enqueue_dedupes",
       "outcome": "passed",
-      "duration_s": 1.296276,
+      "duration_s": 1.365734,
       "markers": [
         "asyncio",
         "runtime"
@@ -6528,7 +6684,7 @@
     {
       "nodeid": "tests/runtime/test_email_queue.py::test_orderless_test_send",
       "outcome": "passed",
-      "duration_s": 0.018314,
+      "duration_s": 0.01887,
       "markers": [
         "asyncio",
         "runtime"
@@ -6540,7 +6696,7 @@
     {
       "nodeid": "tests/runtime/test_email_queue.py::test_send_classification",
       "outcome": "passed",
-      "duration_s": 0.059521,
+      "duration_s": 0.059263,
       "markers": [
         "asyncio",
         "runtime"
@@ -6552,7 +6708,7 @@
     {
       "nodeid": "tests/runtime/test_email_queue.py::test_subject_has_no_pii",
       "outcome": "passed",
-      "duration_s": 0.102148,
+      "duration_s": 0.102068,
       "markers": [
         "asyncio",
         "runtime"
@@ -6564,7 +6720,7 @@
     {
       "nodeid": "tests/runtime/test_email_queue.py::test_suppression_taxonomy",
       "outcome": "passed",
-      "duration_s": 0.031559,
+      "duration_s": 0.030649,
       "markers": [
         "asyncio",
         "runtime"
@@ -6576,7 +6732,7 @@
     {
       "nodeid": "tests/runtime/test_install.py::test_admin_page_renders_template",
       "outcome": "passed",
-      "duration_s": 0.106824,
+      "duration_s": 0.102216,
       "markers": [
         "asyncio",
         "runtime"
@@ -6588,7 +6744,7 @@
     {
       "nodeid": "tests/runtime/test_install.py::test_admin_page_requires_auth",
       "outcome": "passed",
-      "duration_s": 0.002243,
+      "duration_s": 0.00218,
       "markers": [
         "asyncio",
         "runtime"
@@ -6600,7 +6756,7 @@
     {
       "nodeid": "tests/runtime/test_install.py::test_deactivation_404s_routes",
       "outcome": "passed",
-      "duration_s": 0.047751,
+      "duration_s": 0.045946,
       "markers": [
         "asyncio",
         "runtime"
@@ -6612,7 +6768,7 @@
     {
       "nodeid": "tests/runtime/test_install.py::test_discovered_and_registered",
       "outcome": "passed",
-      "duration_s": 1.283331,
+      "duration_s": 1.273898,
       "markers": [
         "asyncio",
         "runtime"
@@ -6624,7 +6780,7 @@
     {
       "nodeid": "tests/runtime/test_install.py::test_m001_tables_created",
       "outcome": "passed",
-      "duration_s": 0.001698,
+      "duration_s": 0.001598,
       "markers": [
         "asyncio",
         "runtime"
@@ -6636,7 +6792,7 @@
     {
       "nodeid": "tests/runtime/test_install.py::test_modeled_columns_match_registry",
       "outcome": "passed",
-      "duration_s": 0.01994,
+      "duration_s": 0.018822,
       "markers": [
         "asyncio",
         "runtime"
@@ -6648,7 +6804,7 @@
     {
       "nodeid": "tests/runtime/test_install.py::test_reactivation_reruns_start_hook",
       "outcome": "passed",
-      "duration_s": 0.102707,
+      "duration_s": 0.102364,
       "markers": [
         "asyncio",
         "runtime"
@@ -6660,7 +6816,7 @@
     {
       "nodeid": "tests/runtime/test_install.py::test_static_probe_mounted",
       "outcome": "passed",
-      "duration_s": 0.004174,
+      "duration_s": 0.00252,
       "markers": [
         "asyncio",
         "runtime"
@@ -6672,7 +6828,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_audit_posture_qualified_and_flagged",
       "outcome": "passed",
-      "duration_s": 0.114428,
+      "duration_s": 0.116812,
       "markers": [
         "asyncio",
         "runtime"
@@ -6684,7 +6840,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_bearer_mutation_passes_without_origin",
       "outcome": "passed",
-      "duration_s": 0.012852,
+      "duration_s": 0.012809,
       "markers": [
         "asyncio",
         "runtime"
@@ -6696,7 +6852,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_cookie_mutation_requires_origin_and_csrf",
       "outcome": "passed",
-      "duration_s": 0.017224,
+      "duration_s": 0.017661,
       "markers": [
         "asyncio",
         "runtime"
@@ -6708,7 +6864,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_cookie_with_forged_bearer_still_enforces_origin",
       "outcome": "passed",
-      "duration_s": 0.009062,
+      "duration_s": 0.010554,
       "markers": [
         "asyncio",
         "runtime"
@@ -6720,7 +6876,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_current_merchant_projection",
       "outcome": "passed",
-      "duration_s": 0.006799,
+      "duration_s": 0.009206,
       "markers": [
         "asyncio",
         "runtime"
@@ -6732,7 +6888,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_deactivation_enqueues_tombstones",
       "outcome": "passed",
-      "duration_s": 0.01866,
+      "duration_s": 0.015941,
       "markers": [
         "asyncio",
         "runtime"
@@ -6744,7 +6900,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_duplicate_merchant_rejected",
       "outcome": "passed",
-      "duration_s": 0.005772,
+      "duration_s": 0.006455,
       "markers": [
         "asyncio",
         "runtime"
@@ -6756,7 +6912,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_foreign_merchant_is_404",
       "outcome": "passed",
-      "duration_s": 0.005366,
+      "duration_s": 0.00567,
       "markers": [
         "asyncio",
         "runtime"
@@ -6768,7 +6924,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_idempotency_key_accepted_and_shape_validated",
       "outcome": "passed",
-      "duration_s": 0.017362,
+      "duration_s": 0.020439,
       "markers": [
         "asyncio",
         "runtime"
@@ -6780,7 +6936,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_key_import_replaces_identity",
       "outcome": "passed",
-      "duration_s": 0.010341,
+      "duration_s": 0.010773,
       "markers": [
         "asyncio",
         "runtime"
@@ -6792,7 +6948,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_notification_config",
       "outcome": "passed",
-      "duration_s": 0.019109,
+      "duration_s": 0.019855,
       "markers": [
         "asyncio",
         "runtime"
@@ -6804,7 +6960,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_publish_enqueues_outbox_intents",
       "outcome": "passed",
-      "duration_s": 0.015333,
+      "duration_s": 0.017206,
       "markers": [
         "asyncio",
         "runtime"
@@ -6816,7 +6972,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_relay_config_validation",
       "outcome": "passed",
-      "duration_s": 0.022066,
+      "duration_s": 0.023489,
       "markers": [
         "asyncio",
         "runtime"
@@ -6828,7 +6984,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_safe_get_requires_auth",
       "outcome": "passed",
-      "duration_s": 1.274783,
+      "duration_s": 1.290047,
       "markers": [
         "asyncio",
         "runtime"
@@ -6840,7 +6996,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_user_id_only_mutation_rejected",
       "outcome": "passed",
-      "duration_s": 0.002629,
+      "duration_s": 0.002673,
       "markers": [
         "asyncio",
         "runtime"
@@ -6852,7 +7008,7 @@
     {
       "nodeid": "tests/runtime/test_merchant_api.py::test_wallet_binding_rejects_foreign_wallet",
       "outcome": "passed",
-      "duration_s": 0.009122,
+      "duration_s": 0.009572,
       "markers": [
         "asyncio",
         "runtime"
@@ -6864,7 +7020,7 @@
     {
       "nodeid": "tests/runtime/test_nip89.py::test_invalid_naddr_variants_render_invalid_link",
       "outcome": "passed",
-      "duration_s": 0.022657,
+      "duration_s": 0.023369,
       "markers": [
         "asyncio",
         "runtime"
@@ -6876,7 +7032,7 @@
     {
       "nodeid": "tests/runtime/test_nip89.py::test_public_product_json_contract",
       "outcome": "passed",
-      "duration_s": 0.043422,
+      "duration_s": 0.046884,
       "markers": [
         "asyncio",
         "runtime"
@@ -6888,7 +7044,7 @@
     {
       "nodeid": "tests/runtime/test_nip89.py::test_public_product_page_states",
       "outcome": "passed",
-      "duration_s": 0.122428,
+      "duration_s": 0.123016,
       "markers": [
         "asyncio",
         "runtime"
@@ -6900,7 +7056,7 @@
     {
       "nodeid": "tests/runtime/test_nip89.py::test_rate_limit_enforced_on_public_routes",
       "outcome": "passed",
-      "duration_s": 0.589242,
+      "duration_s": 0.591137,
       "markers": [
         "asyncio",
         "runtime"
@@ -6912,7 +7068,7 @@
     {
       "nodeid": "tests/runtime/test_nip89.py::test_valid_naddr_redirects_to_canonical",
       "outcome": "passed",
-      "duration_s": 1.335644,
+      "duration_s": 1.355366,
       "markers": [
         "asyncio",
         "runtime"
@@ -6924,7 +7080,7 @@
     {
       "nodeid": "tests/runtime/test_order_admin.py::test_admin_idempotency_key_accepted",
       "outcome": "passed",
-      "duration_s": 0.155713,
+      "duration_s": 0.158056,
       "markers": [
         "asyncio",
         "runtime"
@@ -6936,7 +7092,7 @@
     {
       "nodeid": "tests/runtime/test_order_admin.py::test_cancel_releases_stock_once",
       "outcome": "passed",
-      "duration_s": 0.062767,
+      "duration_s": 0.064885,
       "markers": [
         "asyncio",
         "runtime"
@@ -6948,7 +7104,7 @@
     {
       "nodeid": "tests/runtime/test_order_admin.py::test_decrypted_pii_owner_only",
       "outcome": "passed",
-      "duration_s": 0.562611,
+      "duration_s": 0.506852,
       "markers": [
         "asyncio",
         "runtime"
@@ -6960,7 +7116,7 @@
     {
       "nodeid": "tests/runtime/test_order_admin.py::test_events_chronology",
       "outcome": "passed",
-      "duration_s": 0.05826,
+      "duration_s": 0.059589,
       "markers": [
         "asyncio",
         "runtime"
@@ -6972,7 +7128,7 @@
     {
       "nodeid": "tests/runtime/test_order_admin.py::test_exception_refund_attestation",
       "outcome": "passed",
-      "duration_s": 0.072762,
+      "duration_s": 0.074568,
       "markers": [
         "asyncio",
         "runtime"
@@ -6984,7 +7140,7 @@
     {
       "nodeid": "tests/runtime/test_order_admin.py::test_list_and_detail",
       "outcome": "passed",
-      "duration_s": 1.340161,
+      "duration_s": 1.37621,
       "markers": [
         "asyncio",
         "runtime"
@@ -6996,7 +7152,7 @@
     {
       "nodeid": "tests/runtime/test_order_admin.py::test_token_reissue",
       "outcome": "passed",
-      "duration_s": 0.05851,
+      "duration_s": 0.059513,
       "markers": [
         "asyncio",
         "runtime"
@@ -7008,7 +7164,7 @@
     {
       "nodeid": "tests/runtime/test_order_admin.py::test_transition_matrix",
       "outcome": "passed",
-      "duration_s": 0.07855,
+      "duration_s": 0.080153,
       "markers": [
         "asyncio",
         "runtime"
@@ -7020,7 +7176,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_amount_and_wallet_mismatch_quarantine",
       "outcome": "passed",
-      "duration_s": 0.100337,
+      "duration_s": 0.103636,
       "markers": [
         "asyncio",
         "runtime"
@@ -7032,7 +7188,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_buyer_cancel_before_payment",
       "outcome": "passed",
-      "duration_s": 0.047495,
+      "duration_s": 0.051779,
       "markers": [
         "asyncio",
         "runtime"
@@ -7044,7 +7200,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_invoice_creation_unknown_never_duplicates",
       "outcome": "passed",
-      "duration_s": 0.055566,
+      "duration_s": 0.057594,
       "markers": [
         "asyncio",
         "runtime"
@@ -7056,7 +7212,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_kill_before_callback_reconcile_confirms",
       "outcome": "passed",
-      "duration_s": 0.070701,
+      "duration_s": 0.072714,
       "markers": [
         "asyncio",
         "runtime"
@@ -7068,7 +7224,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_late_settlement_on_expired_order",
       "outcome": "passed",
-      "duration_s": 0.055525,
+      "duration_s": 0.056717,
       "markers": [
         "asyncio",
         "runtime"
@@ -7080,7 +7236,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_lease_fencing",
       "outcome": "passed",
-      "duration_s": 0.106337,
+      "duration_s": 0.106438,
       "markers": [
         "asyncio",
         "runtime"
@@ -7092,7 +7248,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_reconcile_resumes_received_order",
       "outcome": "passed",
-      "duration_s": 0.065541,
+      "duration_s": 0.067087,
       "markers": [
         "asyncio",
         "runtime"
@@ -7104,7 +7260,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_reservation_expiry_releases_once",
       "outcome": "passed",
-      "duration_s": 0.053561,
+      "duration_s": 0.054639,
       "markers": [
         "asyncio",
         "runtime"
@@ -7116,7 +7272,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_settlement_confirms_once",
       "outcome": "passed",
-      "duration_s": 1.309262,
+      "duration_s": 1.391408,
       "markers": [
         "asyncio",
         "runtime"
@@ -7128,7 +7284,7 @@
     {
       "nodeid": "tests/runtime/test_order_saga.py::test_settlement_foreign_payment_ignored",
       "outcome": "passed",
-      "duration_s": 0.045792,
+      "duration_s": 0.047463,
       "markers": [
         "asyncio",
         "runtime"
@@ -7140,7 +7296,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_accepted_targets_are_never_resent",
       "outcome": "passed",
-      "duration_s": 20.092387,
+      "duration_s": 20.109679,
       "markers": [
         "asyncio",
         "runtime"
@@ -7152,7 +7308,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_dead_relay_isolated_one_failure_never_crashes_batch",
       "outcome": "passed",
-      "duration_s": 9.039166,
+      "duration_s": 10.094269,
       "markers": [
         "asyncio",
         "runtime"
@@ -7164,7 +7320,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_dependency_gate_blocks_until_published",
       "outcome": "passed",
-      "duration_s": 0.021794,
+      "duration_s": 0.019901,
       "markers": [
         "asyncio",
         "runtime"
@@ -7176,7 +7332,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_newer_live_revision_supersedes_stale_intent",
       "outcome": "passed",
-      "duration_s": 0.036081,
+      "duration_s": 0.040415,
       "markers": [
         "asyncio",
         "runtime"
@@ -7188,7 +7344,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_oq6_send_to_dead_relay_is_timeout_not_exception",
       "outcome": "passed",
-      "duration_s": 0.001473,
+      "duration_s": 0.001388,
       "markers": [
         "asyncio",
         "runtime"
@@ -7200,7 +7356,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_oq6_send_to_unconnected_client_times_out",
       "outcome": "passed",
-      "duration_s": 0.00209,
+      "duration_s": 0.001892,
       "markers": [
         "asyncio",
         "runtime"
@@ -7212,7 +7368,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_oq6_send_to_unregistered_relay_is_safe",
       "outcome": "passed",
-      "duration_s": 0.001358,
+      "duration_s": 0.001215,
       "markers": [
         "asyncio",
         "runtime"
@@ -7224,7 +7380,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_publish_accepted_marks_published_and_records_evidence",
       "outcome": "passed",
-      "duration_s": 0.07436,
+      "duration_s": 0.075153,
       "markers": [
         "asyncio",
         "runtime"
@@ -7236,7 +7392,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_rejected_and_timeout_relays_leave_intent_pending",
       "outcome": "passed",
-      "duration_s": 10.033595,
+      "duration_s": 10.037711,
       "markers": [
         "asyncio",
         "runtime"
@@ -7248,7 +7404,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_relay_targets_direction_and_defaults",
       "outcome": "passed",
-      "duration_s": 0.018616,
+      "duration_s": 0.021612,
       "markers": [
         "asyncio",
         "runtime"
@@ -7260,7 +7416,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_retry_intent_resets_failed_and_skips_accepted",
       "outcome": "passed",
-      "duration_s": 0.01807,
+      "duration_s": 0.014675,
       "markers": [
         "asyncio",
         "runtime"
@@ -7272,7 +7428,7 @@
     {
       "nodeid": "tests/runtime/test_outbox.py::test_stale_claim_recovery_requeues_with_evidence",
       "outcome": "passed",
-      "duration_s": 0.009926,
+      "duration_s": 0.010624,
       "markers": [
         "asyncio",
         "runtime"
@@ -7284,7 +7440,7 @@
     {
       "nodeid": "tests/runtime/test_public_contract.py::test_checkout_rate_limits",
       "outcome": "passed",
-      "duration_s": 0.067264,
+      "duration_s": 0.082833,
       "markers": [
         "asyncio",
         "runtime"
@@ -7296,7 +7452,7 @@
     {
       "nodeid": "tests/runtime/test_public_contract.py::test_end_to_end_journey",
       "outcome": "passed",
-      "duration_s": 0.178605,
+      "duration_s": 0.204343,
       "markers": [
         "asyncio",
         "runtime"
@@ -7308,7 +7464,7 @@
     {
       "nodeid": "tests/runtime/test_public_contract.py::test_order_status_exact_field_set",
       "outcome": "passed",
-      "duration_s": 0.035147,
+      "duration_s": 0.0548,
       "markers": [
         "asyncio",
         "runtime"
@@ -7320,7 +7476,7 @@
     {
       "nodeid": "tests/runtime/test_public_contract.py::test_protective_headers_everywhere",
       "outcome": "passed",
-      "duration_s": 0.016494,
+      "duration_s": 0.024063,
       "markers": [
         "asyncio",
         "runtime"
@@ -7332,7 +7488,7 @@
     {
       "nodeid": "tests/runtime/test_public_contract.py::test_route_table_has_no_token_param",
       "outcome": "passed",
-      "duration_s": 1.418721,
+      "duration_s": 1.610571,
       "markers": [
         "asyncio",
         "runtime"
@@ -7344,7 +7500,7 @@
     {
       "nodeid": "tests/runtime/test_public_contract.py::test_token_failures_indistinguishable",
       "outcome": "passed",
-      "duration_s": 0.014302,
+      "duration_s": 0.016877,
       "markers": [
         "asyncio",
         "runtime"
@@ -7356,7 +7512,7 @@
     {
       "nodeid": "tests/runtime/test_public_pages.py::test_collection_and_merchant_pages",
       "outcome": "passed",
-      "duration_s": 0.096077,
+      "duration_s": 0.134058,
       "markers": [
         "asyncio",
         "runtime"
@@ -7368,7 +7524,7 @@
     {
       "nodeid": "tests/runtime/test_public_pages.py::test_compact_fallback_and_gm_public_css",
       "outcome": "passed",
-      "duration_s": 0.004179,
+      "duration_s": 0.007537,
       "markers": [
         "asyncio",
         "runtime"
@@ -7380,7 +7536,7 @@
     {
       "nodeid": "tests/runtime/test_public_pages.py::test_hidden_and_sold_and_preorder_states",
       "outcome": "passed",
-      "duration_s": 0.129423,
+      "duration_s": 0.161304,
       "markers": [
         "asyncio",
         "runtime"
@@ -7392,7 +7548,7 @@
     {
       "nodeid": "tests/runtime/test_public_pages.py::test_not_found_and_invalid_d_tag",
       "outcome": "passed",
-      "duration_s": 0.01375,
+      "duration_s": 0.022399,
       "markers": [
         "asyncio",
         "runtime"
@@ -7404,7 +7560,7 @@
     {
       "nodeid": "tests/runtime/test_public_pages.py::test_order_page_shell",
       "outcome": "passed",
-      "duration_s": 0.106443,
+      "duration_s": 0.109173,
       "markers": [
         "asyncio",
         "runtime"
@@ -7416,7 +7572,7 @@
     {
       "nodeid": "tests/runtime/test_public_pages.py::test_product_page_headers_and_scoping",
       "outcome": "passed",
-      "duration_s": 1.344219,
+      "duration_s": 1.671005,
       "markers": [
         "asyncio",
         "runtime"
@@ -7428,7 +7584,7 @@
     {
       "nodeid": "tests/runtime/test_relay_config_api.py::test_blossom_servers_configurable_with_https_only",
       "outcome": "passed",
-      "duration_s": 0.039527,
+      "duration_s": 0.051451,
       "markers": [
         "asyncio",
         "runtime"
@@ -7440,7 +7596,7 @@
     {
       "nodeid": "tests/runtime/test_relay_config_api.py::test_outbox_listing_and_retry_routes",
       "outcome": "passed",
-      "duration_s": 0.144314,
+      "duration_s": 0.164792,
       "markers": [
         "asyncio",
         "runtime"
@@ -7452,7 +7608,7 @@
     {
       "nodeid": "tests/runtime/test_relay_config_api.py::test_relay_config_accepts_public_inbox_both",
       "outcome": "passed",
-      "duration_s": 1.294127,
+      "duration_s": 1.493654,
       "markers": [
         "asyncio",
         "runtime"
@@ -7464,7 +7620,19 @@
     {
       "nodeid": "tests/runtime/test_relay_config_api.py::test_relay_config_rejects_invalid_and_duplicates",
       "outcome": "passed",
-      "duration_s": 0.040938,
+      "duration_s": 0.055373,
+      "markers": [
+        "asyncio",
+        "runtime"
+      ],
+      "p0": null,
+      "subchecks": [],
+      "observations": {}
+    },
+    {
+      "nodeid": "tests/runtime/test_release_a_journey.py::test_release_a_journey",
+      "outcome": "passed",
+      "duration_s": 1.942272,
       "markers": [
         "asyncio",
         "runtime"
@@ -7476,7 +7644,7 @@
     {
       "nodeid": "tests/runtime/test_status_api.py::test_checkout_gated_by_readiness",
       "outcome": "passed",
-      "duration_s": 0.105544,
+      "duration_s": 0.106932,
       "markers": [
         "asyncio",
         "runtime"
@@ -7488,7 +7656,7 @@
     {
       "nodeid": "tests/runtime/test_status_api.py::test_checkout_happy_path",
       "outcome": "passed",
-      "duration_s": 0.054909,
+      "duration_s": 0.059696,
       "markers": [
         "asyncio",
         "runtime"
@@ -7500,7 +7668,7 @@
     {
       "nodeid": "tests/runtime/test_status_api.py::test_checkout_requires_idempotency_key",
       "outcome": "passed",
-      "duration_s": 1.285991,
+      "duration_s": 1.545144,
       "markers": [
         "asyncio",
         "runtime"
@@ -7512,7 +7680,7 @@
     {
       "nodeid": "tests/runtime/test_status_api.py::test_email_opt_out",
       "outcome": "passed",
-      "duration_s": 0.011848,
+      "duration_s": 0.013575,
       "markers": [
         "asyncio",
         "runtime"
@@ -7524,7 +7692,7 @@
     {
       "nodeid": "tests/runtime/test_status_api.py::test_order_status_after_confirmation",
       "outcome": "passed",
-      "duration_s": 0.009228,
+      "duration_s": 0.010105,
       "markers": [
         "asyncio",
         "runtime"
@@ -7536,7 +7704,7 @@
     {
       "nodeid": "tests/runtime/test_status_api.py::test_order_status_token_contract",
       "outcome": "passed",
-      "duration_s": 0.014401,
+      "duration_s": 0.016594,
       "markers": [
         "asyncio",
         "runtime"
@@ -7548,7 +7716,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_advanced_token_allowlist",
       "outcome": "passed",
-      "duration_s": 0.037932,
+      "duration_s": 0.054353,
       "markers": [
         "asyncio",
         "runtime"
@@ -7560,7 +7728,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_advanced_tokens_require_opt_in",
       "outcome": "passed",
-      "duration_s": 0.011896,
+      "duration_s": 0.024944,
       "markers": [
         "asyncio",
         "runtime"
@@ -7572,7 +7740,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_brand_basics_bounds",
       "outcome": "passed",
-      "duration_s": 0.048193,
+      "duration_s": 0.114749,
       "markers": [
         "asyncio",
         "runtime"
@@ -7584,7 +7752,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_contrast_gate_blocks_failing_pairs",
       "outcome": "passed",
-      "duration_s": 0.011529,
+      "duration_s": 0.019965,
       "markers": [
         "asyncio",
         "runtime"
@@ -7596,7 +7764,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_invalid_preset_and_layout_rejected",
       "outcome": "passed",
-      "duration_s": 0.023492,
+      "duration_s": 0.029309,
       "markers": [
         "asyncio",
         "runtime"
@@ -7608,7 +7776,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_layout_compact_fallback_in_css",
       "outcome": "passed",
-      "duration_s": 0.002395,
+      "duration_s": 0.002977,
       "markers": [
         "asyncio",
         "runtime"
@@ -7620,7 +7788,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_preset_and_layout_persist",
       "outcome": "passed",
-      "duration_s": 1.307076,
+      "duration_s": 1.450156,
       "markers": [
         "asyncio",
         "runtime"
@@ -7632,7 +7800,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_reset_to_preset_clears_overrides",
       "outcome": "passed",
-      "duration_s": 0.131995,
+      "duration_s": 0.141215,
       "markers": [
         "asyncio",
         "runtime"
@@ -7644,7 +7812,7 @@
     {
       "nodeid": "tests/runtime/test_themes.py::test_theme_reaches_public_page_only",
       "outcome": "passed",
-      "duration_s": 0.18642,
+      "duration_s": 0.218932,
       "markers": [
         "asyncio",
         "runtime"
@@ -7655,8 +7823,8 @@
     }
   ],
   "summary": {
-    "total": 378,
-    "passed": 377,
+    "total": 392,
+    "passed": 391,
     "failed": 0,
     "errors": 0,
     "skipped": 1,

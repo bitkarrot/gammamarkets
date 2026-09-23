@@ -499,19 +499,68 @@ async def list_orders(
             raise unprocessable("invalid-transition", "Unknown protocol")
         clauses.append("protocol = :p")
         params["p"] = protocol
-    if q:
-        clauses.append("id LIKE :q")
-        params["q"] = f"{q}%"
     async with db.connect() as conn:
         rows = await conn.fetchall(
             f"SELECT id, protocol, state, shipping_state, total_sat,"
             " payment_exception, oversold, email_opt_in, created_at,"
-            " updated_at FROM "
+            " updated_at, contact_enc FROM "
             f"{table('orders')} WHERE {' AND '.join(clauses)}"
             " ORDER BY created_at DESC LIMIT 200",
             params,
         )
-    return [dict(r) for r in rows]
+        order_ids = [r["id"] for r in rows]
+        item_rows: dict[str, list] = {}
+        if order_ids:
+            marks = ",".join(f"'{i}'" for i in order_ids)
+            for it in await conn.fetchall(
+                f"SELECT order_id, title, quantity FROM"
+                f" {table('order_items')} WHERE order_id IN ({marks})"
+                " ORDER BY id"
+            ):
+                item_rows.setdefault(it["order_id"], []).append(dict(it))
+    out = []
+    for r in rows:
+        row = dict(r)
+        items = item_rows.get(row["id"], [])
+        row["item_count"] = len(items)
+        row["first_item"] = items[0]["title"] if items else None
+        row["first_item_qty"] = items[0]["quantity"] if items else None
+        row["buyer"] = _buyer_handle(row)
+        row.pop("contact_enc", None)
+        out.append(row)
+    if q:
+        # "Search order or buyer": id-prefix OR decrypted-handle substring —
+        # contact_enc can't match in SQL, so the buyer arm filters here.
+        needle = q.strip().lower()
+        out = [
+            r for r in out
+            if r["id"].lower().startswith(needle)
+            or (r["buyer"] or "").lower().find(needle) >= 0
+        ]
+    return out
+
+
+def _buyer_handle(order: dict) -> str | None:
+    """List-row buyer handle (UI-SPEC §B1): web orders show the supplied
+    email; protocol orders show the buyer npub — decrypted owner-side."""
+    enc = order.get("contact_enc")
+    if enc is None:
+        return None
+    from .. import crypto
+    from ..settings import ext_settings
+
+    settings = ext_settings()
+    try:
+        ver = crypto.envelope_version(enc)
+        raw = crypto.decrypt(
+            enc, settings.master_keys[ver],
+            record_id=order["id"], table="orders", column="contact_enc",
+            key_version=ver,
+        ).decode()
+        contact = json.loads(raw)
+    except Exception:
+        return None
+    return contact.get("email") or contact.get("npub")
 
 
 async def order_detail(merchant_id: str, user, order_id: str) -> dict:

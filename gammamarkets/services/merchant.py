@@ -130,6 +130,8 @@ def _public_merchant(row: dict) -> dict:
         "theme": json.loads(row["theme"]) if row.get("theme") else None,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
+        # §12 revision marker — surfaced on the B4 identity card.
+        "spec_revision": ext_settings().spec_revision,
     }
 
 

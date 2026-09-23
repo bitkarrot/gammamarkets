@@ -276,6 +276,9 @@ async def public_order_status(request: Request, response: Response):
         ],
         "expires_at": order["invoice_expiry"],
         "email_opt_in": bool(order["email_opt_in"]),
+        # Buyer-safe hold flag — drives the "On hold — the merchant is
+        # reviewing a payment issue." label (never the reason detail).
+        "payment_exception": bool(order["payment_exception"]),
     }
 
 

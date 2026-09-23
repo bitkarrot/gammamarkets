@@ -1,193 +1,194 @@
-/* public_storefront.js — buyer-side behaviors for standalone public docs.
-   Vanilla JS only: CSP is script-src 'self', no third-party scripts. */
+/* public_storefront.js — shared helpers for standalone public docs.
+   Vanilla JS only: CSP is script-src 'self', no third-party scripts.
+   Everything lives under window.GM; page modules are public_checkout.js
+   (product card) and public_order.js (status page). */
 (function () {
   "use strict";
 
-  /* A3: the bearer token lives only in the URL fragment — strip it
-     immediately and keep it in memory (spec section 5.4/11.4). */
-  var orderToken = null;
-  if (location.hash.length > 1) {
-    orderToken = location.hash.slice(1);
-    history.replaceState(null, "", location.pathname);
-  }
+  var GM = (window.GM = window.GM || {});
 
-  /* A1: variation selector — an unchosen or disabled combination blocks
-     submit with the inline error (never a silent dead button). */
-  var form = document.getElementById("gm-checkout");
-  if (form) {
-    var variations = document.querySelectorAll(
-      "#gm-variations input[name=variation]"
-    );
-    var errorEl = form.querySelector(".form-error");
-    var varError = document.querySelector(".variation-error");
+  /* --- DOM helpers (never innerHTML with API values — XSS boundary) ---- */
 
-    form.addEventListener("submit", function (ev) {
-      ev.preventDefault();
-      if (errorEl) errorEl.hidden = true;
-      if (varError) varError.hidden = true;
-
-      var dTag = form.dataset.dTag;
-      if (variations.length) {
-        var chosen = document.querySelector(
-          "#gm-variations input[name=variation]:checked"
-        );
-        if (!chosen) {
-          if (varError) varError.hidden = false;
-          return;
+  GM.h = function (tag, attrs, children) {
+    var el = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function (k) {
+        if (k === "text") el.textContent = attrs[k];
+        else if (k === "class") el.className = attrs[k];
+        else if (k === "hidden" && attrs[k]) el.hidden = true;
+        else if (k.slice(0, 5) === "data-" || k === "role" ||
+                 k === "aria-live" || k === "aria-label" || k === "type" ||
+                 k === "href" || k === "readonly" || k === "id" ||
+                 k === "colspan" || k === "for") {
+          el.setAttribute(k, attrs[k]);
         }
-        dTag = chosen.value;
-      }
+      });
+    }
+    (children || []).forEach(function (c) {
+      el.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    });
+    return el;
+  };
 
-      var qty = parseInt(
-        (form.querySelector("input[name=quantity]") || {}).value || "1",
-        10
-      );
-      if (!(qty >= 1 && qty <= 10000)) {
-        if (errorEl) {
-          errorEl.textContent = "Enter a valid quantity.";
-          errorEl.hidden = false;
-        }
-        return;
-      }
+  GM.clear = function (el) {
+    while (el && el.firstChild) el.removeChild(el.firstChild);
+  };
 
-      /* Idempotency-Key: generated once per page load, [A-Za-z0-9_-]{32,128}
-         from >=128 random bits (spec section 5.4). */
-      if (!form.dataset.idem) {
-        var buf = new Uint8Array(32);
-        crypto.getRandomValues(buf);
-        form.dataset.idem = btoa(String.fromCharCode.apply(null, buf))
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
-      }
+  /* --- formatters ------------------------------------------------------- */
 
-      var email = (
-        (form.querySelector("input[name=email]") || {}).value || ""
-      ).trim();
-      var payload = {
-        merchant_pubkey: form.dataset.merchant,
-        items: [{ d_tag: dTag, quantity: qty }]
-      };
-      if (email) payload.contact = { email: email };
+  GM.sats = function (n) {
+    if (n === null || n === undefined) return "—";
+    return Number(n).toLocaleString("en-US") + " sats";
+  };
 
-      var btn = form.querySelector("button[type=submit]");
-      if (btn) btn.disabled = true;
-      fetch(form.dataset.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": form.dataset.idem
-        },
-        body: JSON.stringify(payload)
-      })
-        .then(function (resp) {
-          return resp.json().then(function (body) {
-            return { status: resp.status, body: body };
-          });
-        })
-        .then(function (r) {
-          if (r.status === 201 && r.body.public_token) {
-            location.href =
-              "/gammamarkets/order#" + r.body.public_token;
-            return;
-          }
-          if (errorEl) {
-            errorEl.textContent =
-              (r.body && (r.body.detail || r.body.title)) ||
-              "Checkout could not be started.";
-            errorEl.hidden = false;
-          }
-          if (btn) btn.disabled = false;
-        })
+  /* Middle-truncate a long reference (order ref, npub) for display. */
+  GM.trunc = function (s, head, tail) {
+    s = String(s || "");
+    head = head || 8;
+    tail = tail || 6;
+    if (s.length <= head + tail + 3) return s;
+    return s.slice(0, head) + "…" + s.slice(-tail);
+  };
+
+  /* --- fetch wrapper ----------------------------------------------------- */
+
+  GM.api = function (url, opts) {
+    opts = opts || {};
+    return fetch(url, {
+      method: opts.method || "GET",
+      headers: opts.headers || {},
+      body: opts.body,
+      credentials: "same-origin"
+    }).then(function (resp) {
+      return resp
+        .json()
         .catch(function () {
-          if (errorEl) {
-            errorEl.textContent = "Network error — try again.";
-            errorEl.hidden = false;
-          }
-          if (btn) btn.disabled = false;
+          return {};
+        })
+        .then(function (body) {
+          return { status: resp.status, body: body };
         });
     });
-  }
+  };
 
-  /* A3: order-status page — the token (already stripped from the URL)
-     travels only as X-Order-Token; the status poll renders state and
-     the invoice while awaiting payment. */
-  var statusEl = document.getElementById("gm-order");
-  if (statusEl && orderToken) {
-    var render = function (body) {
-      var html =
-        "<h1>Order " + body.state + "</h1>" +
-        "<p class=\"order-total\">" + body.total_sat + " sats</p>";
-      if (body.shipping_state) {
-        html += "<p class=\"order-shipping\">Shipping: " +
-          body.shipping_state + "</p>";
-      }
-      if (body.items && body.items.length) {
-        html += "<ul class=\"order-items\">";
-        body.items.forEach(function (item) {
-          html += "<li>" + item.title + " x" + item.quantity + "</li>";
-        });
-        html += "</ul>";
-      }
-      if (body.state === "awaiting_payment" && body.bolt11) {
-        html +=
-          "<p class=\"invoice-prompt\">Pay this Lightning invoice:</p>" +
-          "<textarea class=\"bolt11\" readonly>" + body.bolt11 +
-          "</textarea>";
-        if (body.invoice_expiry) {
-          html += "<p class=\"invoice-expiry\">Expires: " +
-            new Date(body.invoice_expiry * 1000).toLocaleString() +
-            "</p>";
-        }
-      }
-      if (body.payment_exception) {
-        html += "<p class=\"order-notice\">This order needs merchant" +
-          " attention — contact the store.</p>";
-      }
-      html += "<p class=\"opt-out\"><a href=\"#\" id=\"gm-opt-out\">" +
-        "Stop email notifications</a></p>";
-      statusEl.innerHTML = html;
-      var optOut = document.getElementById("gm-opt-out");
-      if (optOut) {
-        optOut.addEventListener("click", function (ev) {
-          ev.preventDefault();
-          fetch("/gammamarkets/api/v1/public/order-email-opt-out", {
-            method: "POST",
-            headers: { "X-Order-Token": orderToken }
-          });
-          optOut.textContent = "Email notifications stopped.";
-        });
-      }
-    };
-    var poll = function () {
-      fetch("/gammamarkets/api/v1/public/order-status", {
-        headers: { "X-Order-Token": orderToken }
-      })
-        .then(function (resp) {
-          return resp.json().then(function (body) {
-            return { status: resp.status, body: body };
-          });
-        })
-        .then(function (r) {
-          if (r.status === 200) {
-            render(r.body);
-            if (r.body.state === "awaiting_payment") {
-              setTimeout(poll, 4000);
-            }
-          } else {
-            statusEl.innerHTML =
-              "<p class=\"order-prompt\">Order link is not valid.</p>";
-          }
-        })
-        .catch(function () {
-          setTimeout(poll, 8000);
-        });
-    };
-    poll();
-  } else if (statusEl) {
-    statusEl.innerHTML =
-      "<h1>Order status</h1>" +
-      "<p class=\"order-prompt\">Open your order link to view its" +
-      " status.</p>";
+  /* --- §5.4 token contract -------------------------------------------------
+     The bearer token arrives ONLY as a URL fragment. Read it once, strip
+     it via history.replaceState, keep it in memory, send it as
+     X-Order-Token — never in path/query/links (§5.4/§11.4). */
+
+  var _token = null;
+  if (location.hash.length > 1) {
+    _token = location.hash.slice(1);
+    history.replaceState(null, "", location.pathname);
   }
+  GM.orderToken = function () {
+    return _token;
+  };
+  /* The checkout module hands over a freshly issued token (from the 201
+     response) — still memory-only, never written to storage or URLs. */
+  GM.setOrderToken = function (t) {
+    _token = t;
+  };
+  GM.statusUrl = function () {
+    /* The shareable status link carries the token in its fragment — the
+       fragment is never sent to the server by any browser. */
+    return _token
+      ? location.origin + "/gammamarkets/order#" + _token
+      : location.origin + "/gammamarkets/order";
+  };
+
+  /* --- buyer-facing labels + RFC 9457 -> friendly copy (copywriting
+         contract — verbatim strings) ------------------------------------- */
+
+  GM.STATE_LABELS = {
+    received: "Order received",
+    invoice_pending: "Creating invoice",
+    awaiting_payment: "Waiting for payment",
+    confirmed: "Payment confirmed",
+    processing: "Preparing your order",
+    completed: "Complete",
+    cancelled: "This order is no longer active",
+    rejected: "This order is no longer active",
+    expired: "This order is no longer active"
+  };
+
+  GM.ERROR_COPY = {
+    "insufficient-stock":
+      "Not enough stock available — reduce quantity or choose another item.",
+    "order-expired":
+      "Invoice expired — no payment was taken. Inventory will be released" +
+      " safely; create a new invoice only after status reconciliation" +
+      " finishes.",
+    "rate-limited": "Too many requests — wait a minute and try again.",
+    "invalid-shipping-destination":
+      "This item cannot be shipped to the selected destination."
+  };
+
+  GM.problemCopy = function (body) {
+    /* body is an RFC 9457 problem document (urn:gammamarkets:<code>). */
+    var code = "";
+    if (body && typeof body.type === "string") {
+      code = body.type.replace("urn:gammamarkets:", "");
+    }
+    return (
+      GM.ERROR_COPY[code] ||
+      (body && (body.detail || body.title)) ||
+      "Checkout could not be started."
+    );
+  };
+
+  /* Terminal order states — polling stops here (§5.4). */
+  GM.TERMINAL = {
+    confirmed: false, // confirmed still allows forward progress display
+    processing: false,
+    completed: true,
+    cancelled: true,
+    rejected: true,
+    expired: true
+  };
+  GM.isTerminal = function (state) {
+    return GM.TERMINAL[state] === true;
+  };
+
+  /* ISO 3166-1 alpha-2 country list for the checkout country select. */
+  GM.COUNTRIES = [
+    ["US", "United States"], ["CA", "Canada"], ["MX", "Mexico"],
+    ["BR", "Brazil"], ["AR", "Argentina"], ["CL", "Chile"], ["CO", "Colombia"],
+    ["GB", "United Kingdom"], ["IE", "Ireland"], ["FR", "France"],
+    ["DE", "Germany"], ["NL", "Netherlands"], ["BE", "Belgium"],
+    ["ES", "Spain"], ["PT", "Portugal"], ["IT", "Italy"], ["AT", "Austria"],
+    ["CH", "Switzerland"], ["SE", "Sweden"], ["NO", "Norway"],
+    ["DK", "Denmark"], ["FI", "Finland"], ["PL", "Poland"], ["CZ", "Czechia"],
+    ["GR", "Greece"], ["HU", "Hungary"], ["RO", "Romania"],
+    ["UA", "Ukraine"], ["TR", "Türkiye"], ["IL", "Israel"],
+    ["AU", "Australia"], ["NZ", "New Zealand"], ["JP", "Japan"],
+    ["KR", "South Korea"], ["SG", "Singapore"], ["HK", "Hong Kong"],
+    ["TW", "Taiwan"], ["IN", "India"], ["TH", "Thailand"], ["VN", "Vietnam"],
+    ["PH", "Philippines"], ["ID", "Indonesia"], ["MY", "Malaysia"],
+    ["ZA", "South Africa"], ["NG", "Nigeria"], ["KE", "Kenya"],
+    ["EG", "Egypt"], ["MA", "Morocco"], ["AE", "United Arab Emirates"],
+    ["SA", "Saudi Arabia"], ["IS", "Iceland"], ["LU", "Luxembourg"],
+    ["EE", "Estonia"], ["LV", "Latvia"], ["LT", "Lithuania"],
+    ["SK", "Slovakia"], ["SI", "Slovenia"], ["HR", "Croatia"],
+    ["BG", "Bulgaria"], ["PE", "Peru"], ["UY", "Uruguay"], ["CR", "Costa Rica"],
+    ["PA", "Panama"], ["DO", "Dominican Republic"], ["EC", "Ecuador"]
+  ];
+
+  /* Render a Lightning invoice QR into el using the host-vendored
+     vue-qrcode build (same-origin vendor script — no third-party code).
+     Vue.render mounts a standalone vnode; no app instance needed. */
+  GM.renderQr = function (el, value) {
+    if (!window.Vue || !window.QrcodeVue || !el) return;
+    var comp = window.QrcodeVue.default || window.QrcodeVue;
+    window.Vue.render(
+      window.Vue.h(comp, {
+        value: value,
+        size: 216,
+        level: "M",
+        renderAs: "svg",
+        margin: 2
+      }),
+      el
+    );
+  };
 })();

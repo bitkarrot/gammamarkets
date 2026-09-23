@@ -209,7 +209,8 @@ async def relay_health(merchant_id: str) -> dict:
                 }),
             }
             for c in configs
-        ]
+        ],
+        "blossom_servers": await get_blossom_servers(merchant_id),
     }
 
 

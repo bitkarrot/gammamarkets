@@ -169,7 +169,8 @@ async def test_public_product_page_states(runtime_env):
     resp = await client.get(url)
     assert resp.status_code == 200
     assert "gm-public" in resp.text
-    assert "Buy with Lightning" in resp.text
+    # A2 checkout card — the pre-invoice CTA per UI-SPEC.
+    assert "Review payment" in resp.text
     assert "default-src 'self'" in resp.headers["content-security-policy"]
     # no admin chrome or internals
     assert "wallet_id" not in resp.text

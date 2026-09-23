@@ -221,8 +221,14 @@ async def test_compact_fallback_and_gm_public_css(runtime_env):
         "/gammamarkets/static/gammamarkets/js/public_storefront.js"
     )
     assert js.status_code == 200
-    assert "Idempotency-Key" in js.text
     assert "history.replaceState" in js.text
+    # The checkout module (split from the shared helpers in 02-04) owns
+    # the Idempotency-Key contract.
+    checkout_js = await client.get(
+        "/gammamarkets/static/gammamarkets/js/public_checkout.js"
+    )
+    assert checkout_js.status_code == 200
+    assert "Idempotency-Key" in checkout_js.text
 
 
 async def test_order_page_shell(runtime_env):

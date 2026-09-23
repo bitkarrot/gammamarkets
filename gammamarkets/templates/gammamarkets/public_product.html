@@ -1,5 +1,11 @@
 {% extends "templates/gammamarkets/public_base.html" %}
 {% block title %}{{ product.title }}{% endblock %}
+{% block head %}
+{#- Host-vendored, same-origin vendor scripts for the invoice QR (script-src
+    'self' CSP permits them; nothing third-party ever loads). -#}
+<script src="/static/vendor/vue.global.prod.js" defer></script>
+<script src="/static/vendor/qrcode.vue.browser.js" defer></script>
+{% endblock %}
 {% block content %}
 <div class="product-layout" data-layout="{{ layout | default('editorial') }}">
   <section class="product-gallery">
@@ -33,44 +39,161 @@
       {% for k, v in product.specs.items() %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
     </dl>
     {% endif %}
-    {% if product.variations %}
-    <fieldset class="variation-selector" id="gm-variations">
-      <legend>Options</legend>
-      {% for v in product.variations %}
-      <label class="variation-option{% if v.sold or v.available == 0 %} is-disabled{% endif %}">
-        <input type="radio" name="variation" value="{{ v.d_tag }}"
-               data-price="{{ v.amount_minor }}"
-               {% if v.sold or v.available == 0 %}disabled{% endif %}>
-        {{ v.title or v.d_tag }}
-      </label>
-      {% endfor %}
-      <p class="variation-error" role="alert" hidden>That combination is not available.</p>
-    </fieldset>
-    {% endif %}
-    {% if product.shipping %}
-    <ul class="shipping-options">
-      {% for s in product.shipping %}
-      <li>{{ s.title or s.service }} — {{ s.base_price_minor + s.extra_cost_minor }} {{ s.currency }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
     {% if state == 'available' %}
-    <form class="buy-form" id="gm-checkout"
-          data-endpoint="/gammamarkets/api/v1/public/checkout"
-          data-merchant="{{ merchant_pubkey }}"
-          data-d-tag="{{ product.d_tag }}">
-      <label>Quantity
-        <input type="number" name="quantity" value="1" min="1" max="10000">
-      </label>
-      <label>Email for order updates <span class="optional">(optional)</span>
-        <input type="email" name="email" maxlength="320"
-               autocomplete="email">
-      </label>
-      <button type="submit" class="btn-buy">Buy with Lightning</button>
-      <p class="form-error" role="alert" hidden></p>
-    </form>
+    {#- A2 adaptive checkout card — the field set, summary, validation,
+        payment states, and security copy are invariant across presets
+        and themes (UI-SPEC §A2). -#}
+    <aside class="checkout-card" id="gm-checkout-card"
+           data-layout="{{ layout | default('editorial') }}">
+      <div class="progress" aria-label="Checkout progress" hidden>
+        <div class="progress-step" data-step="1">1 Product</div>
+        <div class="progress-step" data-step="2">2 Delivery</div>
+        <div class="progress-step" data-step="3">3 Pay</div>
+      </div>
+      <form class="buy-form" id="gm-checkout" novalidate
+            data-endpoint="/gammamarkets/api/v1/public/checkout"
+            data-merchant="{{ merchant_pubkey }}"
+            data-d-tag="{{ product.d_tag }}"
+            data-physical="{{ 'true' if product.format == 'physical' else 'false' }}"
+            data-currency="{{ product.price.currency or 'SAT' }}"
+            data-decimals="{{ product.price.decimals or 0 }}"
+            data-price-minor="{{ product.price.amount_minor or 0 }}">
+
+        <section class="co-section" data-step="1" data-open="true">
+          <button type="button" class="co-section-head" aria-expanded="true"
+                  hidden>Product</button>
+          <div class="co-section-body">
+            {% if product.variations %}
+            <fieldset class="variation-selector" id="gm-variations">
+              <legend>Options</legend>
+              {% for v in product.variations %}
+              <label class="variation-option{% if v.sold or v.available == 0 %} is-disabled{% endif %}">
+                <input type="radio" name="variation" value="{{ v.d_tag }}"
+                       data-price="{{ v.amount_minor }}"
+                       {% if v.sold or v.available == 0 %}disabled{% endif %}>
+                {{ v.title or v.d_tag }}
+              </label>
+              {% endfor %}
+              <p class="variation-error" role="alert" hidden>That combination is not available.</p>
+            </fieldset>
+            {% endif %}
+            <div class="field">
+              <label for="gm-qty">Quantity</label>
+              <input type="number" id="gm-qty" name="quantity" value="1"
+                     min="1" max="10000" inputmode="numeric">
+              <p class="field-error" data-error-for="quantity"
+                 aria-live="polite" hidden></p>
+            </div>
+            <div class="nav-row step-nav">
+              <span></span>
+              <button type="button" class="btn-primary" data-goto-step="2">Continue to delivery</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="co-section" data-step="2" data-open="true">
+          <button type="button" class="co-section-head" aria-expanded="true"
+                  hidden>Delivery</button>
+          <div class="co-section-body">
+            {% if product.format == 'physical' %}
+            <div class="field">
+              <label for="gm-country">Shipping country</label>
+              <select id="gm-country" name="country" autocomplete="country-name">
+                <option value="">Choose a country…</option>
+              </select>
+              <p class="field-error" data-error-for="country"
+                 aria-live="polite" hidden></p>
+            </div>
+            <div class="field">
+              <label for="gm-line1">Street address</label>
+              <input type="text" id="gm-line1" name="line1" maxlength="200"
+                     autocomplete="address-line1">
+            </div>
+            <div class="field">
+              <label for="gm-city">City</label>
+              <input type="text" id="gm-city" name="city" maxlength="100"
+                     autocomplete="address-level2">
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="gm-region">Region / state</label>
+                <input type="text" id="gm-region" name="region" maxlength="100"
+                       autocomplete="address-level1">
+              </div>
+              <div class="field">
+                <label for="gm-postal">Postal code</label>
+                <input type="text" id="gm-postal" name="postal_code"
+                       maxlength="20" autocomplete="postal-code">
+              </div>
+            </div>
+            {% if product.shipping %}
+            <div class="field">
+              <label for="gm-shipping">Shipping option</label>
+              <select id="gm-shipping" name="shipping_option">
+                <option value="">Choose a shipping option…</option>
+                {% for s in product.shipping %}
+                <option value="{{ s.d_tag }}"
+                        data-price="{{ s.base_price_minor + (s.extra_cost_minor or 0) }}">
+                  {{ s.title or s.service }} — {{ s.base_price_minor + (s.extra_cost_minor or 0) }} {{ s.currency }}
+                </option>
+                {% endfor %}
+              </select>
+              <p class="field-error" data-error-for="shipping_option"
+                 aria-live="polite" hidden></p>
+            </div>
+            {% endif %}
+            {% endif %}
+            <div class="field">
+              <label for="gm-email">Email for order updates
+                <span class="optional">(optional)</span></label>
+              <input type="email" id="gm-email" name="email" maxlength="320"
+                     autocomplete="email">
+              <p class="field-error" data-error-for="email"
+                 aria-live="polite" hidden></p>
+            </div>
+            <label class="check-row">
+              <input type="checkbox" name="email_opt_in">
+              <span>Send transactional updates. No marketing.</span>
+            </label>
+            <div class="nav-row step-nav">
+              <button type="button" class="btn-secondary" data-goto-step="1">Back</button>
+              <button type="button" class="btn-primary" data-goto-step="3">Review payment</button>
+            </div>
+          </div>
+        </section>
+
+        {#- The order summary + submit are OUTSIDE the step sections:
+            Items/Shipping/Total stay visible at every step and in every
+            preset (persistent summary is a contract invariant). -#}
+        <div class="summary" aria-label="Order summary">
+          <div class="summary-line">
+            <span>Items</span>
+            <strong data-sum="items">—</strong>
+          </div>
+          <div class="summary-line">
+            <span>Shipping</span>
+            <strong data-sum="shipping">—</strong>
+          </div>
+          <div class="summary-line total">
+            <span>Total</span>
+            <strong data-sum="total">—</strong>
+          </div>
+        </div>
+        <div class="nav-row">
+          <span></span>
+          <button type="submit" class="btn-primary">Review payment</button>
+        </div>
+        <p class="privacy">Your order token stays in this browser and is never placed in the URL.</p>
+
+        <p class="form-error" role="alert" hidden></p>
+      </form>
+      <div id="gm-invoice-panel" hidden aria-live="polite"></div>
+    </aside>
     {% endif %}
     <footer class="merchant-line">Sold by {{ merchant_name or merchant_pubkey }}</footer>
   </section>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="/gammamarkets/static/gammamarkets/js/public_checkout.js" defer></script>
 {% endblock %}

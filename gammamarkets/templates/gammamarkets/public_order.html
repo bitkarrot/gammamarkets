@@ -1,11 +1,31 @@
 {% extends "templates/gammamarkets/public_base.html" %}
 {% block title %}Order status{% endblock %}
+{% block head %}
+{#- Host-vendored, same-origin scripts for the invoice QR — CSP 'self'. -#}
+<script src="/static/vendor/vue.global.prod.js" defer></script>
+<script src="/static/vendor/qrcode.vue.browser.js" defer></script>
+{% endblock %}
 {% block content %}
 <div class="order-status" id="gm-order">
-  <h1>Order status</h1>
-  <p class="order-prompt">Open your order link to view its status.</p>
   {#- The bearer token arrives as a URL fragment only (spec §5.4):
-      public_storefront.js strips it with history.replaceState before
-      any network call and sends it as X-Order-Token. -#}
+      public_storefront.js strips it with history.replaceState before any
+      network call and public_order.js sends it as X-Order-Token. -#}
+  <h1>Order status</h1>
+  <p class="order-state" id="gm-order-state" aria-live="polite"></p>
+  <p class="order-checking" id="gm-order-checking" hidden>checking…</p>
+  <p class="order-prompt" id="gm-order-prompt">Open your order link to view its status.</p>
+  <p class="order-total" id="gm-order-ref"></p>
+  <div id="gm-order-detail"></div>
+  <ul class="order-items" id="gm-order-items"></ul>
+  <div id="gm-order-invoice" hidden></div>
+  <div class="order-actions">
+    <button type="button" class="btn-secondary" id="gm-copy-status-link"
+            hidden>Copy status link</button>
+    <button type="button" class="btn-secondary" id="gm-opt-out"
+            hidden>Stop order emails</button>
+  </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="/gammamarkets/static/gammamarkets/js/public_order.js" defer></script>
 {% endblock %}
