@@ -38,6 +38,15 @@ PORT = int(os.environ.get("GM_E2E_PORT", "5099"))
 BASE_URL = f"https://localhost:{PORT}"
 SEED_PATH = REPO_ROOT / "tests" / "e2e" / ".seed.json"
 
+# Fixed merchant identity so public URLs are stable across server
+# restarts (test-only key — the E2E database is disposable).
+E2E_NSEC = (
+    "nsec1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqstywftw"
+)
+E2E_PUBKEY = (
+    "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+)
+
 # All environment must be set BEFORE any lnbits import — `settings` and
 # `lnbits.core.db.db` bind these values at construction. Setting them as
 # attributes later leaves the core DB bound to ./data (repo root), which
@@ -99,8 +108,10 @@ async def _seed(app, seed: dict) -> None:
         )
     )
 
-    username = f"e2euser{uuid.uuid4().hex[:8]}"
-    password = "e2e-pass-1234"
+    # Fixed credentials so a human can log into the browser session —
+    # local E2E only, never reused (fresh tmp DB per run).
+    username = "admin"
+    password = "adminpass123"
     account = Account(id=uuid.uuid4().hex, username=username, email=None)
     account.hash_password(password)
     await create_account(account)
@@ -151,11 +162,16 @@ async def _seed(app, seed: dict) -> None:
         mid = resp.json()["id"]
 
         from gammamarkets.db import DomainTransaction
+        from gammamarkets.services import merchant as merchant_service
         from gammamarkets.services import relay as relay_service
 
         # A merchant that reached `active` through publish would have the
         # starter relay set — seed it directly (RELAY_IO=off, no publish).
         await relay_service.ensure_default_relays(mid)
+
+        # Fixed test identity so storefront/product URLs are STABLE across
+        # restarts (key material is test-only; the seed DB is disposable).
+        await merchant_service.import_nsec(mid, account, E2E_NSEC)
 
         async with DomainTransaction() as tx:
             await tx.execute(
@@ -178,6 +194,7 @@ async def _seed(app, seed: dict) -> None:
             f"{api}/products",
             json={
                 "catalog_id": cid,
+                "d_tag": "e2e-digital-tour",
                 "title": "e2e digital tour",
                 "amount_minor": 2500,
                 "currency": "SAT",
@@ -207,6 +224,7 @@ async def _seed(app, seed: dict) -> None:
             f"{api}/products",
             json={
                 "catalog_id": cid,
+                "d_tag": "e2e-poster",
                 "title": "e2e poster",
                 "amount_minor": 7500,
                 "currency": "SAT",
