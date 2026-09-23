@@ -201,17 +201,20 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
         )
         cid = resp.json()["id"]
 
+        img_base = f"{BASE_URL}/gammamarkets/static/gammamarkets/img"
         resp = await client.post(
             f"{api}/products",
             json={
                 "catalog_id": cid,
                 "d_tag": "e2e-digital-tour",
                 "title": "e2e digital tour",
+                "summary": "A guided digital tour experience",
                 "amount_minor": 2500,
                 "currency": "SAT",
                 "visibility": "on-sale",
                 "stock_on_hand": 10,
                 "format": "digital",
+                "images": [{"url": f"{img_base}/demo-digital.svg"}],
             },
             headers=await cookie(),
         )
@@ -237,12 +240,14 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
                 "catalog_id": cid,
                 "d_tag": "e2e-poster",
                 "title": "e2e poster",
+                "summary": "Printed poster — ships tracked",
                 "amount_minor": 7500,
                 "currency": "SAT",
                 "visibility": "on-sale",
                 "stock_on_hand": 5,
                 "format": "physical",
                 "shipping_option_ids": [shipping["id"]],
+                "images": [{"url": f"{img_base}/demo-poster.svg"}],
             },
             headers=await cookie(),
         )

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Poster">
+  <defs>
+    <linearGradient id="pbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d0d8cf"/>
+      <stop offset="0.5" stop-color="#81938a"/>
+      <stop offset="1" stop-color="#526b60"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#pbg)"/>
+  <rect x="230" y="80" width="340" height="440" rx="6" fill="#221f1a" opacity="0.9"/>
+  <rect x="248" y="98" width="304" height="404" fill="#faf8f5"/>
+  <circle cx="400" cy="235" r="82" fill="#c98f4e"/>
+  <path d="M262 420 L340 300 L400 372 L448 318 L538 420 Z" fill="#8a5a2b"/>
+  <rect x="290" y="440" width="220" height="14" rx="7" fill="#b26e4c"/>
+  <rect x="330" y="464" width="140" height="10" rx="5" fill="#c9b8a3"/>
+  <text x="400" y="565" text-anchor="middle" font-family="system-ui,sans-serif"
+        font-size="30" font-weight="700" fill="#2c3a34">E2E Poster</text>
+</svg>
