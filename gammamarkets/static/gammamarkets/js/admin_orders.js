@@ -348,11 +348,16 @@
       }
     },
     mounted: function () {
-      /* One watcher total — mixin hooks run per component. */
+      /* Wire once, on the app root — mixin hooks run per component and
+         a leaf's gm is a different object than the root's (the one the
+         template renders). */
       if (window._gmOrdersWired) return;
+      var vueEl = document.getElementById("vue");
+      var root = vueEl && vueEl._vnode && vueEl._vnode.component;
+      if (!root || !root.isMounted) return;
       if (!document.getElementById("gm-admin-root")) return;
       window._gmOrdersWired = true;
-      var self = this;
+      var self = root.proxy;
       self.$watch("gm.merchant", function (m) {
         if (m && self.gm.view === "orders") self.gmLoadOrders();
       });

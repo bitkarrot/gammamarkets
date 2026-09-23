@@ -179,12 +179,18 @@
       }
     },
     mounted: function () {
-      /* A global mixin hooks EVERY component — bootstrap once only. */
+      /* Global-mixin hooks fire per component, children BEFORE parents,
+         and other Vue roots on the page (e.g. standalone widgets) also
+         pass $root === this — their gm is NOT the state rendering this
+         page. Bootstrap must always target the component instance that
+         owns #vue (the root rendering #gm-admin-root). */
       if (window._gmBooted) return;
-      if (document.getElementById("gm-admin-root")) {
-        window._gmBooted = true;
-        this.gmLoad();
-      }
+      var vueEl = document.getElementById("vue");
+      var root = vueEl && vueEl._vnode && vueEl._vnode.component;
+      if (!root || !root.isMounted) return;
+      if (!document.getElementById("gm-admin-root")) return;
+      window._gmBooted = true;
+      root.proxy.gmLoad();
     }
   });
 })();

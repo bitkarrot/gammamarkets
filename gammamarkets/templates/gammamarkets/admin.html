@@ -476,26 +476,16 @@
               No write relays configured — add at least one relay to
               publish your catalog.
             </div>
-            <q-markup-table v-else dense flat>
-              <thead>
-                <tr>
-                  <th class="text-left">Relay</th>
-                  <th class="text-left">Direction</th>
-                  <th class="text-left">Connection</th>
-                  <th class="text-left">Last positive ACK</th>
-                  <th class="text-left">Rejected / timed out</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="r in gmPubs.relays" :key="r.relay_url + r.direction">
-                  <td><code>{{ r.relay_url }}</code></td>
-                  <td>{{ r.direction }}</td>
-                  <td>{{ r.enabled ? 'enabled' : 'disabled' }}</td>
-                  <td>{{ r.accepted ? r.accepted + ' accepted · ' + gmTime(r.last_attempt_at) : '—' }}</td>
-                  <td>{{ r.rejected || r.timeout ? (r.rejected + ' rejected · ' + r.timeout + ' timed out') : '—' }}</td>
-                </tr>
-              </tbody>
-            </q-markup-table>
+            <!-- q-table, not q-markup-table: this page compiles as an
+                 in-DOM template and the HTML parser foster-parents
+                 thead/tr children out of unknown custom elements. -->
+            <q-table v-else dense flat :rows="gmPubs.relays"
+                     row-key="rkey" :columns="gmRelayColumns"
+                     :pagination="{ rowsPerPage: 20 }">
+              <template v-slot:body-cell-relay_url="props">
+                <q-td :props="props"><code>{{ props.row.relay_url }}</code></q-td>
+              </template>
+            </q-table>
           </q-card-section>
         </q-card>
 

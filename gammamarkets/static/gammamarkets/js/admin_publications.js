@@ -28,6 +28,11 @@
     superseded: "Superseded"
   };
 
+  function fmtTime(ts) {
+    if (!ts) return "—";
+    return new Date(ts * 1000).toLocaleString();
+  }
+
   window.app.mixin({
     data: function () {
       return {
@@ -40,7 +45,31 @@
           intents: [],
           retrying: null,
           exceptionOrders: []
-        }
+        },
+        /* q-table columns for the relay-health surface (q-markup-table
+           can't be used — in-DOM template foster-parenting breaks it). */
+        gmRelayColumns: [
+          { name: "relay_url", label: "Relay", field: "relay_url",
+            align: "left" },
+          { name: "direction", label: "Direction", field: "direction",
+            align: "left" },
+          { name: "connection", label: "Connection", align: "left",
+            field: function (r) {
+              return r.enabled ? "enabled" : "disabled";
+            } },
+          { name: "ack", label: "Last positive ACK", align: "left",
+            field: function (r) {
+              return r.accepted
+                ? r.accepted + " accepted · " + fmtTime(r.last_attempt_at)
+                : "—";
+            } },
+          { name: "failures", label: "Rejected / timed out", align: "left",
+            field: function (r) {
+              return r.rejected || r.timeout
+                ? r.rejected + " rejected · " + r.timeout + " timed out"
+                : "—";
+            } }
+        ]
       };
     },
     methods: {
@@ -90,7 +119,10 @@
               "/merchants/" + mid + "/orders?state=needs_attention"
             )
           ]);
-          self.gmPubs.relays = res[0].relays || [];
+          self.gmPubs.relays = (res[0].relays || []).map(function (r) {
+            r.rkey = r.relay_url + ":" + r.direction;
+            return r;
+          });
           self.gmPubs.defaults = res[0].defaults || { relays: [] };
           self.gmPubs.blossomServers = res[0].blossom_servers || [];
           self.gmPubs.intents = res[1].intents || [];
@@ -125,9 +157,12 @@
     },
     mounted: function () {
       if (window._gmPubsWired) return;
+      var vueEl = document.getElementById("vue");
+      var root = vueEl && vueEl._vnode && vueEl._vnode.component;
+      if (!root || !root.isMounted) return;
       if (!document.getElementById("gm-admin-root")) return;
       window._gmPubsWired = true;
-      var self = this;
+      var self = root.proxy;
       self.$watch("gm.merchant", function (m) {
         if (m && self.gm.view === "publications") {
           self.gmLoadPublications();

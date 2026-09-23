@@ -1,0 +1,8 @@
+{
+  "name": "gammamarkets-e2e",
+  "private": true,
+  "description": "Playwright E2E for the gammamarkets extension - buyer + admin journeys against a real host boot (tools/e2e_server.py).",
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

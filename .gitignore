@@ -18,3 +18,9 @@ __pycache__/
 
 # Stray host runtime artifacts (auth key written at import-time relative to cwd)
 data/
+
+# Playwright E2E (tests/e2e)
+tests/e2e/node_modules/
+tests/e2e/.seed.json
+tests/e2e/test-results/
+tests/e2e/playwright-report/

@@ -68,9 +68,10 @@ async def index(request: Request, user: User = Depends(check_user_exists)):
         request,
         "templates/gammamarkets/admin.html",
         {
-            # pydantic's own encoder first: UUID/datetime values inside
-            # user.dict() break the host's globally patched JSONEncoder.
-            "user": json.loads(user.json()),
+            # base.html does JSON.parse({{ user | tojson }}) — it needs the
+            # user as a JSON STRING (host convention, see
+            # lnbits/core/views/generic.py), not a dict.
+            "user": user.json(),
         },
     )
 

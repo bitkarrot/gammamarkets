@@ -450,9 +450,12 @@
     },
     mounted: function () {
       if (window._gmSettingsWired) return;
+      var vueEl = document.getElementById("vue");
+      var root = vueEl && vueEl._vnode && vueEl._vnode.component;
+      if (!root || !root.isMounted) return;
       if (!document.getElementById("gm-admin-root")) return;
       window._gmSettingsWired = true;
-      var self = this;
+      var self = root.proxy;
       self.$watch("gm.merchant", function (m) {
         if (m && self.gm.view === "settings") {
           self.gmLoadSettings();
