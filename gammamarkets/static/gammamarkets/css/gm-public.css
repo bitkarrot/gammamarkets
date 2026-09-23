@@ -74,6 +74,7 @@
   font-size: 14px;
 }
 .gm-public .chip-sold { border-color: var(--color-primary); color: var(--color-primary); }
+.gm-public .chip-preorder { border-style: dashed; }
 
 .gm-public .product-description {
   max-height: 40em;
@@ -372,6 +373,26 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.gm-public .card-price { margin: 0; font-weight: 600; }
+.gm-public .merchant-about {
+  color: var(--color-text-muted);
+  max-width: 60ch;
+}
+.gm-public .collection-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0;
+}
+.gm-public .collection-link {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.gm-public .collection-link:hover { border-color: var(--color-primary); }
+.gm-public .storefront-empty { color: var(--color-text-muted); }
 .gm-public .merchant-line { color: var(--color-text-muted); font-size: 14px; }
 .gm-public .merchant-picture { max-width: 96px; border-radius: var(--radius-md); }
 .gm-public .public-error { padding: var(--space-16) 0; text-align: center; }

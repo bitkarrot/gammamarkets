@@ -204,6 +204,43 @@ async def merchant_page(request: Request, pubkey: str):
     profile = (
         json.loads(merchant["profile_json"]) if merchant["profile_json"] else {}
     )
+    from .db import db, table
+
+    async with db.connect() as conn:
+        products = await conn.fetchall(
+            f"SELECT * FROM {table('products')} "
+            "WHERE merchant_id = :m AND deleted_at IS NULL AND NOT draft"
+            " AND parent_product_id IS NULL AND visibility != 'hidden'"
+            " ORDER BY created_at",
+            {"m": merchant["id"]},
+        )
+        # Storefront index lists only collections with at least one
+        # visible member — zero-member collections are never rendered
+        # (they are unpublishable by contract).
+        collections = await conn.fetchall(
+            f"SELECT c.* FROM {table('collections')} c "
+            "WHERE c.merchant_id = :m AND c.deleted_at IS NULL"
+            " AND EXISTS ("
+            f"SELECT 1 FROM {table('product_collections')} pc "
+            f"JOIN {table('products')} p ON p.id = pc.product_id "
+            "WHERE pc.collection_id = c.id AND p.deleted_at IS NULL"
+            " AND NOT p.draft AND p.visibility != 'hidden'"
+            ") ORDER BY c.title",
+            {"m": merchant["id"]},
+        )
+    cards = [
+        {
+            "d_tag": p["d_tag"],
+            "title": p["title"] or "",
+            "amount_minor": p["amount_minor"],
+            "currency": p["currency"],
+            "currency_decimals": p["currency_decimals"],
+            "availability": nip89.availability_state(
+                dict(p) | {"_merchant": merchant}
+            ),
+        }
+        for p in products
+    ]
     from .services import themes as theme_service
 
     return _public_response(
@@ -214,6 +251,15 @@ async def merchant_page(request: Request, pubkey: str):
             "display_name": merchant.get("display_name") or "",
             "about": profile.get("about", ""),
             "picture": profile.get("picture"),
+            "products": cards,
+            "collections": [
+                {
+                    "d_tag": c["d_tag"],
+                    "title": c["title"] or "",
+                    "description": c["description"] or "",
+                }
+                for c in collections
+            ],
             "theme_css": theme_service.emit_css(
                 await theme_service.get_theme(merchant["id"])
             ),

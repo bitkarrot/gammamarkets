@@ -6,4 +6,27 @@
   <h1>{{ display_name }}</h1>
   {% if about %}<p class="merchant-about">{{ about }}</p>{% endif %}
 </header>
+{% if collections %}
+<nav class="collection-nav" aria-label="Collections">
+  {% for c in collections %}
+  <a class="collection-link" href="/gammamarkets/public/collections/{{ pubkey }}/{{ c.d_tag }}">{{ c.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+{% if products %}
+<div class="card-grid">
+  {% for p in products %}
+  <a class="product-card" href="/gammamarkets/p/{{ pubkey }}/{{ p.d_tag }}">
+    <h2 class="card-title">{{ p.title }}</h2>
+    {% if p.amount_minor is not none %}
+    <p class="card-price">{{ p.amount_minor }} {{ p.currency }}</p>
+    {% endif %}
+    {% if p.availability == 'sold' %}<span class="chip chip-sold">Sold out</span>{% endif %}
+    {% if p.availability == 'preorder' %}<span class="chip chip-preorder">Pre-order — purchasing opens later.</span>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="storefront-empty">This shop has no products on sale yet.</p>
+{% endif %}
 {% endblock %}

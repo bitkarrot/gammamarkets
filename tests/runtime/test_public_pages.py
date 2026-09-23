@@ -143,6 +143,14 @@ async def test_collection_and_merchant_pages(runtime_env):
     assert resp.status_code == 200
     _assert_public_headers(resp)
     assert merchant["pubkey"] in resp.text or "merchant" in resp.text
+    # Storefront index: the on-sale product card + collection link render
+    # (draft/hidden/variation rows are filtered server-side).
+    assert product["title"] in resp.text
+    assert f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}" in resp.text
+    assert (
+        f"/gammamarkets/public/collections/{merchant['pubkey']}/"
+        f"{collection['d_tag']}" in resp.text
+    )
 
     # JSON equivalents honor the same headers + field contract
     resp = await client.get(
