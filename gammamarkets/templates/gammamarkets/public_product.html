@@ -9,11 +9,28 @@
 {% block content %}
 <div class="product-layout" data-layout="{{ layout | default('editorial') }}">
   <section class="product-gallery">
-    {% for img in product.images[:16] %}
-    <img src="{{ img.url }}" alt="{{ product.title }}" loading="lazy"
-         referrerpolicy="no-referrer"
-         {% if img.dimensions %}data-dimensions="{{ img.dimensions }}"{% endif %}>
-    {% endfor %}
+    {% if product.images %}
+    <div class="gallery{{ ' single' if product.images | length == 1 }}">
+      {% if product.images | length > 1 %}
+      <div class="thumbs" aria-label="Product views">
+        {% for img in product.images[:8] %}
+        <button type="button" class="thumb{{ ' active' if loop.first }}"
+                data-gallery-src="{{ img.url }}"
+                aria-label="Product view {{ loop.index }}">
+          <img src="{{ img.url }}" alt="" loading="lazy"
+               referrerpolicy="no-referrer">
+        </button>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="gallery-main">
+        <img id="gm-gallery-main" src="{{ product.images[0].url }}"
+             alt="{{ product.title }}" referrerpolicy="no-referrer"
+             {% if product.images[0].dimensions %}
+             data-dimensions="{{ product.images[0].dimensions }}"{% endif %}>
+      </div>
+    </div>
+    {% endif %}
   </section>
   <section class="product-detail">
     <header>

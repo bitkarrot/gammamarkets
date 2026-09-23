@@ -174,6 +174,22 @@
     ["PA", "Panama"], ["DO", "Dominican Republic"], ["EC", "Ecuador"]
   ];
 
+  /* Gallery thumbs swap the main product image (sketch 001 editorial
+     gallery). Delegated listener — no inline handlers, CSP-safe. */
+  document.addEventListener("click", function (ev) {
+    var thumb =
+      ev.target && ev.target.closest
+        ? ev.target.closest(".thumb[data-gallery-src]")
+        : null;
+    if (!thumb) return;
+    var main = document.getElementById("gm-gallery-main");
+    if (main) main.src = thumb.getAttribute("data-gallery-src");
+    document.querySelectorAll(".thumb").forEach(function (el) {
+      el.classList.remove("active");
+    });
+    thumb.classList.add("active");
+  });
+
   /* Render a Lightning invoice QR into el using the host-vendored
      vue-qrcode build (same-origin vendor script — no third-party code).
      Vue.render mounts a standalone vnode; no app instance needed. */
