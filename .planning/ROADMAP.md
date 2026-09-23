@@ -116,7 +116,7 @@ Plans:
 Plans:
 
 - [ ] 04-01: Literal NIP-15 catalog/message adapters and compatibility fixtures
-- [ ] 04-02: Migration preview/import/dry-run and signed liability manifest
+- [ ] 04-02: Migration preview/import/dry-run and signed liability manifest — nostrmarket JSON/Nostr events plus e-commerce CSV upload (Shopify format first, column-mapping extensible to WooCommerce); rows map onto the product DTOs and flow through the normal create/validate/publish path
 - [ ] 04-03: Single-writer cutover rehearsal, external client verification, and Release-C gate
 
 ## Progress

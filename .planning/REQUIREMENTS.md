@@ -62,7 +62,7 @@
 
 - [ ] **LEG-01**: Merchant can publish literal NIP-15 `30017`/`30018` projections with pair-array specs, integer-or-null quantity, stable mapped identifiers, and explicit lossy-preview warnings.
 - [ ] **LEG-02**: Legacy buyer can exchange literal top-level type 0/1/2 NIP-04 messages against the canonical order model; unsupported opaque-address physical orders are rejected before reservation.
-- [ ] **LEG-03**: Merchant can preview, validate, dry-run, execute, and audit JSON/Nostr legacy catalog import without arbitrary path/URL/database access or private-key leakage.
+- [ ] **LEG-03**: Merchant can preview, validate, dry-run, execute, and audit JSON/Nostr legacy catalog import without arbitrary path/URL/database access or private-key leakage. Import sources include nostrmarket JSON/Nostr events AND e-commerce CSV exports (Shopify first; column-mapping extensible to WooCommerce) — file upload only, never URL fetch.
 - [ ] **LEG-04**: Merchant can freeze old order intake and reconcile, wait, or partition every still-payable `legacy_liability_qty` before imported stock is sellable, independent of key strategy.
 - [ ] **LEG-05**: Release C passes literal NIP-15 client fixtures and a scarce-stock cutover rehearsal in which an old unpaid invoice and a new catalog can never allocate the same unit twice.
 
