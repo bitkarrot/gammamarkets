@@ -2,9 +2,11 @@
 
 Boots the pinned host through uvicorn with the same posture as the
 runtime suite (FakeWallet, extension symlinked into a tmp
-LNBITS_EXTENSIONS_PATH, GAMMAMARKETS_* env, relay IO off), seeds an
+LNBITS_EXTENSIONS_PATH, GAMMAMARKETS_* env), plus a real local Nostr
+relay (harness.relay.LocalRelay) so outbox publication produces genuine
+positive-ACK evidence instead of external-relay failures. Seeds an
 account/wallet/merchant/catalog/products + one live order via the real
-HTTP APIs, then serves until killed.
+HTTP APIs and the real publish path, then serves until killed.
 
 Two harness-only routes are registered on the app AFTER startup —
 ``/_e2e/settle`` (pays the order's invoice through FakeWallet and runs
@@ -23,6 +25,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -66,7 +69,11 @@ os.environ.update(
         "GAMMAMARKETS_ACTIVE_KEY_VERSION": "v1",
         "GAMMAMARKETS_PRIVACY_KEY": base64.b64encode(b"p" * 32).decode(),
         "GAMMAMARKETS_PUBLIC_BASE_URL": BASE_URL,
-        "GAMMAMARKETS_RELAY_IO": "off",
+        # Real relay I/O against the local LocalRelay — deterministic
+        # positive ACKs, no external relay dependency.
+        "GAMMAMARKETS_RELAY_IO": "on",
+        # TEST-ONLY escape hatch: permits ws:// loopback relay targets.
+        "GAMMAMARKETS_ALLOW_INSECURE_RELAYS": "1",
         # Host settings via env so they are in place at settings/db
         # construction — not just attribute assignment after the fact.
         "LNBITS_DATA_FOLDER": str(DATA_DIR),
@@ -82,9 +89,10 @@ os.environ.update(
 )
 
 
-async def _seed(app, seed: dict) -> None:
+async def _seed(app, seed: dict, relay_url: str) -> None:
     """Create account/wallet/merchant/catalog/products/order through the
-    same paths the runtime suite uses."""
+    same paths the runtime suite uses, then run the real publish path so
+    outbox intents get genuine ACKs from the local relay."""
     import httpx
     from lnbits.core.crud import create_wallet
     from lnbits.core.crud.users import create_account
@@ -163,25 +171,28 @@ async def _seed(app, seed: dict) -> None:
 
         from gammamarkets.db import DomainTransaction
         from gammamarkets.services import merchant as merchant_service
-        from gammamarkets.services import relay as relay_service
-
-        # A merchant that reached `active` through publish would have the
-        # starter relay set — seed it directly (RELAY_IO=off, no publish).
-        await relay_service.ensure_default_relays(mid)
 
         # Fixed test identity so storefront/product URLs are STABLE across
         # restarts (key material is test-only; the seed DB is disposable).
         await merchant_service.import_nsec(mid, account, E2E_NSEC)
 
+        # The merchant publishes to the LOCAL relay only — enabled, 'both'
+        # direction so it serves public publish targets (and future inbox).
+        # Seeded before publish() so ensure_default_relays leaves it alone.
         async with DomainTransaction() as tx:
             await tx.execute(
-                "UPDATE merchants SET state = 'active' WHERE id = :m",
-                {"m": mid},
+                f"INSERT INTO {tx.table('relay_configs')} "
+                "(id, merchant_id, relay_url, direction, enabled,"
+                " created_at, updated_at) VALUES (:i, :m, :u, 'both', 1,"
+                " :t, :t)",
+                {
+                    "i": uuid.uuid4().hex,
+                    "m": mid,
+                    "u": relay_url,
+                    "t": int(time.time()),
+                },
             )
-            merchant = await tx.fetch_one(
-                "SELECT pubkey FROM merchants WHERE id = :m", {"m": mid}
-            )
-        pubkey = merchant["pubkey"]
+        pubkey = E2E_PUBKEY
 
         resp = await client.post(
             f"{api}/catalogs",
@@ -238,6 +249,25 @@ async def _seed(app, seed: dict) -> None:
         assert resp.status_code == 201, resp.text
         physical = resp.json()
 
+        # Real publish path: enqueues every aggregate intent; the outbox
+        # worker signs + delivers to the local relay and flips the merchant
+        # draft -> publication_pending -> active on profile ACK.
+        resp = await client.post(
+            f"{api}/merchants/{mid}/publish",
+            headers=await cookie(),
+        )
+        assert resp.status_code in (200, 202), resp.text
+        for _ in range(80):
+            async with DomainTransaction() as tx:
+                state = await tx.fetch_one(
+                    "SELECT state FROM merchants WHERE id = :m", {"m": mid}
+                )
+            if state and state["state"] == "active":
+                break
+            await asyncio.sleep(0.5)
+        else:
+            raise RuntimeError("merchant did not reach active via publish")
+
         # One live order so the admin Orders tab has a row on load.
         resp = await client.post(
             f"{api}/public/checkout",
@@ -269,6 +299,7 @@ async def _seed(app, seed: dict) -> None:
             "physical": physical,
             "shipping": shipping,
             "seeded_order_token": order["public_token"],
+            "relay_url": relay_url,
             "digital_url": f"{BASE_URL}/gammamarkets/p/{pubkey}/{digital['d_tag']}",
             "physical_url": f"{BASE_URL}/gammamarkets/p/{pubkey}/{physical['d_tag']}",
         }
@@ -331,6 +362,12 @@ async def main() -> None:
 
     settings.first_install = True
 
+    # Local Nostr relay — deterministic positive ACKs for outbox
+    # publication; no external relay dependency in E2E.
+    from harness.relay import LocalRelay, RelayMode
+
+    local_relay = await LocalRelay(mode=RelayMode.ACCEPTING).start()
+
     cert = TMP / "e2e.pem"
     key = TMP / "e2e-key.pem"
     import subprocess
@@ -389,12 +426,18 @@ async def main() -> None:
     if ext_module.started_at is None:
         await check_and_register_extensions(app)
 
-    await _seed(app, seed)
+    await _seed(app, seed, local_relay.url)
     SEED_PATH.parent.mkdir(parents=True, exist_ok=True)
     SEED_PATH.write_text(json.dumps(seed, indent=2))
-    print(f"e2e server ready at {BASE_URL} — seed -> {SEED_PATH}")
+    print(
+        f"e2e server ready at {BASE_URL} — relay {local_relay.url}"
+        f" — seed -> {SEED_PATH}"
+    )
 
-    await serve
+    try:
+        await serve
+    finally:
+        await local_relay.stop()
 
 
 if __name__ == "__main__":

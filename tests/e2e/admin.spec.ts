@@ -104,12 +104,12 @@ test('publications surface shows relay health + evidence copy', async ({
       'Relay ACKs are delivery evidence — they never mean payment settled.'
     )
   ).toBeVisible({timeout: 15_000})
-  // Starter relay seeded at merchant creation (scoped — the settings
-  // surface renders the same relay URL in hidden DOM)
+  // Local relay seeded for the merchant — real positive-ACK evidence
+  // lands here after publish (scoped: settings renders it too)
   await expect(
     page
       .locator('[data-gm-surface="publications"]')
-      .getByText('wss://relay.nostr.net')
+      .getByText(seed.relay_url)
       .first()
   ).toBeVisible()
 })
@@ -124,7 +124,7 @@ test('settings surface: identity, relays, notifications, appearance', async ({
     timeout: 15_000
   })
   await expect(
-    settings.getByText('wss://relay.nostr.net').first()
+    settings.getByText(seed.relay_url).first()
   ).toBeVisible()
   await expect(
     page.getByRole('button', {name: 'Save relay configuration'})

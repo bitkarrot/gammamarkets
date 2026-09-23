@@ -908,8 +908,31 @@
                   <div class="gm-preview-inner">
                     <strong>{{ gmSettings.theme.brand.name || gm.merchant.display_name || 'Your store' }}</strong>
                     <p :style="{ color: 'var(--color-text-muted)' }">
-                      A sample product card on your public storefront.
+                      A sample checkout card on your public storefront.
                     </p>
+                    <div class="gm-preview-checkout">
+                      <div v-if="gmSettings.theme.layout === 'guided'"
+                           class="gm-preview-steps">
+                        <span class="gm-preview-dot is-active"></span>
+                        <span class="gm-preview-dot"></span>
+                        <span class="gm-preview-dot"></span>
+                      </div>
+                      <template v-for="(sec, i) in ['Product', 'Delivery', 'Pay']"
+                                :key="sec">
+                        <div class="gm-preview-sec">
+                          <div v-if="gmSettings.theme.layout === 'compact'"
+                               class="gm-preview-sec-head">
+                            {{ sec }}
+                            <span class="gm-preview-caret">›</span>
+                          </div>
+                          <div v-else-if="gmSettings.theme.layout === 'editorial' || i === 0"
+                               class="gm-preview-sec-body">
+                            <span class="gm-preview-line"></span>
+                            <span class="gm-preview-line short"></span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
                     <span class="gm-preview-btn"
                           :style="{ background: 'var(--color-primary)', color: 'var(--color-on-primary)', borderRadius: 'var(--radius-md)' }">
                       Review payment
@@ -1301,6 +1324,35 @@
   padding: 10px 20px;
   font-weight: 600;
 }
+.gm-preview-checkout {
+  border: 1px solid var(--color-border, #d9d4cc);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface, #fff);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.gm-preview-steps { display: flex; gap: 6px; margin-bottom: 8px; }
+.gm-preview-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--color-border, #d9d4cc);
+}
+.gm-preview-dot.is-active { background: var(--color-primary, #8a5a2b); }
+.gm-preview-sec { margin-bottom: 6px; }
+.gm-preview-sec-head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; font-weight: 600;
+  border: 1px solid var(--color-border, #d9d4cc);
+  border-radius: var(--radius-sm, 4px);
+  padding: 6px 8px;
+}
+.gm-preview-caret { color: var(--color-text-muted, #6b655c); }
+.gm-preview-sec-body { padding: 6px 4px; }
+.gm-preview-line {
+  display: block; height: 8px; margin-bottom: 5px;
+  border-radius: 3px;
+  background: var(--color-surface-alt, #f2efe9);
+}
+.gm-preview-line.short { width: 60%; }
 .gm-dryrun-json {
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
