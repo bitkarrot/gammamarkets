@@ -118,6 +118,9 @@
       gmCopy: function (text) {
         if (navigator.clipboard) navigator.clipboard.writeText(text);
       },
+      gmOrigin: function () {
+        return window.location.origin;
+      },
       gmLoad: async function () {
         var self = this;
         self.gm.loadError = null;
