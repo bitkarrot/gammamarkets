@@ -29,6 +29,7 @@
 
   /* --- guided stepper (Product → Delivery → Pay) ------------------------- */
   var step = 1;
+  var lastMode = null;
 
   function syncVisibility() {
     var mode = effectiveLayout();
@@ -37,13 +38,17 @@
       var n = Number(sec.getAttribute("data-step") || "0");
       if (!body) return;
       if (mode === "guided") {
-        body.hidden = n > step;
+        /* Sketch 001-B: exactly one step panel at a time — step 3 (Pay)
+           shows only the persistent summary + submit. */
+        body.hidden = n !== step;
       } else if (mode === "compact") {
         body.hidden = sec.getAttribute("data-open") !== "true";
       } else {
         body.hidden = false;
       }
     });
+    var payBack = card.querySelector("[data-pay-back]");
+    if (payBack) payBack.hidden = !(mode === "guided" && step === 3);
     card.querySelectorAll(".progress-step").forEach(function (el) {
       el.classList.toggle(
         "active",
@@ -59,12 +64,36 @@
   function applyLayout() {
     var mode = effectiveLayout();
     card.setAttribute("data-mode", mode);
+    /* The preset recomposes the WHOLE page shell, not just the card —
+       guided = focused step flow, compact = narrow express sheet
+       (sketch 001-B/C). */
+    var layout = card.closest(".product-layout");
+    if (layout) layout.setAttribute("data-mode", mode);
     var progress = card.querySelector(".progress");
     if (progress) progress.hidden = mode !== "guided";
     card.querySelectorAll(".co-section").forEach(function (sec) {
       var head = sec.querySelector(".co-section-head");
       if (head) head.hidden = mode !== "compact";
     });
+    if (mode !== lastMode) {
+      if (mode === "compact") {
+        /* Progressive disclosure (sketch 001-C): the first section open,
+           later ones collapsed behind their disclosure heads. */
+        var first = true;
+        card.querySelectorAll(".co-section").forEach(function (sec) {
+          sec.setAttribute("data-open", first ? "true" : "false");
+          var head = sec.querySelector(".co-section-head");
+          if (head) {
+            head.setAttribute(
+              "aria-expanded", first ? "true" : "false"
+            );
+          }
+          first = false;
+        });
+      }
+      if (mode === "guided") step = 1;
+      lastMode = mode;
+    }
     syncVisibility();
   }
   if (mqNarrow.addEventListener) {

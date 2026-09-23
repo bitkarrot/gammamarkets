@@ -52,6 +52,39 @@
   .gm-public .product-layout { grid-template-columns: 1fr; gap: var(--space-md); }
 }
 
+/* `hidden` must beat component display rules (display:flex on .progress
+   and display:block on .co-section-head otherwise override it). */
+.gm-public [hidden] { display: none !important; }
+
+/* Layout presets recompose the whole page shell, not just the card
+   (sketch 001: A editorial / B guided steps / C express sheet).
+   Guided = focused single-column step flow; compact = narrow express
+   sheet. Product context (title/price/stock + first image) stays;
+   long-form description/specs and the full gallery are editorial-only. */
+.gm-public .product-layout[data-mode="guided"],
+.gm-public .product-layout[data-mode="compact"] {
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
+}
+.gm-public .product-layout[data-mode="guided"] .product-description,
+.gm-public .product-layout[data-mode="guided"] .product-specs,
+.gm-public .product-layout[data-mode="compact"] .product-description,
+.gm-public .product-layout[data-mode="compact"] .product-specs {
+  display: none;
+}
+.gm-public .product-layout[data-mode="guided"] .product-gallery img:not(:first-of-type),
+.gm-public .product-layout[data-mode="compact"] .product-gallery img:not(:first-of-type) {
+  display: none;
+}
+.gm-public .product-layout[data-mode="guided"] .product-gallery img,
+.gm-public .product-layout[data-mode="compact"] .product-gallery img {
+  max-height: 180px;
+  width: auto;
+}
+.gm-public .product-layout[data-mode="compact"] .product-title {
+  font-size: 24px;
+}
+
 .gm-public .product-gallery img {
   max-width: 100%;
   border-radius: var(--radius-md);
@@ -121,15 +154,19 @@
   flex: 1;
   text-align: center;
   padding: var(--space-sm);
-  border-bottom: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
   color: var(--color-text-muted);
-}
-.gm-public .progress-step.active {
-  border-bottom-color: var(--color-primary);
-  color: var(--color-text);
   font-weight: 600;
 }
-.gm-public .progress-step.done { color: var(--color-primary); }
+.gm-public .progress-step.active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.gm-public .progress-step.done {
+  background: transparent;
+  color: var(--color-primary);
+}
 
 .gm-public .co-section { margin-bottom: var(--space-md); }
 .gm-public .co-section-head {
