@@ -454,6 +454,57 @@
   .gm-public * { transition: none !important; animation: none !important; }
 }
 
+/* --- browse pages (merchant index / collection) — card grid per
+   UI-SPEC, in the sketch's warm-market language --------------------- */
+.gm-public .merchant-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.gm-public .merchant-title {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-family: var(--font-display);
+  font-weight: 760;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.gm-public .merchant-picture {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+.gm-public .collection-title {
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  font-family: var(--font-display);
+  font-weight: 760;
+  letter-spacing: -0.03em;
+  margin: 0 0 var(--space-sm);
+}
+.gm-public .section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-sm);
+  margin: var(--space-md) 0;
+}
+.gm-public .section-head h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.gm-public .section-count {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
 .gm-public .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -465,18 +516,38 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
-  padding: var(--space-md);
   color: var(--color-text);
   text-decoration: none;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
 }
+.gm-public .product-card:hover { box-shadow: var(--shadow-md); }
+.gm-public .card-art {
+  aspect-ratio: 4 / 3;
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-border);
+}
+.gm-public .card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.gm-public .card-body { padding: var(--space-sm) var(--space-md) var(--space-md); }
 .gm-public .card-title {
   font-size: 16px;
-  margin: 0 0 var(--space-sm);
+  font-weight: 650;
+  margin: 0 0 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.gm-public .card-price { margin: 0; font-weight: 600; }
+.gm-public .card-meta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-sm);
+}
+.gm-public .card-price { margin: 0; font-weight: 700; }
 .gm-public .merchant-about {
   color: var(--color-text-muted);
   max-width: 60ch;
@@ -489,13 +560,15 @@
 }
 .gm-public .collection-link {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
   color: var(--color-text);
   text-decoration: none;
+  font-size: 14px;
 }
 .gm-public .collection-link:hover { border-color: var(--color-primary); }
+.gm-public .collection-back { color: var(--color-primary); text-decoration: none; }
+.gm-public .collection-back:hover { text-decoration: underline; }
 .gm-public .storefront-empty { color: var(--color-text-muted); }
 .gm-public .merchant-line { color: var(--color-text-muted); font-size: 14px; }
-.gm-public .merchant-picture { max-width: 96px; border-radius: var(--radius-md); }
 .gm-public .public-error { padding: var(--space-16) 0; text-align: center; }

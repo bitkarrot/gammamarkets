@@ -34,6 +34,27 @@ def gammamarkets_renderer():
     return template_renderer(["gammamarkets"])
 
 
+async def _first_images(product_ids: list[str]) -> dict[str, str]:
+    """Lowest-sort_order image URL per product — one query for card
+    thumbnails on browse pages."""
+    if not product_ids:
+        return {}
+    from .db import db, table
+
+    placeholders = ", ".join(f":p{i}" for i in range(len(product_ids)))
+    params = {f"p{i}": pid for i, pid in enumerate(product_ids)}
+    async with db.connect() as conn:
+        rows = await conn.fetchall(
+            f"SELECT product_id, url FROM {table('product_images')} "
+            f"WHERE product_id IN ({placeholders}) ORDER BY sort_order",
+            params,
+        )
+    out: dict[str, str] = {}
+    for r in rows:
+        out.setdefault(r["product_id"], r["url"])
+    return out
+
+
 def _brand_ctx(merchant: dict | None, theme: dict | None) -> dict:
     """Store-header context (sketch chrome): brand tile + display name.
     Brand Basics name/initials override the merchant display name."""
@@ -193,12 +214,16 @@ async def collection_page(request: Request, pubkey: str, d_tag: str):
     member_dicts = [dict(m) | {"_merchant": merchant} for m in members]
     from .services import themes as theme_service
 
+    collection = nip89.collection_json(dict(row), member_dicts)
+    images = await _first_images([m["id"] for m in members])
+    for prod, member in zip(collection["products"], member_dicts):
+        prod["image"] = images.get(member["id"])
     theme = await theme_service.get_theme(merchant["id"])
     return _public_response(
         request,
         "public_collection.html",
         {
-            "collection": nip89.collection_json(dict(row), member_dicts),
+            "collection": collection,
             "merchant_pubkey": pubkey,
             "merchant_name": merchant.get("display_name") or "",
             "theme_css": theme_service.emit_css(theme),
@@ -246,6 +271,7 @@ async def merchant_page(request: Request, pubkey: str):
             ") ORDER BY c.title",
             {"m": merchant["id"]},
         )
+    images = await _first_images([p["id"] for p in products])
     cards = [
         {
             "d_tag": p["d_tag"],
@@ -253,6 +279,7 @@ async def merchant_page(request: Request, pubkey: str):
             "amount_minor": p["amount_minor"],
             "currency": p["currency"],
             "currency_decimals": p["currency_decimals"],
+            "image": images.get(p["id"]),
             "availability": nip89.availability_state(
                 dict(p) | {"_merchant": merchant}
             ),

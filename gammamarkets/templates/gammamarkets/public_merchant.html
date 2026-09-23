@@ -1,11 +1,13 @@
 {% extends "templates/gammamarkets/public_base.html" %}
 {% block title %}{{ display_name }}{% endblock %}
 {% block content %}
-<header class="merchant-header">
+<header class="merchant-hero">
+  <div class="merchant-hero-text">
+    <p class="eyebrow">Independent store</p>
+    <h1 class="merchant-title">{{ display_name }}</h1>
+    {% if about %}<p class="merchant-about">{{ about }}</p>{% endif %}
+  </div>
   {% if picture %}<img class="merchant-picture" src="{{ picture }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}
-  <p class="eyebrow">Independent store</p>
-  <h1>{{ display_name }}</h1>
-  {% if about %}<p class="merchant-about">{{ about }}</p>{% endif %}
 </header>
 {% if collections %}
 <nav class="collection-nav" aria-label="Collections">
@@ -15,15 +17,29 @@
 </nav>
 {% endif %}
 {% if products %}
+<div class="section-head">
+  <h2>Catalog</h2>
+  <span class="section-count">{{ products | length }} item{{ 's' if products | length != 1 }}</span>
+</div>
 <div class="card-grid">
   {% for p in products %}
   <a class="product-card" href="/gammamarkets/p/{{ pubkey }}/{{ p.d_tag }}">
-    <h2 class="card-title">{{ p.title }}</h2>
-    {% if p.amount_minor is not none %}
-    <p class="card-price">{{ p.amount_minor }} {{ p.currency }}</p>
-    {% endif %}
-    {% if p.availability == 'sold' %}<span class="chip chip-sold">Sold out</span>{% endif %}
-    {% if p.availability == 'preorder' %}<span class="chip chip-preorder">Pre-order — purchasing opens later.</span>{% endif %}
+    <div class="card-art">
+      {% if p.image %}<img src="{{ p.image }}" alt="" loading="lazy">{% endif %}
+    </div>
+    <div class="card-body">
+      <h3 class="card-title">{{ p.title }}</h3>
+      {% if p.availability == 'sold' %}
+      <p class="card-meta"><span class="chip chip-sold">Sold out</span></p>
+      {% elif p.availability == 'preorder' %}
+      <p class="card-meta"><span class="chip chip-preorder">Pre-order</span></p>
+      {% else %}
+      <p class="card-meta">In stock</p>
+      {% endif %}
+      {% if p.amount_minor is not none %}
+      <p class="card-price">{{ p.amount_minor }} {{ p.currency }}</p>
+      {% endif %}
+    </div>
   </a>
   {% endfor %}
 </div>

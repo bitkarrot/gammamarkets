@@ -2,19 +2,39 @@
 {% block title %}{{ collection.title }}{% endblock %}
 {% block content %}
 <header class="collection-header">
-  <h1>{{ collection.title }}</h1>
-  <p class="merchant-line">{{ merchant_name or merchant_pubkey }}</p>
+  <p class="eyebrow">Collection</p>
+  <h1 class="collection-title">{{ collection.title }}</h1>
+  {% if collection.description_md %}<p class="merchant-about">{{ collection.description_md }}</p>{% endif %}
+  <p class="merchant-line"><a class="collection-back" href="/gammamarkets/public/merchants/{{ merchant_pubkey }}">← {{ merchant_name or 'Shop' }}</a></p>
 </header>
+{% if collection.products %}
+<div class="section-head">
+  <h2>Products</h2>
+  <span class="section-count">{{ collection.products | length }} item{{ 's' if collection.products | length != 1 }}</span>
+</div>
 <div class="card-grid">
   {% for p in collection.products %}
   <a class="product-card" href="/gammamarkets/p/{{ merchant_pubkey }}/{{ p.d_tag }}">
-    <h2 class="card-title">{{ p.title }}</h2>
-    {% if p.amount_minor is not none %}
-    <p class="card-price">{{ p.amount_minor }} {{ p.currency }}</p>
-    {% endif %}
-    {% if p.availability == 'sold' %}<span class="chip chip-sold">Sold out</span>{% endif %}
-    {% if p.availability == 'preorder' %}<span class="chip chip-preorder">Pre-order — purchasing opens later.</span>{% endif %}
+    <div class="card-art">
+      {% if p.image %}<img src="{{ p.image }}" alt="" loading="lazy">{% endif %}
+    </div>
+    <div class="card-body">
+      <h3 class="card-title">{{ p.title }}</h3>
+      {% if p.availability == 'sold' %}
+      <p class="card-meta"><span class="chip chip-sold">Sold out</span></p>
+      {% elif p.availability == 'preorder' %}
+      <p class="card-meta"><span class="chip chip-preorder">Pre-order</span></p>
+      {% else %}
+      <p class="card-meta">In stock</p>
+      {% endif %}
+      {% if p.amount_minor is not none %}
+      <p class="card-price">{{ p.amount_minor }} {{ p.currency }}</p>
+      {% endif %}
+    </div>
   </a>
   {% endfor %}
 </div>
+{% else %}
+<p class="storefront-empty">This collection has no products yet.</p>
+{% endif %}
 {% endblock %}
