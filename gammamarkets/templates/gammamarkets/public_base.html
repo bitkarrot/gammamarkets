@@ -14,6 +14,20 @@
 </head>
 <body>
 <div class="gm-public" data-layout="{{ layout }}">
+  <header class="store-header">
+    {% if storefront_url %}
+    <a class="brand" href="{{ storefront_url }}">
+      <span class="brand-mark">{{ brand_initials or 'G' }}</span>
+      {{ brand_name or 'GammaMarkets' }}
+    </a>
+    {% else %}
+    <span class="brand">
+      <span class="brand-mark">{{ brand_initials or 'G' }}</span>
+      {{ brand_name or 'GammaMarkets' }}
+    </span>
+    {% endif %}
+    <div class="secure-note"><strong>Lightning checkout</strong><span> · private by default</span></div>
+  </header>
   <main class="gm-main">
     {% block content %}{% endblock %}
   </main>

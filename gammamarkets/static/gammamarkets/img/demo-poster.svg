@@ -8,9 +8,9 @@
   </defs>
   <rect width="800" height="600" fill="url(#pbg)"/>
   <rect x="230" y="80" width="340" height="440" rx="6" fill="#221f1a" opacity="0.9"/>
-  <rect x="248" y="98" width="304" height="404" fill="#faf8f5"/>
+  <rect x="248" y="98" width="304" height="404" fill="#fffaf3"/>
   <circle cx="400" cy="235" r="82" fill="#c98f4e"/>
-  <path d="M262 420 L340 300 L400 372 L448 318 L538 420 Z" fill="#8a5a2b"/>
+  <path d="M262 420 L340 300 L400 372 L448 318 L538 420 Z" fill="#a34f2a"/>
   <rect x="290" y="440" width="220" height="14" rx="7" fill="#b26e4c"/>
   <rect x="330" y="464" width="140" height="10" rx="5" fill="#c9b8a3"/>
   <text x="400" y="565" text-anchor="middle" font-family="system-ui,sans-serif"

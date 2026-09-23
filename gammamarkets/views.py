@@ -34,6 +34,22 @@ def gammamarkets_renderer():
     return template_renderer(["gammamarkets"])
 
 
+def _brand_ctx(merchant: dict | None, theme: dict | None) -> dict:
+    """Store-header context (sketch chrome): brand tile + display name.
+    Brand Basics name/initials override the merchant display name."""
+    brand = (theme or {}).get("brand") or {}
+    name = brand.get("name") or (merchant or {}).get("display_name") or ""
+    initials = brand.get("initials") or (name[:1].upper() if name else "")
+    pubkey = (merchant or {}).get("pubkey")
+    return {
+        "brand_name": name,
+        "brand_initials": initials,
+        "storefront_url": (
+            f"/gammamarkets/public/merchants/{pubkey}" if pubkey else ""
+        ),
+    }
+
+
 def _public_response(request: Request, template: str, ctx: dict,
                    status: int = 200) -> HTMLResponse:
     ctx.setdefault("theme_css", "")
@@ -140,6 +156,7 @@ async def product_page(request: Request, pubkey: str, d_tag: str):
             "merchant_pubkey": pubkey,
             "theme_css": theme_service.emit_css(theme),
             "layout": theme_service.theme_layout(theme),
+            **_brand_ctx(product["_merchant"], theme),
         },
     )
 
@@ -186,6 +203,7 @@ async def collection_page(request: Request, pubkey: str, d_tag: str):
             "merchant_name": merchant.get("display_name") or "",
             "theme_css": theme_service.emit_css(theme),
             "layout": theme_service.theme_layout(theme),
+            **_brand_ctx(merchant, theme),
         },
     )
 
@@ -243,6 +261,7 @@ async def merchant_page(request: Request, pubkey: str):
     ]
     from .services import themes as theme_service
 
+    theme = await theme_service.get_theme(merchant["id"])
     return _public_response(
         request,
         "public_merchant.html",
@@ -260,9 +279,8 @@ async def merchant_page(request: Request, pubkey: str):
                 }
                 for c in collections
             ],
-            "theme_css": theme_service.emit_css(
-                await theme_service.get_theme(merchant["id"])
-            ),
+            "theme_css": theme_service.emit_css(theme),
+            **_brand_ctx(merchant, theme),
         },
     )
 

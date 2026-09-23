@@ -232,8 +232,8 @@ async def test_theme_emission_scoped(runtime_env):
     # The emitted block is scoped under .gm-public and carries the
     # high-contrast tokens.
     assert ".gm-public {" in resp.text
-    assert "--color-bg: #000000" in resp.text
+    assert "--color-bg: #0b0f14" in resp.text
     # The admin document never receives theme tokens.
     admin = await client.get("/gammamarkets/")
     assert admin.status_code == 200
-    assert "--color-bg: #000000" not in admin.text
+    assert "--color-bg: #0b0f14" not in admin.text

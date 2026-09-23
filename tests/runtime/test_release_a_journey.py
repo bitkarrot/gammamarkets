@@ -232,7 +232,7 @@ async def test_release_a_journey(runtime_env):
     assert themed.status_code == 200, themed.text
     page = await anon.get(f"/gammamarkets/p/{pubkey}/{product['d_tag']}")
     assert 'data-layout="guided"' in page.text
-    assert "--color-bg: #ffffff" in page.text
+    assert "--color-bg: #f4f7f7" in page.text
 
     # 9. Admin shell still serves for the owner.
     admin = await client.get("/gammamarkets/")

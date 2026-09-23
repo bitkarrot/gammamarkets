@@ -32,25 +32,28 @@
      preview/contrast math must match the server-side gate. */
   var PRESET_TOKENS = {
     "warm-market": {
-      "--color-bg": "#faf8f5", "--color-surface": "#ffffff",
-      "--color-surface-alt": "#f2efe9", "--color-border": "#d9d4cc",
-      "--color-text": "#221f1a", "--color-text-muted": "#6b655c",
-      "--color-primary": "#8a5a2b", "--color-on-primary": "#ffffff",
-      "--color-primary-hover": "#74491f", "--color-accent": "#c98f3f"
+      "--color-bg": "#f7f1e8", "--color-surface": "#fffaf3",
+      "--color-surface-alt": "#f1e4d3", "--color-border": "#dfcfbb",
+      "--color-text": "#2b241f", "--color-text-muted": "#75685c",
+      "--color-primary": "#a34f2a", "--color-on-primary": "#ffffff",
+      "--color-primary-hover": "#843d20", "--color-accent": "#d69a3a",
+      "--color-focus": "#225bdb"
     },
     "clean-minimal": {
-      "--color-bg": "#ffffff", "--color-surface": "#f7f7f8",
-      "--color-surface-alt": "#efeff1", "--color-border": "#d6d6da",
-      "--color-text": "#1b1b1e", "--color-text-muted": "#5d5d66",
-      "--color-primary": "#2b5f8a", "--color-on-primary": "#ffffff",
-      "--color-primary-hover": "#1f4a6d", "--color-accent": "#3f8fc9"
+      "--color-bg": "#f4f7f7", "--color-surface": "#ffffff",
+      "--color-surface-alt": "#e9efef", "--color-border": "#d7e0e0",
+      "--color-text": "#172223", "--color-text-muted": "#647274",
+      "--color-primary": "#266760", "--color-on-primary": "#ffffff",
+      "--color-primary-hover": "#1c514c", "--color-accent": "#d69a3a",
+      "--color-focus": "#165dff"
     },
     "high-contrast": {
-      "--color-bg": "#000000", "--color-surface": "#111111",
-      "--color-surface-alt": "#1c1c1c", "--color-border": "#8c8c8c",
-      "--color-text": "#ffffff", "--color-text-muted": "#d0d0d0",
-      "--color-primary": "#ffd400", "--color-on-primary": "#000000",
-      "--color-primary-hover": "#e6bf00", "--color-accent": "#66d9ff"
+      "--color-bg": "#0b0f14", "--color-surface": "#141a21",
+      "--color-surface-alt": "#1d2630", "--color-border": "#415064",
+      "--color-text": "#f7fafc", "--color-text-muted": "#bac5d1",
+      "--color-primary": "#ffb000", "--color-on-primary": "#111111",
+      "--color-primary-hover": "#ffd166", "--color-accent": "#63d2ff",
+      "--color-focus": "#ffffff"
     }
   };
   var CORNER_RADIUS = {
@@ -63,7 +66,7 @@
     }
   };
   var FONT_VALUE = {
-    system: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    system: 'ui-rounded, "Avenir Next", system-ui, sans-serif',
     serif: 'Georgia, "Times New Roman", serif',
     mono: 'ui-monospace, "SF Mono", Menlo, monospace'
   };

@@ -188,7 +188,7 @@ async def test_theme_reaches_public_page_only(runtime_env):
         f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}"
     )
     assert ".gm-public {" in resp.text
-    assert "--color-bg: #ffffff" in resp.text  # clean-minimal emitted
+    assert "--color-bg: #f4f7f7" in resp.text  # clean-minimal emitted
 
     # the admin shell document never carries theme CSS
     resp = await client.get("/gammamarkets/", headers=_headers(runtime_env))
@@ -219,4 +219,4 @@ async def test_reset_to_preset_clears_overrides(runtime_env):
     resp, _ = await _patch_theme(runtime_env, {"preset": "warm-market"})
     theme = resp.json()["theme"]
     tokens = themes.resolve_tokens(theme)
-    assert tokens["--color-bg"] == "#faf8f5"  # preset value restored
+    assert tokens["--color-bg"] == "#f7f1e8"  # sketch preset value restored

@@ -8,8 +8,8 @@
   </defs>
   <rect width="800" height="600" fill="url(#bg)"/>
   <rect x="170" y="140" width="460" height="280" rx="18" fill="#221f1a" opacity="0.88"/>
-  <rect x="190" y="160" width="420" height="240" rx="8" fill="#faf8f5"/>
-  <polygon points="370,215 370,345 480,280" fill="#8a5a2b"/>
+  <rect x="190" y="160" width="420" height="240" rx="8" fill="#fffaf3"/>
+  <polygon points="370,215 370,345 480,280" fill="#a34f2a"/>
   <rect x="330" y="430" width="140" height="18" rx="4" fill="#221f1a" opacity="0.88"/>
   <rect x="230" y="448" width="340" height="14" rx="7" fill="#221f1a" opacity="0.55"/>
   <text x="400" y="540" text-anchor="middle" font-family="system-ui,sans-serif"

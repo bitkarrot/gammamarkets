@@ -3,14 +3,15 @@
    canonical reference + static fallback. */
 
 .gm-public {
-  --color-bg: #faf8f5;
-  --color-surface: #ffffff;
-  --color-surface-alt: #f2efe9;
-  --color-border: #d9d4cc;
-  --color-text: #221f1a;
-  --color-text-muted: #6b655c;
-  --color-primary: #8a5a2b;
+  --color-bg: #f7f1e8;
+  --color-surface: #fffaf3;
+  --color-surface-alt: #f1e4d3;
+  --color-border: #dfcfbb;
+  --color-text: #2b241f;
+  --color-text-muted: #75685c;
+  --color-primary: #a34f2a;
   --color-on-primary: #ffffff;
-  --color-primary-hover: #74491f;
-  --color-accent: #c98f3f;
+  --color-primary-hover: #843d20;
+  --color-accent: #d69a3a;
+  --color-focus: #225bdb;
 }
