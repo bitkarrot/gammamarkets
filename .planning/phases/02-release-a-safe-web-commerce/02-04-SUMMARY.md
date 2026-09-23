@@ -182,5 +182,35 @@ CSS, no-secrets boundaries, legal-action map, B2/B5/B6 module checks),
 checkout → replay → status → settle → admin action → publications →
 notifications → appearance → themed page).
 
-Not verified: real browser rendering (Playwright E2E follows as a
-separate task); PostgreSQL `SKIP LOCKED` variants (CI).
+## Browser E2E (Playwright)
+
+Harness: `tools/e2e_server.py` boots the pinned host over local HTTPS
+(`https://localhost:5099`, per-run self-signed cert — the §5.1 Origin
+invariant requires an https:// canonical origin), FakeWallet, relay IO
+off, real extension install discovery. Seeds account/wallet/merchant/
+catalog/products/order via the real HTTP APIs plus `ensure_default_relays`
+(the publish-path starter set). Harness-only routes: `/_e2e/seed`,
+`/_e2e/settle` (FakeWallet pay + the listener's settlement calls). Not
+shipped.
+
+```
+cd tests/e2e && npm install && npx playwright test
+→ 12 passed (Chromium): 6 buyer + 6 admin specs
+```
+
+Bugs found by the browser run and fixed in shipped code:
+
+- `views.py` — admin context must pass `user.json()` (string); the host
+  renders it into `JSON.parse({{ user | tojson }})` and a dict produced
+  `"[object Object]" is not valid JSON`.
+- Admin mixins — global-mixin `mounted`/`$watch` hooks must target the
+  component that owns `#vue` (`vueEl._vnode.component.proxy`), not
+  `this`: hooks fire for every component, and standalone Vue roots on
+  the page also satisfy `$root === this`. The bug loaded merchant state
+  on a stray uid-0 component, leaving the rendered root on skeletons.
+- `admin.html` — `q-markup-table` with `thead`/`tr` cannot survive
+  in-DOM template compilation (HTML parser foster-parents table
+  children out of unknown elements); relay health now uses `q-table`.
+
+Not verified: PostgreSQL `SKIP LOCKED` variants (CI); real relay
+publish/ACK round-trips (RELAY_IO=off by design in E2E).
