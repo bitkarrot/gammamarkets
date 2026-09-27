@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 current_phase: 2
 current_phase_name: Release A — Safe Web Commerce
 status: executing
-stopped_at: All 02-01..02-04 implementation plans executed; Phase 2 closeout blocked by Linux CI, human review and stale demo deployment
-last_updated: "2026-09-27T07:24:47.000Z"
+stopped_at: Phase 2 implementation, current-revision Linux CI and fresh demo verified; human UAT and security/accessibility sign-off pending
+last_updated: "2026-09-27T07:36:11.000Z"
 last_activity: 2026-09-27
-last_activity_desc: Local SQLite/PostgreSQL full qualification and both Chromium suites passed; release verification remains open
+last_activity_desc: Local suites, four blocking Linux CI profiles and the fresh 5099 demo passed; human release review remains open
 progress:
   total_phases: 4
   completed_phases: 1
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-09-20)
 
 Phase: 2 of 4 (Release A — Safe Web Commerce)
 Plan: 4 plans written (02-01..02-04), checker-verified, 4/4 implemented
-Status: Executing closeout — Linux CI, human security/UX review and safe demo deployment outstanding
-Last activity: 2026-09-27 — local full qualification and Chromium checks passed on both databases
+Status: Executing closeout — local and Linux CI passed, fresh 5099 demo deployed; human security/accessibility/UX review outstanding
+Last activity: 2026-09-27 — four Linux matrix jobs passed on `b12e350`; new 5099 quote route and seven browser smoke checks passed
 
 Progress: [██████████] 100% of written implementation plans; only Phase 1 of 4 is formally complete
 
@@ -86,16 +86,16 @@ Decisions are logged in PROJECT.md and the normative specification.
 - [Phase 2]: Cookie auth wins when a request carries both cookie and bearer headers — prevents bearer bypass of Origin/CSRF (02-01)
 - [Phase 2]: Kind-5 tombstone intents carry the bumped aggregate revision so supersession retires stale pending publishes; product intents enqueue AFTER collection republishes so dependency edges bind to live rows (02-01)
 
-### Pending Todos
+### Release Closeout Gates
 
-- Obtain current-revision Linux x86_64 and ARM64 CI runs for SQLite and PostgreSQL after an authorized push.
-- Complete human buyer/merchant UAT and security/accessibility sign-off in `02-UAT.md` and `02-SECURITY.md`.
-- Move the running port 5099 demo to the current backend without deleting its data; recheck the quote route before buyer checkout.
+- [x] Current-revision Linux x86_64 and ARM64 CI for SQLite and PostgreSQL passed: run 36303338957 on `b12e350`.
+- [ ] Human buyer/merchant UAT and security/accessibility sign-off in `02-UAT.md` and `02-SECURITY.md`.
+- [x] At the user's request, the 5099 demo was replaced with a fresh seed; quote returned HTTP 200 and buyer/admin browser smoke checks passed. Old disposable database files were not deleted, but are not mounted in the new demo.
 
 ### Blockers/Concerns
 
-- Phase 2 local automated verification passed on macOS, not Linux CI; code remains local and Phase 2 is not formally complete (`02-VERIFICATION.md`).
-- Port 5099 serves old backend code without the new quote route, while its static assets now use the route; it currently fails closed for checkout.
+- Phase 2 automated local and Linux verification passed, but human sign-off is still outstanding; Phase 2 is not formally complete (`02-VERIFICATION.md`).
+- The new demo uses a fresh disposable database rather than migrating old demo orders and the previously hand-added images. If those records must remain visible, the old database requires a separate recovery plan.
 - Release B cannot claim production readiness without deployed egress controls and external-client evidence.
 - Release C requires a live scarce-stock payable-invoice cutover rehearsal.
 
@@ -109,6 +109,6 @@ Decisions are logged in PROJECT.md and the normative specification.
 
 ## Session Continuity
 
-Last session: 2026-09-27T07:24:47.000Z
-Stopped at: Phase 2 code and local verification complete; external release gates still open
+Last session: 2026-09-27T07:36:11.000Z
+Stopped at: Phase 2 implementation, Linux CI and fresh demo verified; human UAT/security/accessibility sign-off pending
 Resume file: .planning/phases/02-release-a-safe-web-commerce/02-VERIFICATION.md

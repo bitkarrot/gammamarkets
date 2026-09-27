@@ -9,7 +9,7 @@ created: "2026-09-27"
 
 # Phase 2 — Security
 
-This is a local ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04. `threats_open: 0` means the specified mitigations were found in the extension and exercised locally; it is **not** a Release-A sign-off. Current-revision Linux CI and human security/UX review are outstanding. The pinned LNbits source was not changed.
+This is an ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04. `threats_open: 0` means the specified mitigations were found in the extension and exercised locally; it is **not** a Release-A sign-off. [Linux CI run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) passed all four blocking profiles on `b12e350`; human security/UX review remains outstanding. The pinned LNbits source was not changed.
 
 ## Trust Boundaries
 
@@ -65,13 +65,14 @@ No accepted risks. A relay can retain already-public catalog events despite a ki
 | Audit Date | Threats Total | Closed locally | Open at/above high | Run By |
 |------------|---------------|----------------|--------------------|--------|
 | 2026-09-27 | 25 | 25 | 0 | Devin, source review + SQLite/PostgreSQL qualification and Chromium |
+| 2026-09-27 | 25 | 25 | 0 | Linux CI run 36303338957: x86_64/ARM64 × SQLite/PostgreSQL all passed on `b12e350` |
 
 ## Sign-Off
 
 - [x] Each planned threat has a mitigation and local source/test evidence.
 - [x] No risk was silently accepted as a substitute for a missing mitigation.
 - [x] `threats_open: 0` for local code-level verification.
-- [ ] Current-revision Linux x86_64 and ARM64 CI evidence reviewed.
+- [x] Current-revision Linux x86_64 and ARM64 CI evidence reviewed.
 - [ ] Human security/UX review completed; set `status: verified` only then.
 
-**Approval:** pending external gates.
+**Approval:** pending human security/UX review.

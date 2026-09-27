@@ -73,7 +73,7 @@ Plans:
 - [x] 02-03: Checkout, reservation + invoice saga, settlement/reconciliation, order admin API, email
 - [x] 02-04: Buyer checkout/status UI and merchant admin surfaces (orders, catalog, publications, settings, appearance)
 
-**Release gate:** Local SQLite/PostgreSQL qualification and browser suites passed on macOS. Current-revision Linux x86_64/ARM64 CI, human review and a data-preserving restart of the old demo are still required. Do not mark Phase 2 complete or start Phase 3 on the basis of plan checkboxes alone; see `02-VERIFICATION.md`, `02-SECURITY.md` and `02-UAT.md`.
+**Release gate:** Local SQLite/PostgreSQL and Chromium suites passed; [CI run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) passed all four required Linux x86_64/ARM64 × SQLite/PostgreSQL profiles on `b12e350`. At the user's request, port 5099 was replaced with a fresh, quote-capable test demo; the old disposable database files were not deleted but are not mounted in the new demo. Human buyer/merchant UAT and security/accessibility sign-off remain required. Do not mark Phase 2 complete or start Phase 3 until they are recorded; see `02-VERIFICATION.md`, `02-SECURITY.md` and `02-UAT.md`.
 
 *Plan count revised 3→4 during plan-checker revision: order-backend and UI layers split to keep each executor under the context budget.*
 

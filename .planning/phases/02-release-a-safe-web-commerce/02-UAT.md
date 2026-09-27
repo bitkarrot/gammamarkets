@@ -7,7 +7,7 @@ source:
   - 02-03-SUMMARY.md
   - 02-04-SUMMARY.md
 started: 2026-09-27T07:17:00Z
-updated: 2026-09-27T07:17:00Z
+updated: 2026-09-27T07:36:11Z
 ---
 
 ## Current Test
@@ -15,7 +15,7 @@ updated: 2026-09-27T07:17:00Z
 number: 1
 name: Buyer price and checkout clarity
 expected: |
-  On the updated isolated storefront, editing quantity and physical delivery refreshes the Items, Shipping and Total amounts before payment can be submitted. The created invoice matches that total; uncertain payment state never offers Pay Again.
+  On the fresh 5099 storefront, editing quantity and physical delivery refreshes the Items, Shipping and Total amounts before payment can be submitted. The created invoice matches that total; uncertain payment state never offers Pay Again.
 awaiting: user response
 
 ## Tests
@@ -41,7 +41,7 @@ pending: 3
 skipped: 0
 blocked: 0
 
-Machine evidence is separate: 13 Chromium tests passed against each isolated SQLite and PostgreSQL server. Neither those tests nor earlier demo screenshots count as a new human response to the tests above. The still-running port 5099 demo has an old backend and should not be used for checkout UAT until it is safely restarted with its data preserved.
+Machine evidence is separate: 13 Chromium tests passed against each isolated SQLite and PostgreSQL server; seven Chromium smoke tests passed on the fresh port 5099 demo without creating or settling an order, and its quote route returned HTTP 200 with a 2,500-sat total. Neither those tests nor earlier demo screenshots count as a new human response to the tests above. The user-requested 5099 replacement runs current code on a fresh disposable database; the prior demo's database files were left untouched but are not mounted in this demo.
 
 ## Gaps
 
