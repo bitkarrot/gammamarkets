@@ -8,7 +8,9 @@ public JSON exposes only the §5.4 field set; rate limits enforce.
 
 from __future__ import annotations
 
+import time
 import uuid
+from types import SimpleNamespace
 
 import pytest
 
@@ -244,8 +246,12 @@ async def test_product_currency_precision_is_explicit(runtime_env, currency, dec
     assert product["currency_decimals"] == decimals
 
 
-async def test_rate_limit_enforced_on_public_routes(runtime_env):
+async def test_rate_limit_enforced_on_public_routes(runtime_env, monkeypatch):
     """120 GET/min/IP — push past the bound and expect 429."""
+    from gammamarkets.services import nip89
+
+    now = int(time.time())
+    monkeypatch.setattr(nip89, "time", SimpleNamespace(time=lambda: now))
     client = runtime_env["client"]
     for _ in range(130):
         resp = await client.get(f"{API}/public/merchants/{uuid.uuid4().hex}")
