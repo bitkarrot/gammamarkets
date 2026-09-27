@@ -17,6 +17,7 @@ import json
 import re
 import time
 import uuid
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from ..db import DomainTransaction
 from ..security import (
@@ -214,6 +215,46 @@ async def _collections_of_product(
         {"p": product_id},
     )
     return [r["c"] for r in rows]
+
+
+async def _republish_bulk_collections(
+    tx: DomainTransaction,
+    merchant_id: str,
+    collection_ids: set[str],
+    pubkey: str,
+    now: int,
+) -> list[tuple[str, str]]:
+    dependencies = []
+    for collection_id in sorted(collection_ids):
+        collection = await tx.fetch_one(
+            f"SELECT revision, d_tag, deleted_at FROM {tx.table('collections')} "
+            "WHERE id = :i AND merchant_id = :m",
+            {"i": collection_id, "m": merchant_id},
+        )
+        if not collection or collection["deleted_at"] is not None:
+            continue
+        revision = (collection["revision"] or 0) + 1
+        await tx.execute(
+            f"UPDATE {tx.table('collections')} SET revision = :r,"
+            " updated_at = :t WHERE id = :i",
+            {"r": revision, "t": now, "i": collection_id},
+        )
+        intent = await _enqueue_collection(
+            tx, merchant_id, collection_id, revision, pubkey
+        )
+        if intent is None:
+            await enqueue_intent(
+                tx,
+                merchant_id,
+                "collections",
+                collection_id,
+                5,
+                revision=revision,
+                event_address=f"30405:{pubkey}:{collection['d_tag']}",
+            )
+        else:
+            dependencies.append(("collections", collection_id))
+    return dependencies
 
 
 async def _product_shipping_refs(
@@ -997,6 +1038,172 @@ async def patch_product(merchant_id: str, user, product_id: str,
             tx, merchant_id, product_id, new_revision, merchant["pubkey"]
         )
     return await get_product(merchant_id, user, product_id)
+
+
+async def bulk_products(
+    merchant_id: str,
+    user,
+    product_ids: list[str],
+    action: str,
+    value=None,
+) -> dict:
+    merchant = await _merchant_owned(merchant_id, user)
+    ids = list(dict.fromkeys(product_ids))
+    if not 1 <= len(ids) <= 100 or any(
+        not isinstance(product_id, str)
+        or not re.fullmatch(r"[0-9a-f]{32}", product_id)
+        for product_id in ids
+    ):
+        raise unprocessable(
+            "invalid-content", "product_ids must contain 1 to 100 product IDs"
+        )
+    if action not in {
+        "price-markup", "move-collection", "visibility", "draft", "publish", "delete"
+    }:
+        raise unprocessable("invalid-content", "unsupported bulk action")
+
+    percentage = None
+    if action == "price-markup":
+        try:
+            percentage = Decimal(str(value))
+        except (InvalidOperation, ValueError):
+            raise unprocessable(
+                "invalid-content", "price markup must be a number"
+            ) from None
+        if not percentage.is_finite() or not 0 < percentage <= 10000:
+            raise unprocessable(
+                "invalid-content", "price markup must be greater than 0 and at most 10000"
+            )
+    elif action == "visibility" and value not in VISIBILITIES:
+        raise unprocessable(
+            "invalid-content", f"visibility must be one of {VISIBILITIES}"
+        )
+    elif action == "move-collection" and (
+        not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value)
+    ):
+        raise unprocessable("invalid-content", "collection is required")
+
+    now = _now()
+    async with DomainTransaction() as tx:
+        placeholders = ", ".join(f":p{i}" for i in range(len(ids)))
+        params = {f"p{i}": product_id for i, product_id in enumerate(ids)}
+        params["m"] = merchant_id
+        rows = await tx.fetch_all(
+            f"SELECT * FROM {tx.table('products')} WHERE merchant_id = :m "
+            f"AND deleted_at IS NULL AND id IN ({placeholders})"
+            f"{tx.for_update}",
+            params,
+        )
+        by_id = {row["id"]: row for row in rows}
+        if len(by_id) != len(ids):
+            raise not_found("one or more products not found")
+
+        if action == "delete":
+            for product_id in ids:
+                await _delete_product_locked(
+                    tx, merchant_id, product_id, merchant["pubkey"]
+                )
+            return {"deleted": len(ids), "product_ids": ids}
+
+        collection_ids: set[str] = set()
+        for product_id in ids:
+            collection_ids.update(
+                await _collections_of_product(tx, product_id)
+            )
+
+        if action == "move-collection":
+            target = await tx.fetch_one(
+                f"SELECT id, deleted_at FROM {tx.table('collections')} "
+                "WHERE id = :i AND merchant_id = :m",
+                {"i": value, "m": merchant_id},
+            )
+            if not target or target["deleted_at"] is not None:
+                raise not_found("collection not found")
+            if any(bool(by_id[product_id]["draft"]) for product_id in ids):
+                raise unprocessable(
+                    "invalid-content",
+                    "draft products cannot be moved to a collection",
+                )
+            collection_ids.add(value)
+
+        for product_id in ids:
+            row = by_id[product_id]
+            assignments = ["revision = revision + 1", "updated_at = :t"]
+            update_params = {"i": product_id, "t": now}
+            if action == "price-markup":
+                amount = (
+                    Decimal(row["amount_minor"] or 0)
+                    * (Decimal(100) + percentage)
+                    / Decimal(100)
+                ).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+                if amount >= 2**63:
+                    raise unprocessable(
+                        "invalid-content", "price markup exceeds the int64 limit"
+                    )
+                assignments.append("amount_minor = :v")
+                update_params["v"] = int(amount)
+            elif action == "visibility":
+                assignments.append("visibility = :v")
+                update_params["v"] = value
+            elif action in {"draft", "publish"}:
+                assignments.append("draft = :v")
+                update_params["v"] = action == "draft"
+            elif action == "move-collection":
+                await tx.execute(
+                    f"DELETE FROM {tx.table('product_collections')} "
+                    "WHERE product_id = :p",
+                    {"p": product_id},
+                )
+                await tx.execute(
+                    f"INSERT INTO {tx.table('product_collections')} "
+                    "(id, product_id, collection_id) VALUES (:i, :p, :c)",
+                    {"i": uuid.uuid4().hex, "p": product_id, "c": value},
+                )
+            if action == "draft":
+                await tx.execute(
+                    f"DELETE FROM {tx.table('product_collections')} "
+                    "WHERE product_id = :p",
+                    {"p": product_id},
+                )
+            await tx.execute(
+                f"UPDATE {tx.table('products')} SET {', '.join(assignments)} "
+                "WHERE id = :i",
+                update_params,
+            )
+
+        dependencies = await _republish_bulk_collections(
+            tx, merchant_id, collection_ids, merchant["pubkey"], now
+        )
+        for product_id in ids:
+            product = await tx.fetch_one(
+                f"SELECT revision, d_tag, published_at FROM {tx.table('products')} "
+                "WHERE id = :i",
+                {"i": product_id},
+            )
+            if (
+                action == "draft"
+                and not by_id[product_id]["draft"]
+                and product["published_at"] is not None
+            ):
+                await enqueue_intent(
+                    tx,
+                    merchant_id,
+                    "products",
+                    product_id,
+                    5,
+                    revision=product["revision"],
+                    event_address=f"30402:{merchant['pubkey']}:{product['d_tag']}",
+                    depends_on=dependencies,
+                )
+            else:
+                await _enqueue_product(
+                    tx,
+                    merchant_id,
+                    product_id,
+                    product["revision"],
+                    merchant["pubkey"],
+                )
+    return {"updated": len(ids), "product_ids": ids}
 
 
 async def add_product_image(merchant_id: str, user, product_id: str,

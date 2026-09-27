@@ -12,6 +12,35 @@
   var VISIBILITIES = ["on-sale", "hidden", "pre-order"];
   var SERVICES = ["standard", "express", "overnight", "pickup"];
   var DURATION_UNITS = ["H", "D", "W"];
+  var PRODUCT_COLUMNS = [
+    { name: "title", label: "Title", field: "title", align: "left", sortable: true, style: "width: 240px" },
+    { name: "type", label: "Type", field: "product_type", align: "left", style: "width: 150px" },
+    { name: "price", label: "Price", field: "_price", align: "left", style: "width: 120px" },
+    { name: "stock", label: "Stock", field: "_stock", align: "left", style: "width: 90px" },
+    { name: "visibility", label: "Visibility", field: "visibility", align: "left", style: "width: 110px" },
+    { name: "state", label: "State", field: "nip99_status", align: "left", style: "width: 100px" },
+    { name: "actions", label: "Actions", field: "id", align: "left", style: "width: 140px" }
+  ];
+  var COLLECTION_COLUMNS = [
+    { name: "title", label: "Title", field: "title", align: "left", sortable: true, style: "width: 280px" },
+    { name: "id", label: "ID", field: "d_tag", align: "left", style: "width: 220px" },
+    { name: "actions", label: "Actions", field: "id", align: "left", style: "width: 120px" }
+  ];
+  var SHIPPING_COLUMNS = [
+    { name: "title", label: "Title", field: "title", align: "left", sortable: true, style: "width: 180px" },
+    { name: "service", label: "Service", field: "service", align: "left", style: "width: 110px" },
+    { name: "price", label: "Price", field: "base_price_minor", align: "left", style: "width: 120px" },
+    { name: "countries", label: "Countries", field: "countries", align: "left", style: "width: 180px" },
+    { name: "active", label: "Active", field: "active", align: "left", style: "width: 80px" },
+    { name: "actions", label: "Actions", field: "id", align: "left", style: "width: 150px" }
+  ];
+  var BULK_ACTIONS = [
+    { label: "Increase prices by percentage", value: "price-markup" },
+    { label: "Move to collection", value: "move-collection" },
+    { label: "Set visibility", value: "visibility" },
+    { label: "Move to draft", value: "draft" },
+    { label: "Remove draft status", value: "publish" }
+  ];
 
   var DELETE_DISCLOSURE =
     "This is a soft delete. A deletion tombstone is published, but" +
@@ -29,6 +58,17 @@
           products: [],
           collections: [],
           shipping: [],
+          productColumns: PRODUCT_COLUMNS,
+          collectionColumns: COLLECTION_COLUMNS,
+          shippingColumns: SHIPPING_COLUMNS,
+          selectedProducts: [],
+          bulkActions: BULK_ACTIONS,
+          bulkEditor: {
+            show: false, saving: false, error: null, action: null,
+            markup: 10, collectionId: null, visibility: "on-sale"
+          },
+          bulkDeleteDialog: { show: false, busy: false, error: null },
+          notice: null,
           services: SERVICES,
           productTypes: PRODUCT_TYPES,
           formats: FORMATS,
@@ -89,6 +129,7 @@
           self.gmCatalog.products = res[1];
           self.gmCatalog.collections = res[2];
           self.gmCatalog.shipping = res[3];
+          self.gmCatalog.selectedProducts = [];
         } catch (e) {
           self.gmCatalog.error = self.gmProblemCopy(e.problem);
         }
@@ -97,6 +138,8 @@
 
       /* --- products ---------------------------------------------------- */
       gmNewProduct: function () {
+        this.gmCatalog.tab = "products";
+        this.gmCatalog.bulkEditor.show = false;
         this.gmCatalog.editor = {
           show: true, saving: false, error: null, isNew: true,
           form: {
@@ -115,6 +158,8 @@
       },
       gmEditProduct: async function (row) {
         var self = this;
+        self.gmCatalog.tab = "products";
+        self.gmCatalog.bulkEditor.show = false;
         var d = await self.gmApi("GET", "/products/" + row.id);
         self.gmCatalog.editor = {
           show: true, saving: false, error: null, isNew: false,
@@ -182,6 +227,7 @@
             await self.gmApi("PATCH", "/products/" + f.id, body);
           }
           ed.show = false;
+          self.gmCatalog.notice = ed.isNew ? "Product created." : "Product saved.";
           await self.gmLoadCatalog();
         } catch (e) {
           ed.error = self.gmProblemCopy(e.problem);
@@ -202,15 +248,100 @@
         }
         self.gmCatalog.dryRun.loading = false;
       },
+      gmOpenBulkEditor: function () {
+        if (!this.gmCatalog.selectedProducts.length) return;
+        this.gmCatalog.editor.show = false;
+        this.gmCatalog.bulkEditor = {
+          show: true, saving: false, error: null, action: null,
+          markup: 10, collectionId: null, visibility: "on-sale"
+        };
+      },
+      gmApplyBulk: async function () {
+        var self = this;
+        var ed = self.gmCatalog.bulkEditor;
+        var selected = self.gmCatalog.selectedProducts;
+        ed.error = null;
+        if (!selected.length) {
+          ed.error = "Select at least one product.";
+          return;
+        }
+        if (!ed.action) {
+          ed.error = "Choose a bulk action.";
+          return;
+        }
+        var body = {
+          product_ids: selected.map(function (row) { return row.id; }),
+          action: ed.action
+        };
+        if (ed.action === "price-markup") {
+          var markup = Number(ed.markup);
+          if (!Number.isFinite(markup) || markup <= 0 || markup > 10000) {
+            ed.error = "Markup must be greater than 0% and at most 10,000%.";
+            return;
+          }
+          body.value = markup;
+        } else if (ed.action === "move-collection") {
+          if (selected.some(function (row) { return !!row.draft; })) {
+            ed.error = "Draft products cannot be moved to a collection. Remove draft status first.";
+            return;
+          }
+          if (!ed.collectionId) {
+            ed.error = "Choose a destination collection.";
+            return;
+          }
+          body.value = ed.collectionId;
+        } else if (ed.action === "visibility") {
+          body.value = ed.visibility;
+        }
+        ed.saving = true;
+        try {
+          await self.gmApi("POST", "/products/bulk", body);
+          self.gmCatalog.notice = selected.length + " products updated.";
+          ed.show = false;
+          await self.gmLoadCatalog();
+        } catch (e) {
+          ed.error = self.gmProblemCopy(e.problem);
+        }
+        ed.saving = false;
+      },
+      gmAskBulkDelete: function () {
+        if (!this.gmCatalog.selectedProducts.length) return;
+        this.gmCatalog.bulkDeleteDialog = {
+          show: true, busy: false, error: null
+        };
+      },
+      gmBulkDeleteConfirm: async function () {
+        var self = this;
+        var dialog = self.gmCatalog.bulkDeleteDialog;
+        var ids = self.gmCatalog.selectedProducts.map(function (row) {
+          return row.id;
+        });
+        dialog.busy = true;
+        dialog.error = null;
+        try {
+          await self.gmApi("POST", "/products/bulk", {
+            product_ids: ids,
+            action: "delete"
+          });
+          dialog.show = false;
+          self.gmCatalog.notice = ids.length + " products deleted.";
+          await self.gmLoadCatalog();
+        } catch (e) {
+          dialog.error = self.gmProblemCopy(e.problem);
+        }
+        dialog.busy = false;
+      },
 
       /* --- collections ---------------------------------------------------- */
       gmNewCollection: function () {
+        this.gmCatalog.tab = "collections";
         this.gmCatalog.collectionEditor = {
           show: true, saving: false, error: null, isNew: true,
           form: { title: "", description: "", image: "", location: "" }
         };
       },
       gmEditCollection: function (row) {
+        this.gmCatalog.tab = "collections";
         this.gmCatalog.collectionEditor = {
           show: true, saving: false, error: null, isNew: false,
           form: {
@@ -239,6 +370,7 @@
             await self.gmApi("PATCH", "/collections/" + f.id, body);
           }
           ed.show = false;
+          self.gmCatalog.notice = ed.isNew ? "Collection created." : "Collection saved.";
           await self.gmLoadCatalog();
         } catch (e) {
           ed.error = self.gmProblemCopy(e.problem);
@@ -248,6 +380,7 @@
 
       /* --- shipping -------------------------------------------------------- */
       gmNewShipping: function () {
+        this.gmCatalog.tab = "shipping";
         this.gmCatalog.shippingEditor = {
           show: true, saving: false, error: null, isNew: true,
           form: {
@@ -259,6 +392,7 @@
         };
       },
       gmEditShipping: function (row) {
+        this.gmCatalog.tab = "shipping";
         this.gmCatalog.shippingEditor = {
           show: true, saving: false, error: null, isNew: false,
           form: {
@@ -312,6 +446,7 @@
             await self.gmApi("PATCH", "/shipping/" + f.id, body);
           }
           ed.show = false;
+          self.gmCatalog.notice = ed.isNew ? "Shipping option created." : "Shipping option saved.";
           await self.gmLoadCatalog();
         } catch (e) {
           ed.error = self.gmProblemCopy(e.problem);

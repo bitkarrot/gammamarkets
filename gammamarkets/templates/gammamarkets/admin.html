@@ -362,15 +362,22 @@
 
       <!-- ================= B3: catalog ================= -->
       <section v-show="gm.view === 'catalog'" data-gm-surface="catalog">
-        <div class="row items-center q-mb-md">
+        <div class="row items-center q-mb-md gm-catalog-head">
           <h1 class="text-h6 q-my-none col">Catalog</h1>
           <q-btn unelevated color="primary" label="New product"
-                 class="q-mr-sm" @click="gmNewProduct"></q-btn>
+                 @click="gmNewProduct"></q-btn>
           <q-btn outline color="primary" label="New collection"
-                 class="q-mr-sm" @click="gmNewCollection"></q-btn>
+                 @click="gmNewCollection"></q-btn>
           <q-btn outline color="primary" label="New shipping option"
                  @click="gmNewShipping"></q-btn>
         </div>
+        <q-banner v-if="gmCatalog.notice" rounded
+                  class="bg-positive text-white q-mb-md">
+          {{ gmCatalog.notice }}
+          <template v-slot:action>
+            <q-btn flat label="Dismiss" @click="gmCatalog.notice = null"></q-btn>
+          </template>
+        </q-banner>
         <q-banner v-if="gmCatalog.error" class="bg-negative text-white q-mb-md">
           {{ gmCatalog.error }}
           <template v-slot:action>
@@ -390,110 +397,356 @@
 
         <q-tab-panels v-else v-model="gmCatalog.tab" animated>
           <q-tab-panel name="products" class="q-pa-none">
-            <div v-if="!gmCatalog.products.length" class="q-pa-lg text-center">
-              <p>No products yet — create a product or save a draft to begin.</p>
-            </div>
-            <q-table v-else dense flat bordered :rows="gmProductRows"
-                     row-key="id" :pagination="{ rowsPerPage: 20 }">
-              <template v-slot:header>
-                <q-tr>
-                  <q-th>Title</q-th><q-th>Type</q-th><q-th>Price</q-th>
-                  <q-th>Stock</q-th><q-th>Visibility</q-th><q-th>State</q-th>
-                  <q-th>Actions</q-th>
-                </q-tr>
-              </template>
-              <template v-slot:body="props">
-                <q-tr>
-                  <q-td>
-                    {{ props.row.title || props.row.d_tag }}
-                    <q-badge v-if="props.row.draft" color="warning"
-                             text-color="dark" class="q-ml-xs"
-                             label="Draft — never published"></q-badge>
-                  </q-td>
-                  <q-td>{{ props.row.product_type }} / {{ props.row.format }}</q-td>
-                  <q-td>{{ props.row._price }}</q-td>
-                  <q-td>{{ props.row._stock }}</q-td>
-                  <q-td>{{ props.row.visibility }}</q-td>
-                  <q-td>{{ props.row.nip99_status }}</q-td>
-                  <q-td>
-                    <q-btn flat dense round icon="edit"
-                           @click="gmEditProduct(props.row)">
-                      <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                    <q-btn flat dense round icon="visibility"
-                           @click="gmDryRun(props.row)">
-                      <q-tooltip>Preview events</q-tooltip>
-                    </q-btn>
-                    <q-btn flat dense round color="negative" icon="delete"
-                           @click="gmAskDelete('product', props.row)">
-                      <q-tooltip>Delete</q-tooltip>
-                    </q-btn>
-                  </q-td>
-                </q-tr>
-              </template>
-            </q-table>
+            <q-card v-if="gmCatalog.editor.show" flat bordered
+                    class="gm-catalog-editor" data-gm-catalog-editor="product">
+              <q-card-section class="row items-center q-gutter-sm">
+                <div class="col">
+                  <div class="text-h6">
+                    {{ gmCatalog.editor.isNew ? 'New product' : 'Edit product' }}
+                  </div>
+                  <div class="text-caption text-grey-7">
+                    Product details, availability and publication settings stay in this workspace.
+                  </div>
+                </div>
+                <q-btn flat label="Cancel" @click="gmCatalog.editor.show = false"></q-btn>
+                <q-btn unelevated color="primary"
+                       :label="gmCatalog.editor.isNew ? 'Create product' : 'Save product'"
+                       :loading="gmCatalog.editor.saving"
+                       @click="gmSaveProduct"></q-btn>
+              </q-card-section>
+              <q-separator></q-separator>
+              <q-card-section class="gm-editor-grid">
+                <q-select v-model="gmCatalog.editor.form.catalog_id" dense outlined
+                          label="Catalog" :options="gmCatalog.catalogs"
+                          option-value="id" option-label="name"
+                          emit-value map-options></q-select>
+                <q-input v-model="gmCatalog.editor.form.title" dense outlined
+                         label="Title"></q-input>
+                <q-input v-model="gmCatalog.editor.form.summary" dense outlined
+                         class="gm-editor-wide" label="Summary (optional)"></q-input>
+                <q-input v-model="gmCatalog.editor.form.description_md" dense
+                         outlined type="textarea" class="gm-editor-wide"
+                         label="Description (markdown)"></q-input>
+                <q-select v-model="gmCatalog.editor.form.product_type" dense
+                          outlined label="Type"
+                          :options="gmCatalog.productTypes"></q-select>
+                <q-select v-model="gmCatalog.editor.form.format" dense outlined
+                          label="Format" :options="gmCatalog.formats"></q-select>
+                <q-input v-if="gmCatalog.editor.form.format === 'digital'"
+                         v-model="gmCatalog.editor.form.delivery_content" dense
+                         outlined type="textarea" autogrow maxlength="4000"
+                         class="gm-editor-wide" data-gm="delivery-editor"
+                         label="Digital delivery — download link, license key or instructions"
+                         hint="Stored encrypted. Buyers see this only after confirmed payment. Never published to Nostr."></q-input>
+                <q-input v-model.number="gmCatalog.editor.form.amount_minor" dense
+                         outlined type="number" min="0"
+                         label="Price (minor units)"></q-input>
+                <q-input v-model="gmCatalog.editor.form.currency" dense outlined
+                         label="Currency (SAT or fiat code)" maxlength="8"></q-input>
+                <q-input v-model.number="gmCatalog.editor.form.stock_on_hand" dense
+                         outlined type="number" min="0"
+                         label="Stock on hand (blank = unlimited)"></q-input>
+                <q-input v-if="gmCatalog.editor.form.product_type === 'variation'"
+                         v-model="gmCatalog.editor.form.parent_product_id" dense
+                         outlined label="Parent product ID"></q-input>
+                <q-select v-model="gmCatalog.editor.form.collection_ids" dense
+                          outlined multiple label="Collections"
+                          :options="gmCatalog.collections" option-value="id"
+                          option-label="title" emit-value map-options></q-select>
+                <q-select v-model="gmCatalog.editor.form.visibility" dense outlined
+                          label="Visibility" :options="gmCatalog.visibilities"></q-select>
+                <q-checkbox v-model="gmCatalog.editor.form.draft"
+                            label="Save as draft — never published until unchecked"></q-checkbox>
+                <q-input v-model="gmCatalog.editor.form.images_text" dense outlined
+                         type="textarea" class="gm-editor-wide"
+                         label="Image URLs (one per line)"
+                         :hint="gmCatalog.imageDisclosure"></q-input>
+                <q-banner v-if="gmCatalog.editor.error"
+                          class="bg-negative text-white gm-editor-wide">
+                  {{ gmCatalog.editor.error }}
+                </q-banner>
+              </q-card-section>
+            </q-card>
+
+            <template v-else>
+              <q-card v-if="gmCatalog.bulkEditor.show" flat bordered
+                      class="gm-catalog-editor q-mb-md"
+                      data-gm-catalog-editor="bulk">
+                <q-card-section class="row items-center q-gutter-sm">
+                  <div class="col">
+                    <div class="text-h6">Bulk edit</div>
+                    <div class="text-caption text-grey-7">
+                      {{ gmCatalog.selectedProducts.length }} products selected. Apply one controlled change at a time.
+                    </div>
+                  </div>
+                  <q-btn flat label="Cancel" @click="gmCatalog.bulkEditor.show = false"></q-btn>
+                  <q-btn unelevated color="primary"
+                         :label="'Apply to ' + gmCatalog.selectedProducts.length + ' products'"
+                         :loading="gmCatalog.bulkEditor.saving"
+                         @click="gmApplyBulk"></q-btn>
+                </q-card-section>
+                <q-separator></q-separator>
+                <q-card-section class="gm-editor-grid">
+                  <q-select v-model="gmCatalog.bulkEditor.action" outlined
+                            label="Bulk action" :options="gmCatalog.bulkActions"
+                            option-label="label" option-value="value"
+                            emit-value map-options></q-select>
+                  <q-input v-if="gmCatalog.bulkEditor.action === 'price-markup'"
+                           v-model.number="gmCatalog.bulkEditor.markup" outlined
+                           type="number" min="0.01" max="10000" step="0.01"
+                           label="Markup percentage" suffix="%"></q-input>
+                  <q-select v-if="gmCatalog.bulkEditor.action === 'move-collection'"
+                            v-model="gmCatalog.bulkEditor.collectionId" outlined
+                            label="Destination collection"
+                            :options="gmCatalog.collections" option-label="title"
+                            option-value="id" emit-value map-options
+                            hint="Replaces current collection memberships for the selected products."></q-select>
+                  <q-select v-if="gmCatalog.bulkEditor.action === 'visibility'"
+                            v-model="gmCatalog.bulkEditor.visibility" outlined
+                            label="Visibility" :options="gmCatalog.visibilities"></q-select>
+                  <div v-if="gmCatalog.bulkEditor.action === 'draft'"
+                       class="text-body2 gm-editor-wide">
+                    Selected products will leave their collections and be withdrawn from publication.
+                  </div>
+                  <div v-if="gmCatalog.bulkEditor.action === 'publish'"
+                       class="text-body2 gm-editor-wide">
+                    Selected products will leave draft status and become eligible for publication.
+                  </div>
+                  <q-banner v-if="gmCatalog.bulkEditor.error"
+                            class="bg-negative text-white gm-editor-wide">
+                    {{ gmCatalog.bulkEditor.error }}
+                  </q-banner>
+                </q-card-section>
+              </q-card>
+
+              <div v-if="gmCatalog.selectedProducts.length"
+                   class="gm-bulk-bar q-mb-sm" data-gm="bulk-bar">
+                <strong>
+                  {{ gmCatalog.selectedProducts.length }}
+                  product{{ gmCatalog.selectedProducts.length === 1 ? '' : 's' }} selected
+                </strong>
+                <span class="col"></span>
+                <q-btn flat label="Clear selection"
+                       @click="gmCatalog.selectedProducts = []"></q-btn>
+                <q-btn outline color="primary" label="Bulk edit"
+                       @click="gmOpenBulkEditor"></q-btn>
+                <q-btn outline color="negative" label="Delete selected"
+                       @click="gmAskBulkDelete"></q-btn>
+              </div>
+              <div v-if="!gmCatalog.products.length" class="q-pa-lg text-center">
+                <p>No products yet — create a product or save a draft to begin.</p>
+              </div>
+              <q-table v-else dense flat bordered class="gm-catalog-table"
+                       data-gm-table="products" :rows="gmProductRows"
+                       :columns="gmCatalog.productColumns" row-key="id"
+                       selection="multiple" v-model:selected="gmCatalog.selectedProducts"
+                       :pagination="{ rowsPerPage: 20 }"
+                       :table-style="{ tableLayout: 'fixed', minWidth: '980px' }">
+                <template v-slot:body="props">
+                  <q-tr :props="props">
+                    <q-td auto-width>
+                      <q-checkbox v-model="props.selected"></q-checkbox>
+                    </q-td>
+                    <q-td key="title" :props="props" data-col="title">
+                      {{ props.row.title || props.row.d_tag }}
+                      <q-badge v-if="props.row.draft" color="warning"
+                               text-color="dark" class="q-ml-xs"
+                               label="Draft — never published"></q-badge>
+                    </q-td>
+                    <q-td key="type" :props="props" data-col="type">
+                      {{ props.row.product_type }} / {{ props.row.format }}
+                    </q-td>
+                    <q-td key="price" :props="props" data-col="price">{{ props.row._price }}</q-td>
+                    <q-td key="stock" :props="props" data-col="stock">{{ props.row._stock }}</q-td>
+                    <q-td key="visibility" :props="props" data-col="visibility">{{ props.row.visibility }}</q-td>
+                    <q-td key="state" :props="props" data-col="state">{{ props.row.nip99_status }}</q-td>
+                    <q-td key="actions" :props="props" data-col="actions">
+                      <q-btn flat dense round icon="edit" aria-label="Edit product"
+                             @click="gmEditProduct(props.row)">
+                        <q-tooltip>Edit</q-tooltip>
+                      </q-btn>
+                      <q-btn flat dense round icon="visibility" aria-label="Preview events"
+                             @click="gmDryRun(props.row)">
+                        <q-tooltip>Preview events</q-tooltip>
+                      </q-btn>
+                      <q-btn flat dense round color="negative" icon="delete"
+                             aria-label="Delete product"
+                             @click="gmAskDelete('product', props.row)">
+                        <q-tooltip>Delete</q-tooltip>
+                      </q-btn>
+                    </q-td>
+                  </q-tr>
+                </template>
+              </q-table>
+            </template>
           </q-tab-panel>
 
           <q-tab-panel name="collections" class="q-pa-none">
-            <div v-if="!gmCatalog.collections.length" class="q-pa-lg text-center">
-              <p>No collections yet — create a collection to group products; every published product belongs to at least one.</p>
-            </div>
-            <q-table v-else dense flat bordered :rows="gmCatalog.collections"
-                     row-key="id" :pagination="{ rowsPerPage: 20 }">
-              <template v-slot:header>
-                <q-tr><q-th>Title</q-th><q-th>ID</q-th><q-th>Actions</q-th></q-tr>
-              </template>
-              <template v-slot:body="props">
-                <q-tr>
-                  <q-td>{{ props.row.title || props.row.d_tag }}</q-td>
-                  <q-td>{{ gmTrunc(props.row.d_tag, 8, 4) }}</q-td>
-                  <q-td>
-                    <q-btn flat dense round icon="edit"
-                           @click="gmEditCollection(props.row)">
-                      <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                    <q-btn flat dense round color="negative" icon="delete"
-                           @click="gmAskDelete('collection', props.row)">
-                      <q-tooltip>Delete</q-tooltip>
-                    </q-btn>
-                  </q-td>
-                </q-tr>
-              </template>
-            </q-table>
+            <q-card v-if="gmCatalog.collectionEditor.show" flat bordered
+                    class="gm-catalog-editor" data-gm-catalog-editor="collection">
+              <q-card-section class="row items-center q-gutter-sm">
+                <div class="col">
+                  <div class="text-h6">
+                    {{ gmCatalog.collectionEditor.isNew ? 'New collection' : 'Edit collection' }}
+                  </div>
+                  <div class="text-caption text-grey-7">
+                    Group related products into a storefront destination.
+                  </div>
+                </div>
+                <q-btn flat label="Cancel"
+                       @click="gmCatalog.collectionEditor.show = false"></q-btn>
+                <q-btn unelevated color="primary"
+                       :label="gmCatalog.collectionEditor.isNew ? 'Create collection' : 'Save collection'"
+                       :loading="gmCatalog.collectionEditor.saving"
+                       @click="gmSaveCollection"></q-btn>
+              </q-card-section>
+              <q-separator></q-separator>
+              <q-card-section class="gm-editor-grid">
+                <q-input v-model="gmCatalog.collectionEditor.form.title" dense
+                         outlined label="Title"></q-input>
+                <q-input v-model="gmCatalog.collectionEditor.form.location" dense
+                         outlined label="Location (optional)"></q-input>
+                <q-input v-model="gmCatalog.collectionEditor.form.description" dense
+                         outlined type="textarea" class="gm-editor-wide"
+                         label="Description (optional)"></q-input>
+                <q-input v-model="gmCatalog.collectionEditor.form.image" dense
+                         outlined class="gm-editor-wide"
+                         label="Image URL (optional)"></q-input>
+                <q-banner v-if="gmCatalog.collectionEditor.error"
+                          class="bg-negative text-white gm-editor-wide">
+                  {{ gmCatalog.collectionEditor.error }}
+                </q-banner>
+              </q-card-section>
+            </q-card>
+
+            <template v-else>
+              <div v-if="!gmCatalog.collections.length" class="q-pa-lg text-center">
+                <p>No collections yet — create a collection to group products; every published product belongs to at least one.</p>
+              </div>
+              <q-table v-else dense flat bordered class="gm-catalog-table"
+                       data-gm-table="collections" :rows="gmCatalog.collections"
+                       :columns="gmCatalog.collectionColumns" row-key="id"
+                       :pagination="{ rowsPerPage: 20 }"
+                       :table-style="{ tableLayout: 'fixed', minWidth: '620px' }">
+                <template v-slot:body="props">
+                  <q-tr :props="props">
+                    <q-td key="title" :props="props" data-col="title">
+                      {{ props.row.title || props.row.d_tag }}
+                    </q-td>
+                    <q-td key="id" :props="props" data-col="id">
+                      {{ gmTrunc(props.row.d_tag, 8, 4) }}
+                    </q-td>
+                    <q-td key="actions" :props="props" data-col="actions">
+                      <q-btn flat dense round icon="edit" aria-label="Edit collection"
+                             @click="gmEditCollection(props.row)">
+                        <q-tooltip>Edit</q-tooltip>
+                      </q-btn>
+                      <q-btn flat dense round color="negative" icon="delete"
+                             aria-label="Delete collection"
+                             @click="gmAskDelete('collection', props.row)">
+                        <q-tooltip>Delete</q-tooltip>
+                      </q-btn>
+                    </q-td>
+                  </q-tr>
+                </template>
+              </q-table>
+            </template>
           </q-tab-panel>
 
           <q-tab-panel name="shipping" class="q-pa-none">
-            <div v-if="!gmCatalog.shipping.length" class="q-pa-lg text-center">
-              <p>No shipping options yet — create one for physical products.</p>
-            </div>
-            <q-table v-else dense flat bordered :rows="gmCatalog.shipping"
-                     row-key="id" :pagination="{ rowsPerPage: 20 }">
-              <template v-slot:header>
-                <q-tr>
-                  <q-th>Title</q-th><q-th>Service</q-th><q-th>Price</q-th>
-                  <q-th>Countries</q-th><q-th>Active</q-th><q-th>Actions</q-th>
-                </q-tr>
-              </template>
-              <template v-slot:body="props">
-                <q-tr>
-                  <q-td>{{ props.row.title }}</q-td>
-                  <q-td>{{ props.row.service }}</q-td>
-                  <q-td>{{ props.row.base_price_minor }} {{ props.row.currency }}</q-td>
-                  <q-td>{{ (props.row.countries || []).join(', ') || 'All' }}</q-td>
-                  <q-td>{{ props.row.active ? 'Yes' : 'No' }}</q-td>
-                  <q-td>
-                    <q-btn flat dense round icon="edit"
-                           @click="gmEditShipping(props.row)">
-                      <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                    <q-btn flat dense round color="negative" icon="delete"
-                           @click="gmAskDelete('shipping', props.row)">
-                      <q-tooltip>Delete</q-tooltip>
-                    </q-btn>
-                  </q-td>
-                </q-tr>
-              </template>
-            </q-table>
+            <q-card v-if="gmCatalog.shippingEditor.show" flat bordered
+                    class="gm-catalog-editor" data-gm-catalog-editor="shipping">
+              <q-card-section class="row items-center q-gutter-sm">
+                <div class="col">
+                  <div class="text-h6">
+                    {{ gmCatalog.shippingEditor.isNew ? 'New shipping option' : 'Edit shipping option' }}
+                  </div>
+                  <div class="text-caption text-grey-7">
+                    Define where this option applies, its cost and delivery window.
+                  </div>
+                </div>
+                <q-btn flat label="Cancel"
+                       @click="gmCatalog.shippingEditor.show = false"></q-btn>
+                <q-btn unelevated color="primary"
+                       :label="gmCatalog.shippingEditor.isNew ? 'Create shipping option' : 'Save shipping option'"
+                       :loading="gmCatalog.shippingEditor.saving"
+                       @click="gmSaveShipping"></q-btn>
+              </q-card-section>
+              <q-separator></q-separator>
+              <q-card-section class="gm-editor-grid">
+                <q-input v-model="gmCatalog.shippingEditor.form.title" dense
+                         outlined label="Title"></q-input>
+                <q-select v-model="gmCatalog.shippingEditor.form.service" dense
+                          outlined label="Service"
+                          :options="gmCatalog.services"></q-select>
+                <q-input v-model.number="gmCatalog.shippingEditor.form.base_price_minor"
+                         dense outlined type="number" min="0"
+                         label="Base price (minor units)"></q-input>
+                <q-input v-model="gmCatalog.shippingEditor.form.currency" dense
+                         outlined label="Currency" maxlength="8"></q-input>
+                <q-input v-model="gmCatalog.shippingEditor.form.countries_text" dense
+                         outlined class="gm-editor-wide"
+                         label="Countries (comma-separated ISO codes, blank = all)"></q-input>
+                <q-input v-model="gmCatalog.shippingEditor.form.regions_text" dense
+                         outlined class="gm-editor-wide"
+                         label="Regions (comma-separated, optional)"></q-input>
+                <q-input v-model.number="gmCatalog.shippingEditor.form.duration_min"
+                         dense outlined type="number" min="0"
+                         label="Duration min"></q-input>
+                <q-input v-model.number="gmCatalog.shippingEditor.form.duration_max"
+                         dense outlined type="number" min="0"
+                         label="Duration max"></q-input>
+                <q-select v-model="gmCatalog.shippingEditor.form.duration_unit"
+                          dense outlined label="Duration unit"
+                          :options="gmCatalog.durationUnits"></q-select>
+                <q-input v-model="gmCatalog.shippingEditor.form.location" dense
+                         outlined label="Location (required for pickup)"></q-input>
+                <q-checkbox v-model="gmCatalog.shippingEditor.form.active"
+                            label="Active"></q-checkbox>
+                <q-banner v-if="gmCatalog.shippingEditor.error"
+                          class="bg-negative text-white gm-editor-wide">
+                  {{ gmCatalog.shippingEditor.error }}
+                </q-banner>
+              </q-card-section>
+            </q-card>
+
+            <template v-else>
+              <div v-if="!gmCatalog.shipping.length" class="q-pa-lg text-center">
+                <p>No shipping options yet — create one for physical products.</p>
+              </div>
+              <q-table v-else dense flat bordered class="gm-catalog-table"
+                       data-gm-table="shipping" :rows="gmCatalog.shipping"
+                       :columns="gmCatalog.shippingColumns" row-key="id"
+                       :pagination="{ rowsPerPage: 20 }"
+                       :table-style="{ tableLayout: 'fixed', minWidth: '820px' }">
+                <template v-slot:body="props">
+                  <q-tr :props="props">
+                    <q-td key="title" :props="props" data-col="title">{{ props.row.title }}</q-td>
+                    <q-td key="service" :props="props" data-col="service">{{ props.row.service }}</q-td>
+                    <q-td key="price" :props="props" data-col="price">
+                      {{ props.row.base_price_minor }} {{ props.row.currency }}
+                    </q-td>
+                    <q-td key="countries" :props="props" data-col="countries">
+                      {{ (props.row.countries || []).join(', ') || 'All' }}
+                    </q-td>
+                    <q-td key="active" :props="props" data-col="active">
+                      {{ props.row.active ? 'Yes' : 'No' }}
+                    </q-td>
+                    <q-td key="actions" :props="props" data-col="actions">
+                      <q-btn flat dense round icon="edit" aria-label="Edit shipping option"
+                             @click="gmEditShipping(props.row)">
+                        <q-tooltip>Edit</q-tooltip>
+                      </q-btn>
+                      <q-btn flat dense round color="negative" icon="delete"
+                             aria-label="Delete shipping option"
+                             @click="gmAskDelete('shipping', props.row)">
+                        <q-tooltip>Delete</q-tooltip>
+                      </q-btn>
+                    </q-td>
+                  </q-tr>
+                </template>
+              </q-table>
+            </template>
           </q-tab-panel>
         </q-tab-panels>
       </section>
@@ -1115,172 +1368,6 @@
     </q-card>
   </q-dialog>
 
-  <q-dialog v-model="gmCatalog.editor.show">
-    <q-card style="min-width: 520px; max-width: 640px">
-      <q-card-section>
-        <div class="text-h6">
-          {{ gmCatalog.editor.isNew ? 'New product' : 'Edit product' }}
-        </div>
-      </q-card-section>
-      <q-card-section class="q-gutter-sm">
-        <q-select v-model="gmCatalog.editor.form.catalog_id" dense outlined
-                  label="Catalog" :options="gmCatalog.catalogs"
-                  option-value="id" option-label="name"
-                  emit-value map-options></q-select>
-        <q-input v-model="gmCatalog.editor.form.title" dense outlined
-                 label="Title"></q-input>
-        <q-input v-model="gmCatalog.editor.form.summary" dense outlined
-                 label="Summary (optional)"></q-input>
-        <q-input v-model="gmCatalog.editor.form.description_md" dense
-                 outlined type="textarea" label="Description (markdown)">
-        </q-input>
-        <div class="row q-gutter-sm">
-          <q-select v-model="gmCatalog.editor.form.product_type" dense
-                    outlined class="col" label="Type"
-                    :options="gmCatalog.productTypes"></q-select>
-          <q-select v-model="gmCatalog.editor.form.format" dense outlined
-                    class="col" label="Format"
-                    :options="gmCatalog.formats"></q-select>
-        </div>
-        <div v-if="gmCatalog.editor.form.format === 'digital'" data-gm="delivery-editor">
-          <q-input v-model="gmCatalog.editor.form.delivery_content" dense
-                   outlined type="textarea" autogrow maxlength="4000"
-                   label="Digital delivery — download link, license key or instructions"
-                   hint="Stored encrypted. Buyers see this on their order page and confirmation email only after their payment is confirmed. Never published to Nostr."></q-input>
-        </div>
-        <div class="row q-gutter-sm">
-          <q-input v-model.number="gmCatalog.editor.form.amount_minor" dense
-                   outlined class="col" type="number" min="0"
-                   label="Price (minor units)"></q-input>
-          <q-input v-model="gmCatalog.editor.form.currency" dense outlined
-                   class="col" label="Currency (SAT or fiat code)"
-                   maxlength="8"></q-input>
-        </div>
-        <q-input v-model.number="gmCatalog.editor.form.stock_on_hand" dense
-                 outlined type="number" min="0"
-                 label="Stock on hand (blank = unlimited)"></q-input>
-        <q-input v-if="gmCatalog.editor.form.product_type === 'variation'"
-                 v-model="gmCatalog.editor.form.parent_product_id" dense
-                 outlined label="Parent product ID"></q-input>
-        <q-select v-model="gmCatalog.editor.form.collection_ids" dense
-                  outlined multiple label="Collections"
-                  :options="gmCatalog.collections" option-value="id"
-                  option-label="title" emit-value map-options></q-select>
-        <q-select v-model="gmCatalog.editor.form.visibility" dense outlined
-                  label="Visibility"
-                  :options="gmCatalog.visibilities"></q-select>
-        <q-checkbox v-model="gmCatalog.editor.form.draft"
-                    label="Save as draft — never published until unchecked">
-        </q-checkbox>
-        <q-input v-model="gmCatalog.editor.form.images_text" dense outlined
-                 type="textarea" label="Image URLs (one per line)"></q-input>
-        <div class="text-caption">{{ gmCatalog.imageDisclosure }}</div>
-        <q-banner v-if="gmCatalog.editor.error"
-                  class="bg-negative text-white">
-          {{ gmCatalog.editor.error }}
-        </q-banner>
-      </q-card-section>
-      <q-card-actions align="right">
-        <q-btn flat label="Cancel"
-               @click="gmCatalog.editor.show = false"></q-btn>
-        <q-btn unelevated color="primary"
-               :label="gmCatalog.editor.isNew ? 'Create product' : 'Save product'"
-               :loading="gmCatalog.editor.saving"
-               @click="gmSaveProduct"></q-btn>
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
-
-  <q-dialog v-model="gmCatalog.collectionEditor.show">
-    <q-card style="min-width: 480px">
-      <q-card-section>
-        <div class="text-h6">
-          {{ gmCatalog.collectionEditor.isNew ? 'New collection' : 'Edit collection' }}
-        </div>
-      </q-card-section>
-      <q-card-section class="q-gutter-sm">
-        <q-input v-model="gmCatalog.collectionEditor.form.title" dense
-                 outlined label="Title"></q-input>
-        <q-input v-model="gmCatalog.collectionEditor.form.description" dense
-                 outlined label="Description (optional)"></q-input>
-        <q-input v-model="gmCatalog.collectionEditor.form.image" dense
-                 outlined label="Image URL (optional)"></q-input>
-        <q-input v-model="gmCatalog.collectionEditor.form.location" dense
-                 outlined label="Location (optional)"></q-input>
-        <q-banner v-if="gmCatalog.collectionEditor.error"
-                  class="bg-negative text-white">
-          {{ gmCatalog.collectionEditor.error }}
-        </q-banner>
-      </q-card-section>
-      <q-card-actions align="right">
-        <q-btn flat label="Cancel"
-               @click="gmCatalog.collectionEditor.show = false"></q-btn>
-        <q-btn unelevated color="primary"
-               :label="gmCatalog.collectionEditor.isNew ? 'Create collection' : 'Save collection'"
-               :loading="gmCatalog.collectionEditor.saving"
-               @click="gmSaveCollection"></q-btn>
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
-
-  <q-dialog v-model="gmCatalog.shippingEditor.show">
-    <q-card style="min-width: 480px">
-      <q-card-section>
-        <div class="text-h6">
-          {{ gmCatalog.shippingEditor.isNew ? 'New shipping option' : 'Edit shipping option' }}
-        </div>
-      </q-card-section>
-      <q-card-section class="q-gutter-sm">
-        <q-input v-model="gmCatalog.shippingEditor.form.title" dense
-                 outlined label="Title"></q-input>
-        <q-select v-model="gmCatalog.shippingEditor.form.service" dense
-                  outlined label="Service"
-                  :options="gmCatalog.services"></q-select>
-        <div class="row q-gutter-sm">
-          <q-input v-model.number="gmCatalog.shippingEditor.form.base_price_minor"
-                   dense outlined class="col" type="number" min="0"
-                   label="Base price (minor units)"></q-input>
-          <q-input v-model="gmCatalog.shippingEditor.form.currency" dense
-                   outlined class="col" label="Currency" maxlength="8">
-          </q-input>
-        </div>
-        <q-input v-model="gmCatalog.shippingEditor.form.countries_text" dense
-                 outlined label="Countries (comma-separated ISO codes, blank = all)">
-        </q-input>
-        <q-input v-model="gmCatalog.shippingEditor.form.regions_text" dense
-                 outlined label="Regions (comma-separated, optional)">
-        </q-input>
-        <div class="row q-gutter-sm">
-          <q-input v-model.number="gmCatalog.shippingEditor.form.duration_min"
-                   dense outlined class="col" type="number" min="0"
-                   label="Duration min"></q-input>
-          <q-input v-model.number="gmCatalog.shippingEditor.form.duration_max"
-                   dense outlined class="col" type="number" min="0"
-                   label="Duration max"></q-input>
-          <q-select v-model="gmCatalog.shippingEditor.form.duration_unit"
-                    dense outlined class="col" label="Unit"
-                    :options="gmCatalog.durationUnits"></q-select>
-        </div>
-        <q-input v-model="gmCatalog.shippingEditor.form.location" dense
-                 outlined label="Location (optional)"></q-input>
-        <q-checkbox v-model="gmCatalog.shippingEditor.form.active"
-                    label="Active"></q-checkbox>
-        <q-banner v-if="gmCatalog.shippingEditor.error"
-                  class="bg-negative text-white">
-          {{ gmCatalog.shippingEditor.error }}
-        </q-banner>
-      </q-card-section>
-      <q-card-actions align="right">
-        <q-btn flat label="Cancel"
-               @click="gmCatalog.shippingEditor.show = false"></q-btn>
-        <q-btn unelevated color="primary"
-               :label="gmCatalog.shippingEditor.isNew ? 'Create shipping option' : 'Save shipping option'"
-               :loading="gmCatalog.shippingEditor.saving"
-               @click="gmSaveShipping"></q-btn>
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
-
   <q-dialog v-model="gmCatalog.deleteDialog.show">
     <q-card style="min-width: 440px">
       <q-card-section>
@@ -1303,6 +1390,30 @@
         <q-btn unelevated color="negative" label="Delete"
                :loading="gmCatalog.deleteDialog.busy"
                @click="gmDeleteConfirm(false)"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmCatalog.bulkDeleteDialog.show">
+    <q-card style="min-width: 440px; max-width: 560px">
+      <q-card-section>
+        <div class="text-h6">
+          Delete {{ gmCatalog.selectedProducts.length }} products
+        </div>
+      </q-card-section>
+      <q-card-section>
+        {{ gmCatalog.deleteDisclosure }} This action applies to every selected product.
+        <q-banner v-if="gmCatalog.bulkDeleteDialog.error"
+                  class="bg-negative text-white q-mt-sm">
+          {{ gmCatalog.bulkDeleteDialog.error }}
+        </q-banner>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Keep products"
+               @click="gmCatalog.bulkDeleteDialog.show = false"></q-btn>
+        <q-btn unelevated color="negative" label="Delete products"
+               :loading="gmCatalog.bulkDeleteDialog.busy"
+               @click="gmBulkDeleteConfirm"></q-btn>
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -1441,6 +1552,30 @@
   outline: 2px solid var(--q-primary);
   outline-offset: 0;
 }
+.gm-catalog-head { gap: 8px; }
+.gm-catalog-editor { border-radius: 12px; overflow: hidden; }
+.gm-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.gm-editor-wide { grid-column: 1 / -1; }
+.gm-bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.08);
+}
+.gm-catalog-table .q-table__middle { overflow-x: auto; }
+.gm-catalog-table th,
+.gm-catalog-table td { overflow: hidden; text-overflow: ellipsis; }
+.gm-catalog-table[data-gm-table="products"] th:first-child,
+.gm-catalog-table[data-gm-table="products"] td:first-child { width: 48px; }
 .gm-preview {
   border: 1px solid #dfcfbb;
   border-radius: 12px;
@@ -1502,6 +1637,9 @@
   .gm-nav .q-list { display: flex; }
   .gm-nav .q-item__section:not(.q-item__section--avatar) { display: block; }
   .gm-workspace { grid-template-columns: 1fr; }
+  .gm-editor-grid { grid-template-columns: 1fr; }
+  .gm-editor-wide { grid-column: auto; }
+  .gm-catalog-head h1 { flex-basis: 100%; }
 }
 </style>
 {% endblock %}

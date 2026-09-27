@@ -94,6 +94,100 @@ test('catalog surface lists products with editor CTAs', async ({page}) => {
   await expect(catalog.getByText('e2e poster').first()).toBeVisible()
 })
 
+test('catalog editors stay in-pane and bulk tools update selected products', async ({page}) => {
+  await page.goto('/gammamarkets/')
+  await page.locator('[data-gm-nav="catalog"]').click()
+  const catalog = page.locator('[data-gm-surface="catalog"]')
+  await expect(catalog.getByRole('button', {name: 'New product'})).toBeVisible({
+    timeout: 15_000
+  })
+
+  await catalog.getByRole('button', {name: 'New product'}).click()
+  await expect(catalog.locator('[data-gm-catalog-editor="product"]')).toBeVisible()
+  await expect(page.locator('.q-dialog').getByText('New product', {exact: true})).toHaveCount(0)
+  await catalog.getByRole('button', {name: 'Cancel'}).click()
+
+  await catalog.getByRole('button', {name: 'New collection'}).click()
+  await expect(catalog.locator('[data-gm-catalog-editor="collection"]')).toBeVisible()
+  await catalog.getByRole('button', {name: 'Cancel'}).click()
+  const collectionsTable = catalog.locator('[data-gm-table="collections"]')
+  const collectionHeading = await collectionsTable.getByRole('columnheader', {name: 'Title'}).boundingBox()
+  const firstCollection = await collectionsTable.locator('[data-col="title"]').first().boundingBox()
+  expect(Math.abs((collectionHeading?.x || 0) - (firstCollection?.x || 0))).toBeLessThanOrEqual(1)
+  expect(Math.abs((collectionHeading?.width || 0) - (firstCollection?.width || 0))).toBeLessThanOrEqual(1)
+
+  await catalog.getByRole('button', {name: 'New shipping option'}).click()
+  await expect(catalog.locator('[data-gm-catalog-editor="shipping"]')).toBeVisible()
+  await catalog.getByRole('button', {name: 'Cancel'}).click()
+  const shippingTable = catalog.locator('[data-gm-table="shipping"]')
+  const shippingHeading = await shippingTable.getByRole('columnheader', {name: 'Title'}).boundingBox()
+  const firstShipping = await shippingTable.locator('[data-col="title"]').first().boundingBox()
+  expect(Math.abs((shippingHeading?.x || 0) - (firstShipping?.x || 0))).toBeLessThanOrEqual(1)
+  expect(Math.abs((shippingHeading?.width || 0) - (firstShipping?.width || 0))).toBeLessThanOrEqual(1)
+  await page.getByRole('tab', {name: 'Products'}).click()
+
+  const csrf = (await page.context().cookies()).find(c => c.name === 'gm_csrf')?.value || ''
+  const headers = {Origin: seed.base_url, 'X-CSRF-Token': csrf}
+  for (const [title, amount] of [['bulk alpha', 100], ['bulk beta', 200]] as const) {
+    const response = await page.request.post('/gammamarkets/api/v1/products', {
+      headers,
+      data: {
+        catalog_id: seed.digital.catalog_id,
+        title,
+        amount_minor: amount,
+        currency: 'SAT',
+        draft: true
+      }
+    })
+    expect(response.status()).toBe(201)
+  }
+
+  await page.reload()
+  await page.locator('[data-gm-nav="catalog"]').click()
+  const table = catalog.locator('[data-gm-table="products"]')
+  await expect(table).toBeVisible({timeout: 15_000})
+  const heading = await table.getByRole('columnheader', {name: 'Title'}).boundingBox()
+  const firstTitle = await table.locator('[data-col="title"]').first().boundingBox()
+  expect(Math.abs((heading?.x || 0) - (firstTitle?.x || 0))).toBeLessThanOrEqual(1)
+  expect(Math.abs((heading?.width || 0) - (firstTitle?.width || 0))).toBeLessThanOrEqual(1)
+
+  const rowCount = await table.locator('tbody tr').count()
+  await table.getByRole('checkbox').first().click()
+  await expect(catalog.locator('[data-gm="bulk-bar"]')).toContainText(
+    `${rowCount} products selected`
+  )
+  await catalog.getByRole('button', {name: 'Clear selection'}).click()
+
+  for (const title of ['bulk alpha', 'bulk beta']) {
+    await table.locator('tbody tr').filter({hasText: title}).getByRole('checkbox').click()
+  }
+  await catalog.getByRole('button', {name: 'Bulk edit'}).click()
+  await expect(catalog.locator('[data-gm-catalog-editor="bulk"]')).toBeVisible()
+  await catalog.getByLabel('Bulk action').click()
+  await page.getByRole('option', {name: 'Increase prices by percentage'}).click()
+  await catalog.getByLabel('Markup percentage').fill('10')
+  await catalog.getByRole('button', {name: 'Apply to 2 products'}).click()
+  await expect(table.locator('tbody tr').filter({hasText: 'bulk alpha'})).toContainText('110 SAT')
+  await expect(table.locator('tbody tr').filter({hasText: 'bulk beta'})).toContainText('220 SAT')
+
+  for (const title of ['bulk alpha', 'bulk beta']) {
+    await table.locator('tbody tr').filter({hasText: title}).getByRole('checkbox').click()
+  }
+  await catalog.getByRole('button', {name: 'Delete selected'}).click()
+  await expect(page.getByText('Delete 2 products', {exact: true})).toBeVisible()
+  await page.getByRole('button', {name: 'Delete products'}).click()
+  await expect(table.getByText('bulk alpha')).toHaveCount(0)
+  await expect(table.getByText('bulk beta')).toHaveCount(0)
+
+  await page.setViewportSize({width: 390, height: 844})
+  await catalog.getByRole('button', {name: 'New product'}).click()
+  const editorGrid = catalog.locator('[data-gm-catalog-editor="product"] .gm-editor-grid')
+  await expect(editorGrid).toBeVisible()
+  await expect.poll(() => editorGrid.evaluate(el =>
+    getComputedStyle(el).gridTemplateColumns.split(' ').length
+  )).toBe(1)
+})
+
 test('publications surface shows relay health + evidence copy', async ({
   page
 }) => {

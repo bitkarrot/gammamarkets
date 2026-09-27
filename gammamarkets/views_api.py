@@ -9,7 +9,7 @@ are RFC 9457 problem details.
 from __future__ import annotations
 
 import functools
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request, Response
 from lnbits.core.models import User
@@ -103,6 +103,19 @@ class TestNotificationBody(_Strict):
 class PatchNotificationsBody(_Strict):
     notify_emails: list[str] | None = None
     notify_events: dict | None = None
+
+
+class BulkProductsBody(_Strict):
+    product_ids: list[str] = Field(min_items=1, max_items=100)
+    action: Literal[
+        "price-markup",
+        "move-collection",
+        "visibility",
+        "draft",
+        "publish",
+        "delete",
+    ]
+    value: Any = None
 
 
 def _patch_dict(body: PatchMerchantBody) -> dict:
@@ -360,6 +373,18 @@ async def create_product(
     user: User = Depends(check_user_exists),
 ):
     return await catalog_service.create_product(await _mid(user), user, body)
+
+
+@gammamarkets_api_router.post("/products/bulk")
+@problem_boundary
+async def bulk_products(
+    request: Request,
+    body: BulkProductsBody,
+    user: User = Depends(check_user_exists),
+):
+    return await catalog_service.bulk_products(
+        await _mid(user), user, body.product_ids, body.action, body.value
+    )
 
 
 @gammamarkets_api_router.get("/products")

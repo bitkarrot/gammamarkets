@@ -385,6 +385,139 @@ async def test_dry_run_deterministic(runtime_env):
     assert price_tag[2] == "USD"
 
 
+async def test_bulk_product_updates_are_atomic_and_publication_safe(runtime_env):
+    cid = await _catalog(runtime_env)
+    client = runtime_env["client"]
+    headers = await _cookie(runtime_env)
+    source = await client.post(
+        f"{API}/collections", json={"title": "bulk source"}, headers=headers
+    )
+    target = await client.post(
+        f"{API}/collections", json={"title": "bulk target"}, headers=headers
+    )
+    assert source.status_code == 201 and target.status_code == 201
+    products = []
+    for title, amount in (("bulk one", 105), ("bulk two", 200)):
+        response = await client.post(
+            f"{API}/products",
+            json={
+                "catalog_id": cid,
+                "title": title,
+                "amount_minor": amount,
+                "currency": "SAT",
+                "collection_ids": [source.json()["id"]],
+            },
+            headers=headers,
+        )
+        assert response.status_code == 201, response.text
+        products.append(response.json())
+    product_ids = [product["id"] for product in products]
+
+    response = await client.post(
+        f"{API}/products/bulk",
+        json={
+            "product_ids": [product_ids[0], "0" * 32],
+            "action": "price-markup",
+            "value": 10,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 404
+    unchanged = await client.get(f"{API}/products/{product_ids[0]}")
+    assert unchanged.json()["amount_minor"] == 105
+
+    response = await client.post(
+        f"{API}/products/bulk",
+        json={
+            "product_ids": product_ids,
+            "action": "price-markup",
+            "value": 10,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["updated"] == 2
+    updated = [
+        (await client.get(f"{API}/products/{product_id}")).json()
+        for product_id in product_ids
+    ]
+    assert [product["amount_minor"] for product in updated] == [116, 220]
+
+    response = await client.post(
+        f"{API}/products/bulk",
+        json={
+            "product_ids": product_ids,
+            "action": "move-collection",
+            "value": target.json()["id"],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    moved = [
+        (await client.get(f"{API}/products/{product_id}")).json()
+        for product_id in product_ids
+    ]
+    assert all(product["collection_ids"] == [target.json()["id"]] for product in moved)
+
+    response = await client.post(
+        f"{API}/products/bulk",
+        json={
+            "product_ids": product_ids,
+            "action": "visibility",
+            "value": "hidden",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    hidden = [
+        (await client.get(f"{API}/products/{product_id}")).json()
+        for product_id in product_ids
+    ]
+    assert all(product["visibility"] == "hidden" for product in hidden)
+
+    response = await client.post(
+        f"{API}/products/bulk",
+        json={"product_ids": product_ids, "action": "draft"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    drafts = [
+        (await client.get(f"{API}/products/{product_id}")).json()
+        for product_id in product_ids
+    ]
+    assert all(product["draft"] and product["collection_ids"] == [] for product in drafts)
+    intents = await _outbox(runtime_env, "products")
+    assert all(
+        any(
+            intent["aggregate_id"] == product_id and intent["event_kind"] == 5
+            for intent in intents
+        )
+        for product_id in product_ids
+    )
+
+    response = await client.post(
+        f"{API}/products/bulk",
+        json={"product_ids": product_ids, "action": "publish"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    published = [
+        (await client.get(f"{API}/products/{product_id}")).json()
+        for product_id in product_ids
+    ]
+    assert all(not product["draft"] for product in published)
+
+    response = await client.post(
+        f"{API}/products/bulk",
+        json={"product_ids": product_ids, "action": "delete"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json() == {"deleted": 2, "product_ids": product_ids}
+    for product_id in product_ids:
+        assert (await client.get(f"{API}/products/{product_id}")).status_code == 404
+
+
 async def test_delete_reference_report_and_strip(runtime_env):
     client = runtime_env["client"]
     headers = await _cookie(runtime_env)
@@ -473,5 +606,18 @@ async def test_owner_scoping(runtime_env):
         # and cannot read user A's product (merchant-scoped fetch)
         resp = await c2.get(
             f"{API}/products/{runtime_env['product_id']}"
+        )
+        assert resp.status_code == 404
+        resp = await c2.post(
+            f"{API}/products/bulk",
+            json={
+                "product_ids": [runtime_env["product_id"]],
+                "action": "visibility",
+                "value": "hidden",
+            },
+            headers={
+                "Origin": ORIGIN,
+                "X-CSRF-Token": c2.cookies.get("gm_csrf"),
+            },
         )
         assert resp.status_code == 404
