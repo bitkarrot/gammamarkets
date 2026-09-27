@@ -109,6 +109,24 @@ async def test_product_page_headers_and_scoping(runtime_env):
     assert "nsec" not in resp.text
 
 
+async def test_product_gallery_exposes_all_supported_images(runtime_env):
+    client = runtime_env["client"]
+    merchant = await _merchant(runtime_env)
+    images = [
+        {"url": f"https://shop.example/images/view-{i}.png"}
+        for i in range(16)
+    ]
+    _, product = await _catalog_and_product(runtime_env, format="digital", images=images)
+
+    resp = await client.get(
+        f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}"
+    )
+    assert resp.status_code == 200
+    assert resp.text.count('data-gallery-src=') == 16
+    assert 'aria-label="Product view 16"' in resp.text
+    assert 'aria-pressed="true"' in resp.text
+
+
 async def test_collection_and_merchant_pages(runtime_env):
     client = runtime_env["client"]
     merchant = await _merchant(runtime_env)

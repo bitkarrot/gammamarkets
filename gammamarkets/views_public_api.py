@@ -87,7 +87,9 @@ async def public_product(
 ):
     await _guard(request, response)
     product = await nip89.product_by_address(pubkey, d_tag)
-    if not product:
+    if not product or nip89.availability_state(product) in (
+        "unavailable", "hidden", "inactive",
+    ):
         raise not_found("product not found")
     detail = await nip89.product_detail(product)
     return nip89.public_product_json(product, detail)
@@ -163,6 +165,15 @@ async def public_shipping(
 
 def _client_scope(request: Request) -> str:
     return request.client.host if request.client else "unknown"
+
+
+@gammamarkets_public_api_router.post("/quote")
+@public_boundary
+async def public_quote(request: Request, response: Response, body: dict):
+    await _guard(request, response)
+    readiness.assert_checkout_ready()
+    await nip89.check_public_rate_limit(request, bucket="quote", limit=30, window_s=60)
+    return await checkout_service.quote_preview(body)
 
 
 @gammamarkets_public_api_router.post("/checkout", status_code=201)

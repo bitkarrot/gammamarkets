@@ -131,7 +131,7 @@ async def test_concurrent_writers_serialize(ext_db):
     from gammamarkets.db import DomainTransaction
 
     # Second handle over the same file (per-worker pattern).
-    folder = Path(ext_db.path).parent
+    folder = Path(ext_db.path).parent if hasattr(ext_db, "path") else settings.lnbits_data_folder
     previous = settings.lnbits_data_folder
     settings.lnbits_data_folder = str(folder)
     try:
@@ -174,3 +174,95 @@ async def test_fk_enforced_inside_tx(ext_db):
 
     with pytest.raises(Exception):
         await bad_insert()
+
+
+async def test_domain_transaction_allows_separate_read_connection(ext_db):
+    from gammamarkets.db import DomainTransaction
+
+    async def transaction_with_read():
+        async with DomainTransaction(ext_db) as tx:
+            await tx.fetch_one(f"SELECT COUNT(*) AS n FROM {tx.table('task_leases')}")
+            async with ext_db.connect() as conn:
+                row = await conn.fetchone("SELECT COUNT(*) AS n FROM gammamarkets.task_leases")
+            assert row["n"] >= 0
+
+    await asyncio.wait_for(transaction_with_read(), timeout=3)
+
+
+async def test_cancelled_transaction_entry_releases_sqlite_lock(ext_db, monkeypatch):
+    from lnbits.db import SQLITE
+
+    if ext_db.type != SQLITE:
+        pytest.skip("SQLite-specific BEGIN IMMEDIATE cancellation drill")
+    import aiosqlite
+
+    from gammamarkets.db import DomainTransaction
+
+    execute = aiosqlite.Connection.execute
+
+    async def cancel_after_begin(conn, sql, parameters=None):
+        cursor = await execute(conn, sql, parameters)
+        if sql == "BEGIN IMMEDIATE":
+            raise asyncio.CancelledError()
+        return cursor
+
+    with monkeypatch.context() as patch:
+        patch.setattr(aiosqlite.Connection, "execute", cancel_after_begin)
+        with pytest.raises(asyncio.CancelledError):
+            async with DomainTransaction(ext_db):
+                pytest.fail("cancelled entry must not yield a transaction")
+    async with DomainTransaction(ext_db) as tx:
+        assert await tx.fetch_one("SELECT 1 AS available") == {"available": 1}
+
+
+async def test_checkout_safety_upgrade_preserves_financial_values(ext_db):
+    from gammamarkets.db import DomainTransaction
+    from gammamarkets.migrations import m002_orders, m003_checkout_safety
+
+    async with ext_db.connect() as conn:
+        await m002_orders(conn)
+    async with DomainTransaction(ext_db) as tx:
+        await tx.execute(
+            f"INSERT INTO {tx.table('merchants')}"
+            " (id, user_id, pubkey, key_ref, wallet_id_enc, wallet_id_hash)"
+            " VALUES ('upgrade', 'upgrade', 'upgrade', 'upgrade', :wallet, 'upgrade')",
+            {"wallet": b"opaque-wallet"},
+        )
+        await tx.execute(
+            f"INSERT INTO {tx.table('catalogs')} (id, merchant_id) VALUES ('upgrade', 'upgrade')"
+        )
+        for currency in ("SAT", "USD", "JPY", "KWD", "ZZZ"):
+            await tx.execute(
+                f"INSERT INTO {tx.table('shipping_options')}"
+                " (id, merchant_id, d_tag, currency, base_price_minor, service)"
+                " VALUES (:c, 'upgrade', :c, :c, 550, 'shipping')", {"c": currency},
+            )
+            await tx.execute(
+                f"INSERT INTO {tx.table('products')}"
+                " (id, merchant_id, catalog_id, d_tag, product_type, format,"
+                " amount_minor, currency, stock_on_hand)"
+                " VALUES (:c, 'upgrade', 'upgrade', :c, 'simple', 'physical', 123, :c, 7)",
+                {"c": currency},
+            )
+        await tx.execute(
+            f"INSERT INTO {tx.table('orders')} (id, merchant_id, protocol, state, total_sat)"
+            " VALUES ('upgrade', 'upgrade', 'web', 'completed', 12345)"
+        )
+    async with ext_db.connect() as conn:
+        await m003_checkout_safety(conn)
+    async with DomainTransaction(ext_db) as tx:
+        for currency, decimals in {"SAT": 0, "USD": 2, "JPY": 0, "KWD": 3, "ZZZ": 2}.items():
+            product = await tx.fetch_one(
+                f"SELECT * FROM {tx.table('products')} WHERE id = :c", {"c": currency},
+            )
+            option = await tx.fetch_one(
+                f"SELECT * FROM {tx.table('shipping_options')} WHERE id = :c", {"c": currency},
+            )
+            assert product["currency_decimals"] == option["currency_decimals"] == decimals
+            assert product["amount_minor"] == 123
+            assert product["stock_on_hand"] == 7
+            assert option["base_price_minor"] == 550
+        order = await tx.fetch_one(
+            f"SELECT total_sat FROM {tx.table('orders')} WHERE id = 'upgrade'"
+        )
+        assert order["total_sat"] == 12345

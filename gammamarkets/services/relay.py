@@ -89,7 +89,7 @@ async def ensure_default_relays(merchant_id: str) -> None:
             await tx.execute(
                 f"INSERT INTO {tx.table('relay_configs')} "
                 "(id, merchant_id, relay_url, direction, enabled,"
-                " created_at, updated_at) VALUES (:i, :m, :u, 'public', 1,"
+                " created_at, updated_at) VALUES (:i, :m, :u, 'public', TRUE,"
                 " :t, :t)",
                 {
                     "i": uuid.uuid4().hex,

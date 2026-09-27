@@ -106,7 +106,11 @@ async def test_oq6_send_to_dead_relay_is_timeout_not_exception():
         # the failed-map with real rejections, so the worker classifies
         # the known transient vocabulary as timeout.
         assert relay_url in output.failed
-        assert str(output.failed[relay_url]) == "relay not connected"
+        reason = str(output.failed[relay_url])
+        assert reason in {"relay not connected", "timeout"}
+        from gammamarkets.services.outbox import TRANSIENT_REASONS
+
+        assert reason in TRANSIENT_REASONS
         assert output.success == []
     finally:
         await client.shutdown()
@@ -556,3 +560,119 @@ async def test_relay_targets_direction_and_defaults(worker_env):
     await worker_env["relay"].ensure_default_relays(mid2)
     targets = await worker_env["relay"].relay_targets(mid2, "public")
     assert "wss://relay.damus.io" in targets
+
+
+async def test_no_targets_cannot_be_published_or_activate_merchant(worker_env, monkeypatch):
+    from gammamarkets.db import DomainTransaction
+
+    mid = await _merchant(worker_env)
+    intent = await _intent(worker_env["db"], mid)
+
+    async def no_targets(merchant_id, direction="public", database=None):
+        return []
+
+    monkeypatch.setattr(worker_env["relay"], "relay_targets", no_targets)
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('merchants')} SET state = 'publication_pending' WHERE id = :m",
+            {"m": mid},
+        )
+    await worker_env["transport"].start([])
+    await worker_env["outbox"].worker_tick("no-target-worker")
+    state = await _state(worker_env["db"], intent)
+    assert state["row"]["state"] == "pending"
+    assert state["pubs"] == []
+    async with DomainTransaction() as tx:
+        merchant = await tx.fetch_one(
+            f"SELECT state FROM {tx.table('merchants')} WHERE id = :m", {"m": mid},
+        )
+    assert merchant["state"] == "publication_pending"
+
+
+async def test_expired_publication_claim_cannot_write(worker_env):
+    from gammamarkets.db import DomainTransaction
+
+    mid = await _merchant(worker_env)
+    intent = await _intent(worker_env["db"], mid)
+    claims = await worker_env["outbox"].claim_batch(int(time.time()), "expired-worker")
+    claim = next(row for row in claims if row["id"] == intent)
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('outbox_events')} SET claimed_until = 0 WHERE id = :i",
+            {"i": intent},
+        )
+    result = await worker_env["outbox"].publish_intent(
+        claim, transport=worker_env["transport"], keystore=worker_env["keystore"].key_store(),
+        relay_targets=[], worker_id="expired-worker", now=int(time.time()),
+    )
+    assert result == "lost_claim"
+    state = await _state(worker_env["db"], intent)
+    assert state["row"]["state"] == "claimed"
+    assert state["pubs"] == []
+
+
+async def test_network_send_does_not_hold_database_write_lock(worker_env):
+    from types import SimpleNamespace
+
+    from gammamarkets.db import DomainTransaction
+
+    mid = await _merchant(worker_env)
+    intent = await _intent(worker_env["db"], mid)
+    claims = await worker_env["outbox"].claim_batch(int(time.time()), "network-worker")
+    claim = next(row for row in claims if row["id"] == intent)
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def send_to(targets, event):
+        entered.set()
+        await release.wait()
+        return SimpleNamespace(success=set(targets), failed={})
+
+    async def unrelated_write():
+        async with DomainTransaction() as tx:
+            await tx.execute(
+                f"UPDATE {tx.table('merchants')} SET display_name = 'updated' WHERE id = :i",
+                {"i": mid},
+            )
+
+    publishing = asyncio.create_task(worker_env["outbox"].publish_intent(
+        claim, transport=SimpleNamespace(send_to=send_to),
+        keystore=worker_env["keystore"].key_store(), relay_targets=["wss://relay.example"],
+        worker_id="network-worker", now=int(time.time()),
+    ))
+    try:
+        await asyncio.wait_for(entered.wait(), 3)
+        await asyncio.wait_for(unrelated_write(), 1)
+    finally:
+        release.set()
+        await publishing
+    assert (await _state(worker_env["db"], intent))["row"]["state"] == "published"
+
+
+async def test_lease_expiry_during_send_cannot_commit_evidence(worker_env):
+    from types import SimpleNamespace
+
+    from gammamarkets.db import DomainTransaction
+
+    mid = await _merchant(worker_env)
+    intent = await _intent(worker_env["db"], mid)
+    claims = await worker_env["outbox"].claim_batch(int(time.time()), "expiring-worker")
+    claim = next(row for row in claims if row["id"] == intent)
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('outbox_events')} SET claimed_until = :n WHERE id = :i",
+            {"i": intent, "n": await tx.now() + 2},
+        )
+
+    async def send_to(targets, event):
+        await asyncio.sleep(2.1)
+        return SimpleNamespace(success=set(targets), failed={})
+
+    result = await worker_env["outbox"].publish_intent(
+        claim, transport=SimpleNamespace(send_to=send_to),
+        keystore=worker_env["keystore"].key_store(), relay_targets=["wss://relay.example"],
+        worker_id="expiring-worker", now=int(time.time()),
+    )
+    assert result == "lost_claim"
+    state = await _state(worker_env["db"], intent)
+    assert state["row"]["state"] == "claimed"
+    assert state["pubs"] == []

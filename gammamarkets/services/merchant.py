@@ -169,7 +169,6 @@ async def create_merchant(user, *, wallet_id: str, display_name: str | None = No
     await _wallet_for_user(wallet_id, str(user.id))
 
     merchant_id = uuid.uuid4().hex
-    pubkey = await _keystore(settings).generate(merchant_id)
     wallet_enc, wallet_hash = _encrypt_wallet_id(settings, merchant_id, wallet_id)
     now = _now()
 
@@ -182,13 +181,18 @@ async def create_merchant(user, *, wallet_id: str, display_name: str | None = No
             {
                 "id": merchant_id,
                 "u": str(user.id),
-                "pk": pubkey,
+                "pk": merchant_id * 2,
                 "kr": f"merchant_keys:{merchant_id}",
                 "dn": display_name,
                 "we": wallet_enc,
                 "wh": wallet_hash,
                 "t": now,
             },
+        )
+        pubkey = await _keystore(settings).generate(merchant_id, transaction=tx)
+        await tx.execute(
+            f"UPDATE {tx.table('merchants')} SET pubkey = :pk WHERE id = :id",
+            {"pk": pubkey, "id": merchant_id},
         )
     row = await get_merchant_row(merchant_id, str(user.id))
     return _public_merchant(row)
@@ -402,8 +406,10 @@ async def import_nsec(merchant_id: str, user, nsec_bech32: str,
             "invalid-transition", "Merchant not editable",
             "merchant is deactivating/inactive",
         )
-    pubkey = await _keystore(settings).import_key(merchant_id, nsec_bech32)
     async with DomainTransaction() as tx:
+        pubkey = await _keystore(settings).import_key(
+            merchant_id, nsec_bech32, transaction=tx,
+        )
         await tx.execute(
             f"UPDATE {tx.table('merchants')} SET pubkey = :p, updated_at = :t "
             "WHERE id = :i",

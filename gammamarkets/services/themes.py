@@ -111,7 +111,15 @@ _FONT_VALUE = {
 _GATED_PAIRS = (
     ("--color-text", "--color-bg"),
     ("--color-text", "--color-surface"),
+    ("--color-text", "--color-surface-alt"),
+    ("--color-text-muted", "--color-bg"),
+    ("--color-text-muted", "--color-surface"),
     ("--color-primary", "--color-on-primary"),
+    ("--color-primary-hover", "--color-on-primary"),
+    ("--color-primary", "--color-bg"),
+    ("--color-primary", "--color-surface"),
+    ("--color-focus", "--color-bg"),
+    ("--color-focus", "--color-surface"),
 )
 
 DEFAULT_THEME = {"preset": "warm-market", "layout": "editorial",

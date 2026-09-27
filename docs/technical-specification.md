@@ -324,7 +324,7 @@ collection advertises; membership rows live in `product_collections`.
 ### 4.6 `shipping_options`
 
 `id` PK, `merchant_id` FK, `d_tag` (UNIQUE per merchant), `title`, `description`,
-`base_price_minor`, `currency`, `service` (`standard|express|overnight|pickup`),
+`base_price_minor`, `currency`, `currency_decimals`, `service` (`standard|express|overnight|pickup`),
 `carrier`, `countries` (JSON array of ISO 3166-1 alpha-2), `regions` (JSON array of
 ISO 3166-2), `duration_min`, `duration_max`, `duration_unit` (`H|D|W`),
 `weight_min/_max` + unit, `dim_min/_max` (3 components + unit), `price_weight_minor`

@@ -19,11 +19,20 @@ Conventions (verified against the pinned host, e336fe1):
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import AsyncIterator
 
 from lnbits.db import COCKROACH, POSTGRES, SQLITE, Connection, Database
 
 SCHEMA = "gammamarkets"
+ACTIVE_TASK_LEASE: ContextVar[tuple[str, str, int] | None] = ContextVar(
+    "gammamarkets_task_lease", default=None,
+)
+
+
+class LeaseLostError(RuntimeError):
+    pass
+
 
 db = Database("ext_gammamarkets")
 
@@ -116,21 +125,56 @@ class DomainTransaction:
         self._host_conn_cm = None
         self._pg_tx = None
         self._raw = None
+        self._fence = ACTIVE_TASK_LEASE.get()
 
     async def __aenter__(self) -> "DomainTransaction":
-        if self._dialect == "sqlite":
-            import aiosqlite
+        try:
+            if self._dialect == "sqlite":
+                import aiosqlite
 
-            self._raw = await aiosqlite.connect(self._db.path)
-            await self._raw.execute("PRAGMA foreign_keys=ON")
-            await self._raw.execute("PRAGMA busy_timeout=5000")
-            await self._raw.execute("BEGIN IMMEDIATE")
-        else:
-            self._host_conn_cm = self._db.connect()
-            conn = await self._host_conn_cm.__aenter__()
-            self._conn = conn
-            self._pg_tx = await conn.conn.begin()
-        return self
+                self._raw = await aiosqlite.connect(self._db.path)
+                await self._raw.execute("PRAGMA foreign_keys=ON")
+                await self._raw.execute("PRAGMA busy_timeout=5000")
+                await self._raw.execute("BEGIN IMMEDIATE")
+            else:
+                cm = self._db.engine.connect()
+                raw = await cm.__aenter__()
+                self._host_conn_cm = cm
+                self._conn = Connection(raw, self._db.type, self._db.name, self._db.schema)
+                self._pg_tx = await raw.begin()
+                await self.execute(f"SET LOCAL search_path TO {SCHEMA}, public")
+            await self._check_fence()
+            return self
+        except BaseException as exc:
+            if self._raw is not None:
+                await self._raw.close()
+            if self._host_conn_cm is not None:
+                await self._host_conn_cm.__aexit__(type(exc), exc, exc.__traceback__)
+            raise
+
+    @property
+    def for_update(self) -> str:
+        return " FOR UPDATE" if self._dialect == "postgres" else ""
+
+    async def now(self) -> int:
+        expression = (
+            "CAST(strftime('%s', 'now') AS INTEGER)" if self._dialect == "sqlite"
+            else "FLOOR(EXTRACT(EPOCH FROM clock_timestamp()))"
+        )
+        row = await self.fetch_one(f"SELECT {expression} AS epoch")
+        return int(row["epoch"])
+
+    async def _check_fence(self) -> None:
+        if self._fence is None:
+            return
+        name, holder, token = self._fence
+        rc = await self.execute(
+            f"UPDATE {self.table('task_leases')} SET fencing_token = fencing_token"
+            " WHERE name = :n AND holder_id = :h AND fencing_token = :t AND leased_until > :now",
+            {"n": name, "h": holder, "t": token, "now": await self.now()},
+        )
+        if rc != 1:
+            raise LeaseLostError(f"task lease lost: {name}")
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
         try:
@@ -151,6 +195,7 @@ class DomainTransaction:
         return f"{SCHEMA}.{name}" if self._dialect != "sqlite" else name
 
     async def commit(self) -> None:
+        await self._check_fence()
         if self._raw is not None:
             await self._raw.commit()
         elif self._pg_tx is not None:

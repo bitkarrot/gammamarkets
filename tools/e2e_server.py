@@ -39,7 +39,9 @@ PORT = int(os.environ.get("GM_E2E_PORT", "5099"))
 # that setting must be an https:// origin). A throwaway self-signed cert
 # is generated per run; the seed client + Playwright ignore verification.
 BASE_URL = f"https://localhost:{PORT}"
-SEED_PATH = REPO_ROOT / "tests" / "e2e" / ".seed.json"
+SEED_PATH = Path(os.environ.get(
+    "GM_E2E_SEED_PATH", str(REPO_ROOT / "tests" / "e2e" / ".seed.json"),
+))
 
 # Fixed merchant identity so public URLs are stable across server
 # restarts (test-only key — the E2E database is disposable).
@@ -183,7 +185,7 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
             await tx.execute(
                 f"INSERT INTO {tx.table('relay_configs')} "
                 "(id, merchant_id, relay_url, direction, enabled,"
-                " created_at, updated_at) VALUES (:i, :m, :u, 'both', 1,"
+                " created_at, updated_at) VALUES (:i, :m, :u, 'both', TRUE,"
                 " :t, :t)",
                 {
                     "i": uuid.uuid4().hex,
@@ -265,7 +267,7 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
         for _ in range(80):
             async with DomainTransaction() as tx:
                 state = await tx.fetch_one(
-                    "SELECT state FROM merchants WHERE id = :m", {"m": mid}
+                    f"SELECT state FROM {tx.table('merchants')} WHERE id = :m", {"m": mid}
                 )
             if state and state["state"] == "active":
                 break
@@ -394,13 +396,13 @@ async def main() -> None:
 
     seed: dict = {}
 
-    from fastapi import Query
+    from fastapi import Header
 
     async def e2e_seed():
         return seed
 
-    async def e2e_settle(token: str = Query(...)):
-        return await _settle(token)
+    async def e2e_settle(x_order_token: str = Header(...)):
+        return await _settle(x_order_token)
 
     app.add_api_route("/_e2e/seed", e2e_seed, methods=["GET"])
     app.add_api_route("/_e2e/settle", e2e_settle, methods=["POST"])

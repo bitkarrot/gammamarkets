@@ -25,12 +25,45 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
+import pytest
 import pytest_asyncio
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PKG_DIR = REPO_ROOT / "gammamarkets"
 
 CANONICAL_ORIGIN = "https://shop.example"
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        if item.path.is_relative_to(Path(__file__).parent) and pytest_asyncio.is_async_test(item):
+            item.add_marker(pytest.mark.asyncio(loop_scope="session"), append=False)
+
+
+@pytest_asyncio.fixture(scope="module", loop_scope="session", autouse=True)
+async def _isolated_postgres_schema():
+    from lnbits.core.db import db as core_db
+    from lnbits.db import POSTGRES
+
+    if core_db.type != POSTGRES:
+        yield
+        return
+    async with core_db.connect() as conn:
+        existing = await conn.fetchone(
+            "SELECT nspname FROM pg_namespace WHERE nspname = 'gammamarkets'"
+        )
+    if existing:
+        raise RuntimeError(
+            "Runtime tests require a disposable database without a gammamarkets schema"
+        )
+    try:
+        yield
+    finally:
+        module = sys.modules.get("gammamarkets.db")
+        if module is not None:
+            await module.db.engine.dispose()
+        async with core_db.connect() as conn:
+            await conn.execute("DROP SCHEMA IF EXISTS gammamarkets CASCADE")
 
 _EXT_ENV = {
     "GAMMAMARKETS_MASTER_KEYS": json.dumps(
@@ -112,17 +145,26 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
     from lnbits.core.db import db as core_db
 
     async with core_db.connect() as conn:
-        await conn.execute(
-            "DELETE FROM installed_extensions WHERE id = :id",
-            {"id": "gammamarkets"},
+        from lnbits.db import SQLITE
+
+        exists = await conn.fetchone(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'installed_extensions'"
+            if core_db.type == SQLITE else
+            "SELECT tablename FROM pg_catalog.pg_tables"
+            " WHERE schemaname = current_schema() AND tablename = 'installed_extensions'"
         )
-        await conn.execute(
-            "DELETE FROM dbversions WHERE db = :id", {"id": "gammamarkets"}
-        )
-        await conn.execute(
-            'DELETE FROM extensions WHERE extension = :id',
-            {"id": "gammamarkets"},
-        )
+        if exists:
+            await conn.execute(
+                "DELETE FROM installed_extensions WHERE id = :id",
+                {"id": "gammamarkets"},
+            )
+            await conn.execute(
+                "DELETE FROM dbversions WHERE db = :id", {"id": "gammamarkets"}
+            )
+            await conn.execute(
+                'DELETE FROM extensions WHERE extension = :id',
+                {"id": "gammamarkets"},
+            )
     settings.lnbits_installed_extensions_ids.discard("gammamarkets")
     settings.lnbits_deactivated_extensions.discard("gammamarkets")
 
@@ -184,7 +226,7 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session")
 async def keystore_env(tmp_path_factory):
-    """Fresh gammamarkets module set bound to a tmp data folder, m001 applied.
+    """Fresh gammamarkets module set with all runtime migrations applied.
 
     ``Database.__init__`` binds ``settings.lnbits_data_folder`` at import
     time, so any ``gammamarkets`` module imported earlier (e.g. at test
@@ -212,10 +254,12 @@ async def keystore_env(tmp_path_factory):
         keystore = importlib.import_module("gammamarkets.keystore")
         crypto = importlib.import_module("gammamarkets.crypto")
         gsettings = importlib.import_module("gammamarkets.settings")
-        from gammamarkets.migrations import m001_initial
+        from gammamarkets.migrations import m001_initial, m002_orders, m003_checkout_safety
 
         async with gdb.db.connect() as conn:
             await m001_initial(conn)
+            await m002_orders(conn)
+            await m003_checkout_safety(conn)
         yield {
             "db": gdb.db,
             "keystore": keystore,

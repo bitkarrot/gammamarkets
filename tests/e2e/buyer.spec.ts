@@ -8,7 +8,7 @@ import path from 'node:path'
  * status URL minted by the checkout test. */
 
 const seed = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '.seed.json'), 'utf8')
+  fs.readFileSync(path.resolve(__dirname, process.env.GM_E2E_SEED_PATH || '.seed.json'), 'utf8')
 )
 
 test.describe.configure({mode: 'serial'})
@@ -28,7 +28,7 @@ test('product page embeds the adaptive checkout card', async ({page}) => {
   await expect(page.locator('[data-sum="items"]')).toContainText('2,500')
   await expect(page.locator('[data-sum="total"]')).toContainText('2,500')
   await expect(page.locator('.privacy')).toContainText(
-    'never placed in the URL'
+    'never sent in a request path or query'
   )
   // Editorial preset: all section bodies visible, stepper hidden
   await expect(page.locator('#gm-checkout-card')).toHaveAttribute(
@@ -87,7 +87,7 @@ test('order status page: fragment stripped, polls, settles', async ({
 
   // Settle via the harness route (FakeWallet pay + listener path)
   const settled = await request.post(`${seed.base_url}/_e2e/settle`, {
-    params: {token}
+    headers: {'X-Order-Token': token}
   })
   expect((await settled.json()).ok).toBe(true)
 
@@ -154,4 +154,36 @@ test('compact layout is forced at <=560px', async ({page}) => {
   // Compact: collapsed sections behind disclosure heads
   const heads = page.locator('.co-section-head')
   await expect(heads.first()).toBeVisible()
+})
+
+test('checkout retries preserve uncertain requests but allow corrected rejections', async ({page}) => {
+  const requests: {key: string; body: string | null}[] = []
+  await page.route('**/api/v1/public/checkout', async route => {
+    requests.push({key: route.request().headers()['idempotency-key'], body: route.request().postData()})
+    await route.fulfill({status: 422, contentType: 'application/problem+json', body: JSON.stringify({
+      type: 'urn:gammamarkets:fx-unavailable', title: 'Price conversion unavailable'
+    })})
+  })
+  await page.goto(seed.digital_url)
+  await page.locator('button[type=submit]').click()
+  await expect(page.locator('.form-error')).toBeVisible()
+  await page.locator('#gm-qty').fill('2')
+  await page.locator('button[type=submit]').click()
+  await expect.poll(() => requests.length).toBe(2)
+  expect.soft(requests[1].key).not.toBe(requests[0].key)
+
+  await page.unroute('**/api/v1/public/checkout')
+  requests.length = 0
+  await page.route('**/api/v1/public/checkout', async route => {
+    requests.push({key: route.request().headers()['idempotency-key'], body: route.request().postData()})
+    await route.abort('failed')
+  })
+  await page.reload()
+  await page.locator('button[type=submit]').click()
+  await expect(page.locator('.form-error')).toBeVisible()
+  await expect.soft(page.locator('#gm-qty')).toBeDisabled({timeout: 750})
+  await page.locator('#gm-qty').evaluate((el: HTMLInputElement) => { el.value = '9' })
+  await page.locator('button[type=submit]').click()
+  await expect.poll(() => requests.length).toBe(2)
+  expect(requests[1]).toEqual(requests[0])
 })

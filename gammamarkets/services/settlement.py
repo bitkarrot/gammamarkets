@@ -55,8 +55,7 @@ async def invoice_listener(payment) -> None:
         await _handle_core_payment(order_id, payment, source="listener")
     except Exception as exc:  # noqa: BLE001 — a listener must never raise
         logger.warning(
-            f"gammamarkets settlement listener error for"
-            f" {getattr(payment, 'external_id', None)!r}: {exc}"
+            f"gammamarkets settlement listener error: {type(exc).__name__}"
         )
 
 
@@ -111,7 +110,7 @@ async def _handle_core_payment(order_id: str, payment, *, source: str) -> None:
     if mismatch is not None:
         await _flag_exception(order_id, mismatch, source)
         return
-    await confirm_settlement(order_id=order_id, source=source)
+    return await confirm_settlement(order_id=order_id, source=source)
 
 
 async def _verify_settlement(
@@ -224,7 +223,7 @@ async def _flag_exception(order_id: str, reason: str, source: str) -> None:
             },
         )
         order = await tx.fetch_one(
-            f"SELECT * FROM {tx.table('orders')} WHERE id = :i",
+            f"SELECT * FROM {tx.table('orders')} WHERE id = :i" + tx.for_update,
             {"i": order_id},
         )
         if order:
@@ -291,7 +290,7 @@ async def confirm_settlement(
     now = _now() if now is None else now
     async with DomainTransaction() as tx:
         order = await tx.fetch_one(
-            f"SELECT * FROM {tx.table('orders')} WHERE id = :i",
+            f"SELECT * FROM {tx.table('orders')} WHERE id = :i" + tx.for_update,
             {"i": order_id},
         )
         if not order:
@@ -380,19 +379,10 @@ async def confirm_settlement(
             customer_email=customer, now=now,
         )
         # Stock/state republication for each affected product (§8.3 step 5).
-        from . import outbox as outbox_service
+        from .catalog import enqueue_stock_projection
 
         for row in held:
-            product = await tx.fetch_one(
-                f"SELECT revision FROM {tx.table('products')} WHERE id = :p",
-                {"p": row["product_id"]},
-            )
-            if product:
-                await outbox_service.enqueue_intent(
-                    tx, order["merchant_id"], "product",
-                    row["product_id"], 30402,
-                    revision=product["revision"],
-                )
+            await enqueue_stock_projection(tx, row["product_id"])
         from . import metrics
         metrics.incr("settlement.confirmed")
         return {
@@ -409,7 +399,7 @@ async def expire_order(*, order_id: str, now: int | None = None) -> dict:
     now = _now() if now is None else now
     async with DomainTransaction() as tx:
         order = await tx.fetch_one(
-            f"SELECT * FROM {tx.table('orders')} WHERE id = :i",
+            f"SELECT * FROM {tx.table('orders')} WHERE id = :i" + tx.for_update,
             {"i": order_id},
         )
         if not order or order["state"] != "awaiting_payment":
@@ -450,6 +440,9 @@ async def reservation_expiry_pass(now: int | None = None) -> dict:
     invoice_pending orders release reservations but keep their state —
     a still-arriving invoice follows the late-settlement path.
     """
+    from .readiness import assert_database_compatible
+
+    await assert_database_compatible()
     now = _now() if now is None else now
     released = 0
     expired_orders = 0
@@ -504,6 +497,9 @@ async def _core_payments_by_external_id(external_id: str) -> list:
 
 async def reconcile(now: int | None = None) -> dict:
     """One §8.7 pass — web scope (order_msg machinery is Release B)."""
+    from .readiness import assert_database_compatible
+
+    await assert_database_compatible()
     now = _now() if now is None else now
     report: dict[str, list] = {
         "resumed": [], "attached": [], "failed_projections": [],
@@ -573,7 +569,7 @@ async def reconcile(now: int | None = None) -> dict:
     # expiry path.
     async with db.connect() as conn:
         pending = await conn.fetchall(
-            f"SELECT * FROM {table('payments')} WHERE status = 'pending'"
+            f"SELECT * FROM {table('payments')} WHERE status IN ('pending', 'expired')"
         )
     for projection in pending:
         projection = dict(projection)
@@ -582,41 +578,44 @@ async def reconcile(now: int | None = None) -> dict:
         )
         if not matches:
             continue
+        if len(matches) != 1:
+            await _flag_exception(
+                projection["order_id"], "multiple-core-payments", "reconciliation",
+            )
+            report["critical"].append({"order_id": projection["order_id"], "matches": len(matches)})
+            continue
         core = matches[0]
-        if core.success:
-            result = await confirm_settlement(
-                order_id=projection["order_id"], now=now,
-                source="reconciliation",
-            )
-            report["confirmed"].append(result)
-            continue
-        if not core.pending and not core.success:
-            result = await expire_order(
-                order_id=projection["order_id"], now=now
-            )
-            report["expired"].append(result)
-            continue
         try:
             from lnbits.core.services.payments import (
                 check_payment_status,
             )
 
-            status = await check_payment_status(core)
-            if status.paid:
-                result = await confirm_settlement(
-                    order_id=projection["order_id"], now=now,
-                    source="reconciliation",
+            status = None if core.success else await check_payment_status(core)
+            if core.success or status.paid:
+                verified = core if core.success else core.copy(update={"status": "success"})
+                result = await _handle_core_payment(
+                    projection["order_id"], verified, source="reconciliation",
                 )
-                report["confirmed"].append(result)
-            elif getattr(core, "is_expired", False):
-                result = await expire_order(
-                    order_id=projection["order_id"], now=now
-                )
-                report["expired"].append(result)
+                if result is not None:
+                    report["confirmed"].append(result)
+            elif projection["status"] == "pending" and (
+                not core.pending or getattr(core, "is_expired", False)
+            ):
+                order = await order_service.get_order(projection["order_id"])
+                if order["state"] == "awaiting_payment":
+                    result = await expire_order(order_id=order["id"], now=now)
+                    report["expired"].append(result)
+                elif order["state"] in ("cancelled", "expired", "rejected"):
+                    async with DomainTransaction() as tx:
+                        await tx.execute(
+                            f"UPDATE {tx.table('payments')} SET status = 'expired'"
+                            " WHERE order_id = :o AND status = 'pending'",
+                            {"o": order["id"]},
+                        )
         except Exception as exc:  # noqa: BLE001 — funding-source probe
             logger.debug(
                 f"gammamarkets reconcile: status probe failed for"
-                f" {projection['core_external_id']}: {exc}"
+                f" {projection['core_external_id']}: {type(exc).__name__}"
             )
     return report
 
@@ -661,7 +660,7 @@ async def _resolve_accept(
     record backorders, transition -> confirmed (reason required)."""
     async with DomainTransaction() as tx:
         order = await tx.fetch_one(
-            f"SELECT * FROM {tx.table('orders')} WHERE id = :i",
+            f"SELECT * FROM {tx.table('orders')} WHERE id = :i" + tx.for_update,
             {"i": order_id},
         )
         if not order:
@@ -762,7 +761,7 @@ async def _resolve_refund(
     the exception remains open until confirm-refund."""
     async with DomainTransaction() as tx:
         order = await tx.fetch_one(
-            f"SELECT * FROM {tx.table('orders')} WHERE id = :i",
+            f"SELECT * FROM {tx.table('orders')} WHERE id = :i" + tx.for_update,
             {"i": order_id},
         )
         if not order:
@@ -821,7 +820,7 @@ async def _resolve_confirm_refund(
     an outgoing payment."""
     async with DomainTransaction() as tx:
         order = await tx.fetch_one(
-            f"SELECT * FROM {tx.table('orders')} WHERE id = :i",
+            f"SELECT * FROM {tx.table('orders')} WHERE id = :i" + tx.for_update,
             {"i": order_id},
         )
         if not order:
@@ -891,16 +890,37 @@ async def retention_prune(now: int | None = None) -> dict:
         report["inbox_erased"] = rc
         # Terminal orders older than 90d: erase PII ciphertexts, keep the
         # financial/audit columns (hashes, totals, states, events).
+        terminal = (
+            "o.state IN ('completed', 'rejected', 'cancelled', 'expired')"
+            f" AND COALESCE((SELECT MAX(e.created_at) FROM {tx.table('order_events')} e"
+            " WHERE e.order_id = o.id AND e.to_state = o.state"
+            " AND e.from_state != e.to_state), o.updated_at) <= :t"
+        )
+        cutoff = {"t": now - ORDER_PII_RETENTION_S}
         rc = await tx.execute(
-            f"UPDATE {tx.table('orders')} SET"
+            f"UPDATE {tx.table('orders')} AS o SET"
             " contact_enc = NULL, address_enc = NULL,"
             " buyer_pubkey_enc = NULL, external_id_enc = NULL,"
-            " public_token_enc = NULL"
-            " WHERE state IN ('completed', 'rejected', 'cancelled',"
-            " 'expired') AND updated_at <= :t",
-            {"t": now - ORDER_PII_RETENTION_S},
+            f" public_token_enc = NULL WHERE {terminal}",
+            cutoff,
         )
         report["orders_erased"] = rc
+        terminal_ids = f"SELECT o.id FROM {tx.table('orders')} o WHERE {terminal}"
+        await tx.execute(
+            f"UPDATE {tx.table('order_fulfillment')} SET tracking_enc = NULL"
+            f" WHERE order_id IN ({terminal_ids})", cutoff,
+        )
+        await tx.execute(
+            f"UPDATE {tx.table('email_queue')} SET recipient_enc = :empty,"
+            " state = CASE WHEN state = 'sent' THEN 'sent' ELSE 'suppressed' END,"
+            " claim_token = claim_token + 1, claimed_until = NULL, claimed_by = NULL"
+            f" WHERE order_id IN ({terminal_ids})", {**cutoff, "empty": b""},
+        )
+        await tx.execute(
+            f"UPDATE {tx.table('idempotency_records')} SET response_enc = NULL"
+            f" WHERE expires_at <= :now OR order_id IN ({terminal_ids})",
+            {**cutoff, "now": now},
+        )
         await tx.execute(
             f"UPDATE {tx.table('order_messages')} SET"
             " content_enc = NULL, participant_keys_enc = NULL"

@@ -109,11 +109,13 @@ def _check_description(v: str | None) -> str | None:
 
 
 def _check_currency(currency: str | None, decimals: int | None) -> None:
-    if currency is not None and not CURRENCY_RE.match(currency):
+    if currency is not None and (
+        not isinstance(currency, str) or not CURRENCY_RE.fullmatch(currency)
+    ):
         raise unprocessable(
             "invalid-content", "currency must match ^[A-Z0-9]{3,8}$"
         )
-    if decimals is not None and not (0 <= decimals <= 18):
+    if decimals is not None and (type(decimals) is not int or not 0 <= decimals <= 18):
         raise unprocessable(
             "invalid-content", "currency_decimals must be 0..18"
         )
@@ -262,6 +264,18 @@ async def _enqueue_product(
         event_address=f"30402:{pubkey}:{row['d_tag']}",
         depends_on=deps,
     )
+
+
+async def enqueue_stock_projection(tx: DomainTransaction, product_id: str) -> None:
+    row = await tx.fetch_one(
+        f"SELECT p.merchant_id, p.revision, m.pubkey FROM {tx.table('products')} p "
+        f"JOIN {tx.table('merchants')} m ON m.id = p.merchant_id WHERE p.id = :p",
+        {"p": product_id},
+    )
+    if row:
+        await _enqueue_product(
+            tx, row["merchant_id"], product_id, row["revision"], row["pubkey"],
+        )
 
 
 async def _enqueue_collection(
@@ -482,11 +496,14 @@ def _validate_product_payload(p: dict, partial: bool = False) -> None:
             raise unprocessable(
                 "invalid-content", "recurring_frequency must be D|W|Y"
             )
-    if "stock_on_hand" in p and p["stock_on_hand"] is not None:
-        if p["stock_on_hand"] < 0:
-            raise unprocessable(
-                "invalid-content", "stock_on_hand must be >= 0 or null"
-            )
+    for field in ("amount_minor", "stock_on_hand", "stock_reserved"):
+        value = p.get(field)
+        if value is not None and (type(value) is not int or not 0 <= value < 2**63):
+            raise unprocessable("invalid-content", f"{field} must be a nonnegative int64")
+    if "stock_reserved" in p and (
+        partial or type(p["stock_reserved"]) is not int or p["stock_reserved"] != 0
+    ):
+        raise unprocessable("invalid-content", "stock_reserved is maintained by reservations")
     if (
         p.get("stock_on_hand") is not None
         and p.get("stock_reserved") is not None
@@ -713,6 +730,10 @@ async def create_product(merchant_id: str, user, payload: dict) -> dict:
             tx, merchant_id, product_type, payload.get("parent_product_id")
         )
         fields = _sanitize_product_fields(payload)
+        if fields.get("currency_decimals") is None:
+            from .fx import default_currency_decimals
+
+            fields["currency_decimals"] = default_currency_decimals(fields.get("currency"))
         cols = ["id", "merchant_id", "catalog_id", "d_tag", "product_type",
                 "format", "revision", "created_at", "updated_at"]
         vals = [product_id, merchant_id, payload["catalog_id"], d_tag,
@@ -822,6 +843,15 @@ async def patch_product(merchant_id: str, user, product_id: str,
     _reject_unknown(patch, _PRODUCT_PAYLOAD_FIELDS)
     _validate_product_payload(patch, partial=True)
     fields = _sanitize_product_fields(patch)
+    if (
+        "currency" in fields and fields["currency"] != row["currency"]
+        and "currency_decimals" not in fields
+    ) or ("currency_decimals" in fields and fields["currency_decimals"] is None):
+        from .fx import default_currency_decimals
+
+        fields["currency_decimals"] = default_currency_decimals(
+            fields.get("currency", row["currency"]),
+        )
     new_type = patch.get("product_type", row["product_type"])
     parent_id = patch.get("parent_product_id", row["parent_product_id"])
     if parent_id == product_id:
@@ -1325,9 +1355,29 @@ def _validate_shipping_payload(p: dict, partial: bool = False) -> None:
         raise unprocessable(
             "invalid-content", f"service must be one of {SERVICES}"
         )
-    if "currency" in p and p["currency"] is not None:
-        if not CURRENCY_RE.match(p["currency"]):
-            raise unprocessable("invalid-content", "invalid currency")
+    _check_currency(p.get("currency"), p.get("currency_decimals"))
+    for field in ("base_price_minor", "price_weight_minor", "price_volume_minor"):
+        value = p.get(field)
+        if value is not None and (type(value) is not int or not 0 <= value <= 2**63 - 1):
+            raise unprocessable(
+                "invalid-content", f"{field} must be nonnegative integer minor units",
+            )
+    import math
+
+    for stem in ("weight", "dim_l", "dim_w", "dim_h"):
+        lower, upper = (
+            ("weight_min", "weight_max") if stem == "weight"
+            else (f"dim_min_{stem[-1]}", f"dim_max_{stem[-1]}")
+        )
+        for field in (lower, upper):
+            value = p.get(field)
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, (int, float))
+                or not math.isfinite(value) or value < 0
+            ):
+                raise unprocessable("invalid-content", f"{field} must be finite and nonnegative")
+        if p.get(lower) is not None and p.get(upper) is not None and p[lower] > p[upper]:
+            raise unprocessable("invalid-content", f"{lower} must not exceed {upper}")
     if "countries" in p and p["countries"] is not None:
         countries = p["countries"]
         if not isinstance(countries, list) or not countries:
@@ -1362,7 +1412,7 @@ def _validate_shipping_payload(p: dict, partial: bool = False) -> None:
 
 
 _SHIPPING_FIELDS = (
-    "title", "description", "base_price_minor", "currency", "service",
+    "title", "description", "base_price_minor", "currency", "currency_decimals", "service",
     "countries", "regions",
     "carrier", "duration_min", "duration_max", "duration_unit",
     "weight_min", "weight_max", "weight_unit",
@@ -1379,8 +1429,13 @@ _SHIPPING_PAYLOAD_FIELDS = set(_SHIPPING_FIELDS) | {"d_tag"}
 
 async def create_shipping(merchant_id: str, user, payload: dict) -> dict:
     merchant = await _merchant_owned(merchant_id, user)
+    from .fx import default_currency_decimals
+
+    payload = dict(payload)
     _reject_unknown(payload, _SHIPPING_PAYLOAD_FIELDS)
     _validate_shipping_payload(payload)
+    if payload.get("currency_decimals") is None:
+        payload["currency_decimals"] = default_currency_decimals(payload.get("currency"))
     if payload.get("service") == "pickup" and not (
         payload.get("location") or payload.get("geohash")
     ):
@@ -1449,8 +1504,22 @@ async def patch_shipping(merchant_id: str, user, option_id: str,
         raise not_found("shipping option not found")
     _reject_unknown(patch, _SHIPPING_PAYLOAD_FIELDS)
     _validate_shipping_payload(patch, partial=True)
+    from .fx import default_currency_decimals
+
+    patch = dict(patch)
+    if (
+        "currency" in patch and patch["currency"] != row["currency"]
+        and "currency_decimals" not in patch
+    ) or ("currency_decimals" in patch and patch["currency_decimals"] is None):
+        patch["currency_decimals"] = default_currency_decimals(
+            patch.get("currency", row["currency"]),
+        )
     merged = dict(row)
     merged.update(patch)
+    for field in ("countries", "regions"):
+        if isinstance(merged.get(field), str):
+            merged[field] = json.loads(merged[field])
+    _validate_shipping_payload(merged)
     if merged.get("service") == "pickup" and not (
         merged.get("location") or merged.get("geohash")
     ):

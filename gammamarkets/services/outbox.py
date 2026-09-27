@@ -16,13 +16,15 @@ here:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import random
 import time
 import uuid
+from contextlib import asynccontextmanager
 
-from ..db import DomainTransaction
+from ..db import DomainTransaction, LeaseLostError
 
 
 def _now() -> int:
@@ -237,7 +239,8 @@ async def _cas_state(tx, row: dict, state: str, now: int,
         f"UPDATE {tx.table('outbox_events')} "
         "SET state = :s, attempts = :a, next_attempt_at = :na,"
         " last_error = :e, updated_at = :now "
-        "WHERE id = :i AND claim_token = :t",
+        "WHERE id = :i AND claim_token = :t AND state = 'claimed'"
+        " AND claimed_by = :w AND claimed_until > :db_now",
         {
             "s": state,
             "a": row["attempts"] + 1,
@@ -246,6 +249,8 @@ async def _cas_state(tx, row: dict, state: str, now: int,
             "now": now,
             "i": row["id"],
             "t": row["claim_token"],
+            "w": row["claimed_by"],
+            "db_now": await tx.now(),
         },
     )
     return bool(n)
@@ -497,16 +502,37 @@ def _public_base_url() -> str:
     return ext_settings().public_base_url
 
 
+@asynccontextmanager
+async def _publication_transaction(row, worker_id, database=None):
+    async with DomainTransaction(database) as tx:
+        await tx.fetch_one(
+            f"SELECT id FROM {tx.table('merchants')} WHERE id = :m" + tx.for_update,
+            {"m": row["merchant_id"]},
+        )
+        live = await tx.fetch_one(
+            f"SELECT * FROM {tx.table('outbox_events')} WHERE id = :i"
+            " AND state = 'claimed' AND claim_token = :t AND claimed_by = :w"
+            " AND claimed_until > :n" + tx.for_update,
+            {"i": row["id"], "t": row["claim_token"], "w": worker_id, "n": await tx.now()},
+        )
+        yield (tx, dict(live)) if live else None
+        if live and await tx.now() >= live["claimed_until"]:
+            raise LeaseLostError("publication lease expired")
+
+
 async def publish_intent(row: dict, *, transport, keystore, relay_targets,
                          worker_id: str, now: int, database=None) -> str:
     """One claimed intent through the §8.6 pipeline. Returns the outcome."""
-    from ..db import DomainTransaction
     from ..settings import ext_settings
 
     settings = ext_settings()
     intent_id = row["id"]
 
-    async with DomainTransaction(database) as tx:
+    async with _publication_transaction(row, worker_id, database) as claimed:
+        if not claimed:
+            return "lost_claim"
+        tx, row = claimed
+        now = await tx.now()
         # step 2 — dependencies must be published first
         if not await _deps_published(tx, intent_id):
             await _cas_state(tx, row, "pending", now, next_attempt_at=now)
@@ -524,23 +550,31 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
         # §8.6 step 4 — addressable events use created_at =
         # max(db_now, latest_created_at+1); a newer-than-now timestamp is a
         # clock-skew pause, never a backdate.
-        latest = None
+        latest = 0
         if row.get("event_address"):
             pa = await tx.fetch_one(
                 f"SELECT latest_created_at FROM {tx.table('protocol_addresses')} "
                 "WHERE protocol = 'nostr' AND event_kind = :k"
                 " AND d_tag = :d AND author_pubkey = :p",
-                _address_parts(row["event_address"]) | {"k": row["event_kind"]},
+                _address_parts(row["event_address"]),
             )
-            latest = pa["latest_created_at"] if pa else None
-        created_at = now
-        if latest is not None:
-            if latest > now + CLOCK_SKEW_TOLERANCE_S:
-                # clock skew — pause, do not publish a stale/future event
-                await _cas_state(tx, row, "pending", now,
-                                 next_attempt_at=latest + 1)
-                return "clock_skew"
-            created_at = max(now, latest + 1)
+            latest = (pa["latest_created_at"] or 0) if pa else 0
+        clock_scope = (
+            "event_address = :a" if row.get("event_address") else
+            "aggregate_type = :at AND aggregate_id = :ai AND event_kind = :k"
+        )
+        clock = await tx.fetch_one(
+            f"SELECT MAX(last_signed_at) AS latest FROM {tx.table('outbox_events')}"
+            f" WHERE merchant_id = :m AND {clock_scope}",
+            {"m": row["merchant_id"], "a": row.get("event_address"),
+             "at": row["aggregate_type"], "ai": row["aggregate_id"], "k": row["event_kind"]},
+        )
+        latest = max(latest, clock["latest"] or 0)
+        if latest > now + CLOCK_SKEW_TOLERANCE_S:
+            # clock skew — pause, do not publish a stale/future event
+            await _cas_state(tx, row, "pending", now, next_attempt_at=latest + 1)
+            return "clock_skew"
+        created_at = max(now, latest + 1)
 
         accepted = await _accepted_targets(tx, intent_id)
         targets = [u for u in relay_targets if u not in accepted]
@@ -549,54 +583,74 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
 
         if not targets:
             # everything already accepted (or nothing to send)
-            await _cas_state(tx, row, "published", now)
-            await _maybe_activate_merchant(tx, row)
-            return "published"
+            if accepted:
+                await _cas_state(tx, row, "published", now)
+                await _maybe_activate_merchant(tx, row)
+                return "published"
+            if row["event_kind"] == 5 and not row.get("event_address"):
+                await _cas_state(tx, row, "superseded", now)
+                return "superseded"
+            state = "failed" if row["attempts"] + 1 >= OUTBOX_MAX_ATTEMPTS else "pending"
+            await _cas_state(
+                tx, row, state, now, next_attempt_at=now + _backoff(row["attempts"] + 1),
+                last_error="no-relay-targets",
+            )
+            return state
 
         # sign inside the tx window — key released immediately after
         event = await _sign(settings, keystore, row, unsigned, created_at)
         event_id = event.id().to_hex()
+        await tx.execute(
+            f"UPDATE {tx.table('outbox_events')} SET last_signed_at = :n WHERE id = :i",
+            {"n": created_at, "i": intent_id},
+        )
+        send_timeout = min(30, max(0.1, row["claimed_until"] - await tx.now()))
 
-        try:
-            output = await transport.send_to(targets, event)
-        except Exception as exc:  # one relay must never crash the batch
-            output = None
-            send_error = str(exc)[:200]
-        else:
-            send_error = None
+    try:
+        output = await asyncio.wait_for(transport.send_to(targets, event), send_timeout)
+    except Exception as exc:  # one relay must never crash the batch
+        output = None
+        send_error = type(exc).__name__
+    else:
+        send_error = None
 
-        results = []
-        if output is not None:
-            ok_urls = {str(u) for u in output.success}
-            failed = {str(u): str(m) for u, m in output.failed.items()}
-            for u in targets:
-                if u in ok_urls:
-                    results.append((u, "accepted", ""))
-                elif u in failed:
-                    reason = failed[u]
-                    # OQ6: transient transport failures share the failed
-                    # map with real negative-OK rejections — classify the
-                    # known transient vocabulary as retryable timeout and
-                    # preserve any other message verbatim as 'rejected'.
-                    results.append(
-                        (u,
-                         "timeout" if reason in TRANSIENT_REASONS
-                         else "rejected",
-                         reason))
-                else:
-                    results.append((u, "timeout", "absent from send output"))
-        else:
-            for u in targets:
-                results.append((u, "timeout", send_error or "send failed"))
+    results = []
+    if output is not None:
+        ok_urls = {str(u) for u in output.success}
+        failed = {str(u): str(m) for u, m in output.failed.items()}
+        for u in targets:
+            if u in ok_urls:
+                results.append((u, "accepted", ""))
+            elif u in failed:
+                reason = failed[u]
+                # OQ6: transient transport failures share the failed
+                # map with real negative-OK rejections — classify the
+                # known transient vocabulary as retryable timeout and
+                # preserve any other message verbatim as 'rejected'.
+                results.append(
+                    (u,
+                     "timeout" if reason in TRANSIENT_REASONS
+                     else "rejected",
+                     reason))
+            else:
+                results.append((u, "timeout", "absent from send output"))
+    else:
+        for u in targets:
+            results.append((u, "timeout", send_error or "send failed"))
 
+    async with _publication_transaction(row, worker_id, database) as claimed:
+        if not claimed:
+            return "lost_claim"
+        tx, row = claimed
+        now = await tx.now()
         attempt_no = row["attempts"] + 1
         await _record_publications(
             tx, intent_id, "public", event_id, attempt_no, results, now)
 
         ok_count = sum(1 for _, r, _ in results if r == "accepted")
-        if ok_count >= 1:
+        if ok_count >= 1 or accepted:
             # quorum reached (public events: >=1 positive OK)
-            if row.get("event_address"):
+            if ok_count and row.get("event_address") and row["event_kind"] != 5:
                 await _record_address(tx, row, event_id, created_at, now)
             await _cas_state(tx, row, "published", now)
             await _maybe_activate_merchant(tx, row)
@@ -677,15 +731,23 @@ async def recover_stale_claims(now: int, database=None) -> int:
     async with DomainTransaction(database) as tx:
         stale = await tx.fetch_all(
             f"SELECT * FROM {tx.table('outbox_events')} "
-            "WHERE state = 'claimed' AND claimed_until < :now",
+            "WHERE state = 'claimed' AND claimed_until <= :now" + tx.for_update,
             {"now": now},
         )
+        recovered = 0
         for row in stale:
             accepted = await _accepted_targets(tx, row["id"])
             state = "partially_published" if accepted else "pending"
-            await _cas_state(tx, row, state, now,
-                             next_attempt_at=now + _backoff(row["attempts"]))
-        return len(stale)
+            recovered += await tx.execute(
+                f"UPDATE {tx.table('outbox_events')} SET state = :s,"
+                " claimed_by = NULL, claimed_until = NULL, claim_token = claim_token + 1,"
+                " next_attempt_at = :retry, updated_at = :now"
+                " WHERE id = :i AND state = 'claimed' AND claim_token = :t"
+                " AND claimed_until <= :now",
+                {"s": state, "retry": now + _backoff(row["attempts"]), "now": now,
+                 "i": row["id"], "t": row["claim_token"]},
+            )
+        return recovered
 
 
 async def worker_tick(worker_id: str, *, now: int | None = None) -> dict:
@@ -698,24 +760,41 @@ async def worker_tick(worker_id: str, *, now: int | None = None) -> dict:
 
     now = now or _now()
     wdb = worker_db()  # per-worker handle — separate connection pool (§10)
-    recovered = await recover_stale_claims(now, wdb)
-    tport = transport()
-    if tport.client is None:
-        # transport not started yet (relay-manager owns lazy init)
-        return {"claimed": 0, "recovered": recovered, "outcomes": []}
-    claimed = await claim_batch(now, worker_id, database=wdb)
-    outcomes = []
-    ks = keystore_mod.key_store()
-    for row in claimed:
-        targets = await relay_service.relay_targets(
-            row["merchant_id"], "public", database=wdb
-        )
-        outcome = await publish_intent(
-            row, transport=tport, keystore=ks,
-            relay_targets=targets, worker_id=worker_id, now=now,
-            database=wdb,
-        )
-        outcomes.append(outcome)
-        metrics.incr(f"publication.{outcome}")
-    return {"claimed": len(claimed), "recovered": recovered,
-            "outcomes": outcomes}
+    try:
+        recovered = await recover_stale_claims(now, wdb)
+        tport = transport()
+        if tport.client is None:
+            # transport not started yet (relay-manager owns lazy init)
+            return {"claimed": 0, "recovered": recovered, "outcomes": []}
+        claimed = await claim_batch(now, worker_id, database=wdb)
+        outcomes = []
+        ks = keystore_mod.key_store()
+        for row in claimed:
+            targets = await relay_service.relay_targets(
+                row["merchant_id"], "public", database=wdb
+            )
+            try:
+                outcome = await publish_intent(
+                    row, transport=tport, keystore=ks,
+                    relay_targets=targets, worker_id=worker_id, now=now,
+                    database=wdb,
+                )
+            except LeaseLostError:
+                outcome = "lost_claim"
+            except Exception as exc:
+                outcome = "lost_claim"
+                async with _publication_transaction(row, worker_id, wdb) as live:
+                    if live:
+                        tx, current = live
+                        await _cas_state(
+                            tx, current, "pending", now,
+                            next_attempt_at=now + _backoff(current["attempts"] + 1),
+                            last_error=type(exc).__name__,
+                        )
+                        outcome = "pending"
+            outcomes.append(outcome)
+            metrics.incr(f"publication.{outcome}")
+        return {"claimed": len(claimed), "recovered": recovered,
+                "outcomes": outcomes}
+    finally:
+        await wdb.engine.dispose()

@@ -120,6 +120,14 @@ async def test_product_validation_bounds(runtime_env):
         {"catalog_id": cid, "currency_decimals": 19},
         {"catalog_id": cid, "product_type": "bogus"},
         {"catalog_id": cid, "stock_on_hand": -1},
+        {"catalog_id": cid, "stock_on_hand": 1.5},
+        {"catalog_id": cid, "stock_on_hand": True},
+        {"catalog_id": cid, "stock_on_hand": 2**63},
+        {"catalog_id": cid, "stock_reserved": 1},
+        {"catalog_id": cid, "amount_minor": -1},
+        {"catalog_id": cid, "amount_minor": 1.5},
+        {"catalog_id": cid, "amount_minor": True},
+        {"catalog_id": cid, "amount_minor": 2**63},
         {"catalog_id": cid, "unknown_field": 1},
     ]
     for payload in cases:

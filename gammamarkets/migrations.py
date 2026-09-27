@@ -191,18 +191,6 @@ async def m001_initial(db: Connection):
         )
         """
     )
-    await db.execute(
-        f"""
-        CREATE TABLE {s}product_collections (
-            id TEXT PRIMARY KEY,
-            product_id TEXT NOT NULL
-                REFERENCES {s}products(id) ON DELETE RESTRICT,
-            collection_id TEXT NOT NULL
-                REFERENCES {s}collections(id) ON DELETE RESTRICT,
-            UNIQUE (product_id, collection_id)
-        )
-        """
-    )
 
     # --- 4.5 collections + collection_shipping -------------------------------
     await db.execute(
@@ -233,6 +221,18 @@ async def m001_initial(db: Connection):
                 REFERENCES {s}collections(id) ON DELETE RESTRICT,
             shipping_option_id TEXT NOT NULL,
             UNIQUE (collection_id, shipping_option_id)
+        )
+        """
+    )
+    await db.execute(
+        f"""
+        CREATE TABLE {s}product_collections (
+            id TEXT PRIMARY KEY,
+            product_id TEXT NOT NULL
+                REFERENCES {s}products(id) ON DELETE RESTRICT,
+            collection_id TEXT NOT NULL
+                REFERENCES {s}collections(id) ON DELETE RESTRICT,
+            UNIQUE (product_id, collection_id)
         )
         """
     )
@@ -719,4 +719,51 @@ async def m002_orders(db: Connection):
     )
     await db.execute(
         f"CREATE INDEX ix_email_queue_order ON {s}email_queue(order_id)"
+    )
+
+
+async def m003_checkout_safety(db: Connection):
+    from .services.fx import CURRENCY_DECIMALS
+
+    s = db.references_schema
+    await db.execute(
+        f"ALTER TABLE {s}shipping_options ADD COLUMN currency_decimals INTEGER"
+        " NOT NULL DEFAULT 2 CHECK (currency_decimals >= 0 AND currency_decimals <= 18)"
+    )
+    await db.execute(
+        f"ALTER TABLE {s}idempotency_records ADD COLUMN claim_token {db.big_int}"
+        " NOT NULL DEFAULT 0"
+    )
+    await db.execute(
+        f"ALTER TABLE {s}outbox_events ADD COLUMN last_signed_at {db.big_int}"
+        " NOT NULL DEFAULT 0"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_outbox_address_clock ON {s}outbox_events"
+        " (merchant_id, event_address, last_signed_at)"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_orders_checkout_scope ON {s}orders"
+        " (merchant_id, checkout_scope_hash, state)"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_reservations_product_state ON {s}inventory_reservations"
+        " (product_id, state)"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_idempotency_order ON {s}idempotency_records (order_id)"
+    )
+    for currency, decimals in CURRENCY_DECIMALS.items():
+        await db.execute(
+            f"UPDATE {s}shipping_options SET currency_decimals = :d WHERE currency = :c",
+            {"d": decimals, "c": currency},
+        )
+        await db.execute(
+            f"UPDATE {s}products SET currency_decimals = :d WHERE currency = :c"
+            " AND currency_decimals IS NULL",
+            {"d": decimals, "c": currency},
+        )
+    await db.execute(
+        f"UPDATE {s}products SET currency_decimals = 2"
+        " WHERE currency_decimals IS NULL AND currency IS NOT NULL"
     )

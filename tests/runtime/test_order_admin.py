@@ -74,6 +74,7 @@ async def _setup(runtime_env):
                 "amount_minor": 500, "currency": "SAT",
                 "visibility": "on-sale", "stock_on_hand": stock,
                 "format": fmt,
+                "shipping_option_ids": [shipping_id] if fmt == "physical" else [],
             },
             headers=await cookie(),
         )
@@ -90,6 +91,7 @@ async def _setup(runtime_env):
         headers=await cookie(),
     )
     assert resp.status_code == 201, resp.text
+    shipping_id = resp.json()["id"]
 
     async with DomainTransaction() as tx:
         merchant = await tx.fetch_one(

@@ -137,53 +137,81 @@
   var summaryItems = card.querySelector('[data-sum="items"]');
   var summaryShipping = card.querySelector('[data-sum="shipping"]');
   var summaryTotal = card.querySelector('[data-sum="total"]');
-  var currency = form.getAttribute("data-currency") || "SAT";
-  var decimals = Number(form.getAttribute("data-decimals") || "0");
-  var unitMinor = Number(form.getAttribute("data-price-minor") || "0");
-
-  function fmtMinor(minor) {
-    var n = Number(minor || 0) / Math.pow(10, decimals);
-    return (
-      n.toLocaleString("en-US", {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-      }) +
-      " " +
-      currency
-    );
-  }
+  var refreshQuote = card.querySelector("[data-refresh-quote]");
+  var quote = null;
+  var quoteVersion = 0;
+  var quoteTimer = null;
+  var lastQuotePayload = null;
+  var QUOTE_API = "/gammamarkets/api/v1/public/quote";
 
   function currentQty() {
-    var q = parseInt(
-      (form.querySelector("input[name=quantity]") || {}).value || "1",
-      10
-    );
-    return isNaN(q) ? 1 : q;
+    var q = Number((form.querySelector("input[name=quantity]") || {}).value || "0");
+    return Number.isInteger(q) ? q : 0;
   }
-  function currentUnitMinor() {
+  function quotePayload() {
     var chosen = form.querySelector("input[name=variation]:checked");
-    if (chosen && chosen.getAttribute("data-price")) {
-      return Number(chosen.getAttribute("data-price"));
+    if (form.querySelectorAll("input[name=variation]").length && !chosen) return null;
+    var qty = currentQty();
+    if (qty < 1 || qty > 10000) return null;
+    var payload = {
+      merchant_pubkey: form.getAttribute("data-merchant"),
+      items: [{d_tag: chosen ? chosen.value : form.getAttribute("data-d-tag"), quantity: qty}]
+    };
+    if (form.getAttribute("data-physical") === "true") {
+      var country = countrySel ? countrySel.value : "";
+      var shipping = form.querySelector("select[name=shipping_option]");
+      if (!country || !shipping || !shipping.value) return null;
+      payload.shipping_option_d = shipping.value;
+      payload.address = {country: country, region: val("region")};
     }
-    return unitMinor;
+    return payload;
   }
-  function shippingMinor() {
-    var sel = form.querySelector("select[name=shipping_option]");
-    if (!sel || !sel.value) return 0;
-    var opt = sel.options[sel.selectedIndex];
-    return Number(opt.getAttribute("data-price") || "0");
-  }
-  function updateSummary() {
-    var items = currentUnitMinor() * currentQty();
-    var ship = shippingMinor();
-    if (summaryItems) summaryItems.textContent = fmtMinor(items);
-    if (summaryShipping) {
-      summaryShipping.textContent = form.getAttribute("data-physical")
-        ? fmtMinor(ship)
-        : "—";
+  function updateSummary(ev) {
+    if (ev && ["quantity", "variation", "country", "region", "shipping_option"]
+        .indexOf(ev.target.name) < 0) return;
+    if (pendingPayload) return;
+    var payload = quotePayload();
+    var signature = payload ? JSON.stringify(payload) : null;
+    if (ev && signature === lastQuotePayload) return;
+    lastQuotePayload = signature;
+    var version = ++quoteVersion;
+    clearTimeout(quoteTimer);
+    quote = null;
+    if (refreshQuote) refreshQuote.hidden = true;
+    if (submitButton) submitButton.disabled = true;
+    if (summaryItems) summaryItems.textContent = "—";
+    if (summaryShipping) summaryShipping.textContent =
+      form.getAttribute("data-physical") === "true" ? "Choose delivery" : "0 sats";
+    if (summaryTotal) summaryTotal.textContent = "—";
+    if (!payload) {
+      if (submitButton) submitButton.disabled = false;
+      return;
     }
-    if (summaryTotal) summaryTotal.textContent = fmtMinor(items + ship);
+    quoteTimer = setTimeout(function () {
+      GM.api(QUOTE_API, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      }).then(function (r) {
+        if (version !== quoteVersion || pendingPayload) return;
+        if (r.status !== 200 || !Number.isSafeInteger(r.body.total_sat)) {
+          if (summaryTotal) summaryTotal.textContent = GM.problemCopy(r.body);
+          if (refreshQuote) refreshQuote.hidden = false;
+          return;
+        }
+        quote = r.body;
+        if (summaryItems) summaryItems.textContent = GM.sats(quote.subtotal_sat);
+        if (summaryShipping) summaryShipping.textContent = GM.sats(quote.shipping_sat);
+        if (summaryTotal) summaryTotal.textContent = GM.sats(quote.total_sat);
+        if (submitButton) submitButton.disabled = false;
+      }).catch(function () {
+        if (version === quoteVersion && summaryTotal) {
+          summaryTotal.textContent = "Price unavailable — try again shortly.";
+          if (refreshQuote) refreshQuote.hidden = false;
+        }
+      });
+    }, 120);
   }
+  if (refreshQuote) refreshQuote.addEventListener("click", function () { updateSummary(); });
   form.addEventListener("change", updateSummary);
   form.addEventListener("input", updateSummary);
 
@@ -351,9 +379,9 @@
       GM.h("p", {
         class: "invoice-note",
         text:
-          "Invoice expired — no payment was taken. Inventory will be" +
-          " released safely; create a new invoice only after status" +
-          " reconciliation finishes."
+          "Invoice expired. If you already paid, do not pay again;" +
+          " contact the merchant. Wait for status verification before" +
+          " starting a new checkout."
       })
     );
     var review = GM.h("button", {
@@ -387,7 +415,7 @@
         class: "invoice-note",
         text:
           "Payment status is being verified with the payment provider." +
-          " No new invoice has been created — do not pay a second" +
+          " An invoice may already have been created — do not pay a second" +
           " invoice."
       })
     );
@@ -466,6 +494,20 @@
 
   var errorEl = form.querySelector(".form-error");
   var varError = document.querySelector(".variation-error");
+  var submitButton = form.querySelector("button[type=submit]");
+  var pendingPayload = null;
+  var retryUncertain = false;
+  var lockedFields = null;
+  function lockFields(locked) {
+    if (locked && !lockedFields) {
+      lockedFields = Array.from(form.querySelectorAll("input, select"))
+        .map(function (el) { return {el: el, disabled: el.disabled}; });
+      lockedFields.forEach(function (field) { field.el.disabled = true; });
+    } else if (!locked && lockedFields) {
+      lockedFields.forEach(function (field) { field.el.disabled = field.disabled; });
+      lockedFields = null;
+    }
+  }
 
   form.addEventListener("submit", function (ev) {
     ev.preventDefault();
@@ -534,8 +576,19 @@
     if (email) payload.email = email;
     payload.email_opt_in = wantsEmail;
 
-    var btn = form.querySelector("button[type=submit]");
-    if (btn) btn.disabled = true;
+    if (!pendingPayload) {
+      if (!quote) {
+        if (errorEl) {
+          errorEl.textContent = "Wait for the current total before paying.";
+          errorEl.hidden = false;
+        }
+        return;
+      }
+      payload.expected_total_sat = quote.total_sat;
+      pendingPayload = JSON.stringify(payload);
+    }
+    lockFields(true);
+    if (submitButton) submitButton.disabled = true;
     renderCreating();
 
     GM.api(form.getAttribute("data-endpoint"), {
@@ -544,7 +597,7 @@
         "Content-Type": "application/json",
         "Idempotency-Key": checkoutKey()
       },
-      body: JSON.stringify(payload)
+      body: pendingPayload
     })
       .then(function (r) {
         /* 201 and 409 replay both carry {public_token, order} — the
@@ -562,20 +615,29 @@
         }
         if (panel) panel.hidden = true;
         form.hidden = false;
+        if (r.status === 422 && !retryUncertain) {
+          pendingPayload = null;
+          idempotencyKey = null;
+          lockFields(false);
+          updateSummary();
+        } else {
+          retryUncertain = true;
+        }
         if (errorEl) {
           errorEl.textContent = GM.problemCopy(r.body);
           errorEl.hidden = false;
         }
-        if (btn) btn.disabled = false;
+        if (submitButton && pendingPayload) submitButton.disabled = false;
       })
       .catch(function () {
+        retryUncertain = true;
         if (panel) panel.hidden = true;
         form.hidden = false;
         if (errorEl) {
-          errorEl.textContent = "Network error — try again.";
+          errorEl.textContent = "Network error — retry this same checkout.";
           errorEl.hidden = false;
         }
-        if (btn) btn.disabled = false;
+        if (submitButton) submitButton.disabled = false;
       });
   });
 

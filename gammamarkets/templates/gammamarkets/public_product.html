@@ -13,10 +13,11 @@
     <div class="gallery{{ ' single' if product.images | length == 1 }}">
       {% if product.images | length > 1 %}
       <div class="thumbs" aria-label="Product views">
-        {% for img in product.images[:8] %}
+        {% for img in product.images[:16] %}
         <button type="button" class="thumb{{ ' active' if loop.first }}"
                 data-gallery-src="{{ img.url }}"
-                aria-label="Product view {{ loop.index }}">
+                aria-label="Product view {{ loop.index }}"
+                aria-pressed="{{ 'true' if loop.first else 'false' }}">
           <img src="{{ img.url }}" alt="" loading="lazy"
                referrerpolicy="no-referrer">
         </button>
@@ -149,9 +150,8 @@
               <select id="gm-shipping" name="shipping_option">
                 <option value="">Choose a shipping option…</option>
                 {% for s in product.shipping %}
-                <option value="{{ s.d_tag }}"
-                        data-price="{{ s.base_price_minor + (s.extra_cost_minor or 0) }}">
-                  {{ s.title or s.service }} — {{ s.base_price_minor + (s.extra_cost_minor or 0) }} {{ s.currency }}
+                <option value="{{ s.d_tag }}">
+                  {{ s.title or s.service }} — total shown below
                 </option>
                 {% endfor %}
               </select>
@@ -182,7 +182,7 @@
         {#- The order summary + submit are OUTSIDE the step sections:
             Items/Shipping/Total stay visible at every step and in every
             preset (persistent summary is a contract invariant). -#}
-        <div class="summary" aria-label="Order summary">
+        <div class="summary" aria-label="Order summary" aria-live="polite">
           <div class="summary-line">
             <span>Items</span>
             <strong data-sum="items">—</strong>
@@ -195,13 +195,14 @@
             <span>Total</span>
             <strong data-sum="total">—</strong>
           </div>
+          <button type="button" class="btn-secondary" data-refresh-quote hidden>Refresh total</button>
         </div>
         <div class="nav-row">
           <button type="button" class="btn-secondary" data-goto-step="2"
                   data-pay-back hidden>Back</button>
           <button type="submit" class="btn-primary">Review payment</button>
         </div>
-        <p class="privacy">Your order token stays in this browser and is never placed in the URL.</p>
+        <p class="privacy">Your private order link uses a URL fragment. The token is never sent in a request path or query; keep the link private.</p>
 
         <p class="form-error" role="alert" hidden></p>
       </form>

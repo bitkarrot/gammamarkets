@@ -7,6 +7,7 @@ deterministically."""
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 
 import pytest
@@ -99,8 +100,8 @@ async def _mpk(runtime_env):
     return row["pubkey"]
 
 
-async def _new_order(runtime_env, *, qty=2, stock=10, title=None):
-    """A fresh product + checkout -> awaiting_payment order."""
+async def _new_order(runtime_env, *, qty=2, stock=10, title=None, key=None):
+    """A fresh product, checkout response, and persisted order."""
     svcs = _svcs()
     product = await runtime_env["make_product"](
         title or uuid.uuid4().hex[:8], stock
@@ -110,7 +111,7 @@ async def _new_order(runtime_env, *, qty=2, stock=10, title=None):
             "merchant_pubkey": await _mpk(runtime_env),
             "items": [{"d_tag": product["d_tag"], "quantity": qty}],
         },
-        idempotency_key=uuid.uuid4().hex * 2,
+        idempotency_key=key or uuid.uuid4().hex * 2,
         client_scope="saga",
     )
     from gammamarkets.crypto import token_lookup_hash
@@ -643,3 +644,254 @@ async def test_lease_fencing(runtime_env, monkeypatch):
     monkeypatch.setattr(tasks, "WORKER_ID", "holder-B")
     token_b = await tasks._acquire_lease(name)  # noqa: SLF001
     assert token_b is not None and token_b > token_a2
+
+
+async def test_duplicate_attachment_preserves_settled_projection(runtime_env):
+    svcs = _svcs()
+    order, product, _ = await _new_order(runtime_env, qty=1)
+    payment = await _settle_core_payment(order["id"], order["total_sat"])
+    await svcs["settlement"].invoice_listener(payment)
+    await svcs["checkout"].attach_payment(order_id=order["id"], payment=payment, now=1)
+    projection = await _row(
+        "SELECT status FROM gammamarkets.payments WHERE order_id = :o",
+        {"o": order["id"]},
+    )
+    assert projection["status"] == "settled"
+    await svcs["settlement"].invoice_listener(payment)
+    fresh = await _row(
+        "SELECT state, payment_exception FROM gammamarkets.orders WHERE id = :i",
+        {"i": order["id"]},
+    )
+    assert fresh["state"] == "confirmed"
+    assert not fresh["payment_exception"]
+    stock = await _row(
+        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        {"p": product["id"]},
+    )
+    assert stock["stock_on_hand"] == 9
+
+
+async def test_reconciliation_verifies_payment_amount(runtime_env, monkeypatch):
+    settlement = _svcs()["settlement"]
+    order, product, _ = await _new_order(runtime_env, qty=1)
+    lookup = settlement._core_payments_by_external_id
+    payment = (await lookup(f"gammamarkets:{order['id']}"))[0]
+    wrong = payment.copy(update={"amount": payment.amount + 1000, "status": "success"})
+
+    async def mismatched(external_id):
+        if external_id == f"gammamarkets:{order['id']}":
+            return [wrong]
+        return await lookup(external_id)
+
+    monkeypatch.setattr(settlement, "_core_payments_by_external_id", mismatched)
+    await settlement.reconcile()
+    fresh = await _row(
+        "SELECT state, payment_exception, payment_exception_reason"
+        " FROM gammamarkets.orders WHERE id = :i",
+        {"i": order["id"]},
+    )
+    assert fresh["state"] == "awaiting_payment"
+    assert fresh["payment_exception"]
+    assert fresh["payment_exception_reason"] == "settlement-amount-mismatch"
+    stock = await _row(
+        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        {"p": product["id"]},
+    )
+    assert stock["stock_on_hand"] == 10
+
+
+async def test_reconciliation_recovers_late_payment_without_callback(runtime_env):
+    settlement = _svcs()["settlement"]
+    order, product, _ = await _new_order(runtime_env, qty=1)
+    await settlement.expire_order(order_id=order["id"])
+    await _settle_core_payment(order["id"], order["total_sat"])
+    await settlement.reconcile()
+    projection = await _row(
+        "SELECT status FROM gammamarkets.payments WHERE order_id = :o",
+        {"o": order["id"]},
+    )
+    assert projection["status"] == "settled"
+    fresh = await _row(
+        "SELECT state, payment_exception FROM gammamarkets.orders WHERE id = :i",
+        {"i": order["id"]},
+    )
+    assert fresh["state"] == "expired"
+    assert fresh["payment_exception"]
+    stock = await _row(
+        "SELECT stock_on_hand, stock_reserved FROM gammamarkets.products WHERE id = :p",
+        {"p": product["id"]},
+    )
+    assert stock == {"stock_on_hand": 10, "stock_reserved": 0}
+
+
+async def test_stale_expiry_worker_cannot_release_inventory(runtime_env, monkeypatch):
+    from gammamarkets.services import tasks
+
+    order, _, _ = await _new_order(runtime_env, qty=1)
+    from gammamarkets.db import DomainTransaction
+
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('inventory_reservations')} SET expires_at = 1 WHERE order_id = :o",
+            {"o": order["id"]},
+        )
+    current = await tasks._acquire_lease("reservation_expiry")
+    assert current is not None
+
+    async def stale(name, **kwargs):
+        return current - 1
+
+    async def stop(*args):
+        raise asyncio.CancelledError()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(tasks, "_acquire_lease", stale)
+        from types import SimpleNamespace
+
+        patch.setattr(tasks, "asyncio", SimpleNamespace(
+            sleep=stop, CancelledError=asyncio.CancelledError,
+        ))
+        with pytest.raises(asyncio.CancelledError):
+            await tasks.reservation_expiry()
+    reservation = await _row(
+        "SELECT state FROM gammamarkets.inventory_reservations WHERE order_id = :o",
+        {"o": order["id"]},
+    )
+    assert reservation["state"] == "held"
+    fresh = await _row("SELECT state FROM gammamarkets.orders WHERE id = :o", {"o": order["id"]})
+    assert fresh["state"] == "awaiting_payment"
+
+
+async def test_settlement_enqueues_addressed_stock_publication(runtime_env):
+    order, product, _ = await _new_order(runtime_env, qty=1)
+    payment = await _settle_core_payment(order["id"], order["total_sat"])
+    await _svcs()["settlement"].invoice_listener(payment)
+    row = await _row(
+        "SELECT * FROM gammamarkets.outbox_events WHERE aggregate_id = :p"
+        " AND event_kind = 30402 ORDER BY aggregate_revision DESC LIMIT 1",
+        {"p": product["id"]},
+    )
+    assert row["aggregate_type"] == "products"
+    assert row["event_address"].endswith(":" + product["d_tag"])
+    assert row["aggregate_revision"] > 0
+    from gammamarkets.services.outbox import render_intent
+
+    event = await render_intent(row)
+    assert event["kind"] == 30402
+    assert ["stock", "9"] in event["tags"]
+
+
+@pytest.mark.parametrize("recent_update", [False, True])
+async def test_retention_erases_all_terminal_order_private_copies(runtime_env, recent_update):
+    from gammamarkets.db import DomainTransaction
+
+    order, _, _ = await _new_order(runtime_env, qty=1)
+    now = int(time.time())
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('orders')} SET state = 'cancelled', updated_at = :n WHERE id = :o",
+            {"o": order["id"], "n": now if recent_update else 1},
+        )
+        await tx.execute(
+            f"INSERT INTO {tx.table('order_events')}"
+            " (id, order_id, from_state, to_state, actor, detail_json, created_at)"
+            " VALUES (:i, :o, 'awaiting_payment', 'cancelled', 'merchant', '{}', 1)",
+            {"i": uuid.uuid4().hex, "o": order["id"]},
+        )
+        await tx.execute(
+            f"INSERT INTO {tx.table('order_fulfillment')} (order_id, tracking_enc) VALUES (:o, :v)",
+            {"o": order["id"], "v": b"opaque-tracking"},
+        )
+        await tx.execute(
+            f"INSERT INTO {tx.table('email_queue')}"
+            " (id, merchant_id, order_id, channel, event_type,"
+            " recipient_enc, recipient_hash, state)"
+            " VALUES (:i, :m, :o, 'customer', 'confirmed', :v, 'retention-recipient', 'failed')",
+            {"i": uuid.uuid4().hex, "m": order["merchant_id"], "o": order["id"],
+             "v": b"opaque-recipient"},
+        )
+    await _svcs()["settlement"].retention_prune(now=now)
+    fresh = await _row(
+        "SELECT contact_enc, public_token_enc, total_sat FROM gammamarkets.orders WHERE id = :o",
+        {"o": order["id"]},
+    )
+    assert fresh["contact_enc"] is None
+    assert fresh["public_token_enc"] is None
+    assert fresh["total_sat"] == order["total_sat"]
+    for table, column in (
+        ("order_fulfillment", "tracking_enc"), ("email_queue", "recipient_enc"),
+        ("idempotency_records", "response_enc"),
+    ):
+        row = await _row(
+            f"SELECT {column} FROM gammamarkets.{table} WHERE order_id = :o",
+            {"o": order["id"]},
+        )
+        assert row and not row[column], table
+
+
+async def test_invoice_listener_redacts_error_context(runtime_env, monkeypatch):
+    from types import SimpleNamespace
+
+    from loguru import logger
+
+    settlement = _svcs()["settlement"]
+    canary = "private-listener-canary"
+
+    async def fail(*args, **kwargs):
+        raise RuntimeError(canary)
+
+    monkeypatch.setattr(settlement, "_handle_core_payment", fail)
+    messages = []
+    sink = logger.add(messages.append, format="{message}")
+    try:
+        await settlement.invoice_listener(SimpleNamespace(
+            extension="gammamarkets", external_id=f"gammamarkets:{canary}",
+        ))
+    finally:
+        logger.remove(sink)
+    assert messages and all(canary not in message for message in messages)
+
+
+@pytest.mark.parametrize("mismatch", ["amount", "wallet"])
+async def test_unverified_lnbits_invoice_is_not_offered_to_buyer(
+    runtime_env, monkeypatch, mismatch,
+):
+    from lnbits.core.services import payments as host_payments
+
+    create_invoice = host_payments.create_invoice
+
+    async def unexpected_invoice(**kwargs):
+        if mismatch == "amount":
+            kwargs["amount"] += 1
+        payment = await create_invoice(**kwargs)
+        if mismatch == "wallet":
+            payment = payment.copy(update={"wallet_id": uuid.uuid4().hex})
+        return payment
+
+    monkeypatch.setattr(host_payments, "create_invoice", unexpected_invoice)
+    key = uuid.uuid4().hex * 2
+    order, product, result = await _new_order(runtime_env, qty=1, stock=2, key=key)
+    assert result["order"]["state"] == "invoice_pending"
+    assert result["order"]["bolt11"] is None
+    assert order["payment_exception"]
+    assert order["payment_exception_reason"] == "invoice-correlation-failed"
+    projection = await _row(
+        "SELECT status, bolt11_enc, core_external_id FROM gammamarkets.payments"
+        " WHERE order_id = :o",
+        {"o": order["id"]},
+    )
+    assert projection["status"] == "creation_unknown"
+    assert projection["bolt11_enc"] is None
+    replay = await _svcs()["checkout"].checkout(
+        payload={
+            "merchant_pubkey": await _mpk(runtime_env),
+            "items": [{"d_tag": product["d_tag"], "quantity": 1}],
+        },
+        idempotency_key=key, client_scope="saga",
+    )
+    assert replay == result
+    invoices = await _core_row(
+        "SELECT COUNT(*) AS n FROM apipayments WHERE external_id = :e",
+        {"e": projection["core_external_id"]},
+    )
+    assert invoices["n"] == 1

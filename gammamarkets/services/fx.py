@@ -25,6 +25,18 @@ from lnbits.utils.exchange_rates import btc_rates
 SAT_PER_BTC = Decimal(100_000_000)
 QUOTE_TTL_S = 300  # five-minute freshness (section 3.4)
 INT64_MAX = 2**63 - 1
+CURRENCY_DECIMALS = {
+    **dict.fromkeys(
+        ("SAT", "BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG",
+         "RWF", "UGX", "UYI", "VND", "VUV", "XAF", "XOF", "XPF"), 0,
+    ),
+    **dict.fromkeys(("BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND"), 3),
+    "CLF": 4, "UYW": 4, "BTC": 8,
+}
+
+
+def default_currency_decimals(currency: str | None) -> int:
+    return CURRENCY_DECIMALS.get(currency or "SAT", 2)
 
 
 class FxRejection(Exception):

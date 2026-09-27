@@ -256,10 +256,13 @@ async def release_reservations(
             )
         await tx.execute(
             f"UPDATE {tx.table('products')}"
-            " SET stock_reserved = stock_reserved - :q, updated_at = :n"
-            " WHERE id = :p",
+            " SET stock_reserved = stock_reserved - :q, updated_at = :n,"
+            " revision = revision + 1 WHERE id = :p",
             {"q": row["quantity"], "n": now, "p": row["product_id"]},
         )
+        from .catalog import enqueue_stock_projection
+
+        await enqueue_stock_projection(tx, row["product_id"])
         released += row["quantity"]
     return released
 
@@ -412,7 +415,7 @@ async def cancel_order(
 
 async def _order_row(tx: DomainTransaction, order_id: str) -> dict:
     row = await tx.fetch_one(
-        f"SELECT * FROM {tx.table('orders')} WHERE id = :i", {"i": order_id}
+        f"SELECT * FROM {tx.table('orders')} WHERE id = :i" + tx.for_update, {"i": order_id}
     )
     if not row:
         raise not_found("order not found")

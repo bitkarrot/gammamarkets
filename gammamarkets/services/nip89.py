@@ -101,7 +101,7 @@ async def product_detail(product: dict) -> dict:
             " stock_on_hand, stock_reserved, nip99_status "
             f"FROM {table('products')} "
             "WHERE parent_product_id = :p AND deleted_at IS NULL"
-            " AND NOT draft",
+            " AND NOT draft AND visibility != 'hidden'",
             {"p": pid},
         )
     return {
@@ -217,7 +217,7 @@ async def check_public_rate_limit(request, *, bucket: str = "public-get",
             "(scope_hash, bucket, window_start, count, expires_at) "
             "VALUES (:s, :b, :w, 1, :e) "
             "ON CONFLICT (scope_hash, bucket, window_start) "
-            "DO UPDATE SET count = count + 1",
+            "DO UPDATE SET count = rate_limit_buckets.count + 1",
             {"s": scope, "b": bucket, "w": window, "e": window + window_s * 2},
         )
         row = await conn.fetchone(

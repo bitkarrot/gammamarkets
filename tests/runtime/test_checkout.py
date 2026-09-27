@@ -6,6 +6,7 @@ protect are asserted explicitly here."""
 from __future__ import annotations
 
 import asyncio
+import importlib
 import uuid
 from decimal import Decimal
 
@@ -415,3 +416,398 @@ async def test_missing_fx_rejected(runtime_env, monkeypatch):
             client_scope="t8",
         )
     assert exc.value.code == "fx-unavailable"
+
+
+@pytest.mark.parametrize("crash_at", ["before_invoice", "after_invoice"])
+async def test_checkout_crash_keeps_idempotency_link(runtime_env, monkeypatch, crash_at):
+    checkout = _svcs()["checkout"]
+    body = await _payload(runtime_env, [
+        {"d_tag": runtime_env["widget"]["d_tag"], "quantity": 1},
+    ])
+    key = uuid.uuid4().hex * 2
+    scope = checkout._scope_hash(
+        runtime_env["merchant_id"], "/api/v1/public/checkout", key,
+    )
+
+    async def crash(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            checkout,
+            "begin_saga" if crash_at == "before_invoice" else "_complete_idempotency",
+            crash,
+        )
+        with pytest.raises(asyncio.CancelledError):
+            await checkout.checkout(
+                payload=body, idempotency_key=key, client_scope=crash_at,
+            )
+
+    from gammamarkets.db import DomainTransaction
+
+    async with DomainTransaction() as tx:
+        record = await tx.fetch_one(
+            f"SELECT order_id FROM {tx.table('idempotency_records')} WHERE scope_hash = :s",
+            {"s": scope},
+        )
+        assert record["order_id"] is not None
+        await tx.execute(
+            f"UPDATE {tx.table('idempotency_records')} SET lease_until = 1"
+            " WHERE scope_hash = :s",
+            {"s": scope},
+        )
+    resumed = await checkout.checkout(
+        payload=body, idempotency_key=key, client_scope=crash_at,
+    )
+    order = await _order_for_token(resumed["public_token"])
+    assert order["id"] == record["order_id"]
+    from lnbits.core.db import db as core_db
+
+    async with core_db.connect() as conn:
+        count = await conn.fetchone(
+            "SELECT COUNT(*) AS n FROM apipayments WHERE external_id = :e",
+            {"e": f"gammamarkets:{order['id']}"},
+        )
+    assert count["n"] == 1
+
+
+@pytest.mark.parametrize("invalid_quantity", [True, False])
+async def test_boolean_quantity_is_rejected(runtime_env, invalid_quantity):
+    from gammamarkets.security import ProblemError
+
+    with pytest.raises(ProblemError) as error:
+        await _svcs()["checkout"].checkout(
+            payload=await _payload(runtime_env, [
+                {"d_tag": runtime_env["widget"]["d_tag"], "quantity": invalid_quantity},
+            ]),
+            idempotency_key=uuid.uuid4().hex * 2, client_scope="boolean-quantity",
+        )
+    assert error.value.status == 422
+
+
+@pytest.mark.parametrize("unit,value", [("g", 500), ("lb", 2)])
+async def test_shipping_weight_constraints_normalize_units(runtime_env, unit, value):
+    option = {
+        "weight_max": 1, "weight_min": None, "weight_unit": "kg",
+        "dim_max_l": None, "dim_max_w": None, "dim_max_h": None,
+        "dim_min_l": None, "dim_min_w": None, "dim_min_h": None,
+        "dim_unit": None,
+    }
+    product = {
+        "format": "physical", "weight_value": value, "weight_unit": unit,
+        "dim_l": None, "dim_w": None, "dim_h": None, "dim_unit": None,
+    }
+    _svcs()["checkout"]._check_shipping_constraints(option, [{"product": product, "qty": 1}])
+
+
+@pytest.mark.parametrize("problem", ["unassigned", "missing-region", "region-country-mismatch"])
+async def test_shipping_rejects_invalid_coverage(runtime_env, problem):
+    client = runtime_env["client"]
+    headers = {"Origin": ORIGIN, "X-CSRF-Token": client.cookies.get("gm_csrf")}
+    response = await client.post(
+        f"{API}/shipping", headers=headers,
+        json={
+            "title": "restricted shipping", "service": "standard", "base_price_minor": 10,
+            "currency": "SAT", "countries": ["US", "CA"], "regions": ["US-CA"],
+        },
+    )
+    assert response.status_code == 201, response.text
+    option = response.json()
+    response = await client.post(
+        f"{API}/products", headers=headers,
+        json={
+            "catalog_id": runtime_env["catalog_id"], "title": "shipping restrictions",
+            "format": "physical", "visibility": "on-sale", "currency": "SAT",
+            "amount_minor": 100, "stock_on_hand": 1,
+            "shipping_option_ids": [] if problem == "unassigned" else [option["id"]],
+        },
+    )
+    assert response.status_code == 201, response.text
+    product = response.json()
+    address = {"country": "CA" if problem == "region-country-mismatch" else "US", "line1": "Test"}
+    if problem != "missing-region":
+        address["region"] = "US-CA"
+    from gammamarkets.security import ProblemError
+
+    with pytest.raises(ProblemError) as error:
+        await _svcs()["checkout"].checkout(
+            payload=await _payload(
+                runtime_env, [{"d_tag": product["d_tag"], "quantity": 1}],
+                shipping_option_d=option["d_tag"], address=address,
+            ),
+            idempotency_key=uuid.uuid4().hex * 2, client_scope=problem,
+        )
+    assert error.value.status == 422
+
+
+@pytest.mark.parametrize("currency,base,fees,extra,expected", [
+    ("SAT", 500, {}, None, 500),
+    ("USD", 550, {}, None, 550),
+    ("USD", 550, {}, 7, 564),
+    ("JPY", 7, {}, None, 700),
+    ("SAT", 10, {"price_weight_minor": 100, "price_weight_unit": "kg"}, None, 110),
+    ("SAT", 10, {"price_weight_minor": 100, "price_weight_unit": "lb"}, None, 231),
+    ("SAT", 10, {"price_volume_minor": 2, "price_volume_unit": "cm3"}, None, 4010),
+    ("SAT", 10, {}, 7, 24),
+])
+async def test_shipping_quotes_include_precision_and_components(
+    runtime_env, monkeypatch, currency, base, fees, extra, expected,
+):
+    async def rates(currency):
+        return [("test-provider", 1_000_000.0)]
+
+    monkeypatch.setattr(_svcs()["fx"], "btc_rates", rates)
+    client = runtime_env["client"]
+    headers = {"Origin": ORIGIN, "X-CSRF-Token": client.cookies.get("gm_csrf")}
+    response = await client.post(
+        f"{API}/shipping", headers=headers,
+        json={
+            "title": "priced shipping", "service": "standard", "base_price_minor": base,
+            "currency": currency, "countries": ["US"], **fees,
+        },
+    )
+    assert response.status_code == 201, response.text
+    shipping = response.json()
+    response = await client.post(
+        f"{API}/products", headers=headers,
+        json={
+            "catalog_id": runtime_env["catalog_id"], "title": "shipping components",
+            "format": "physical", "visibility": "on-sale", "currency": "SAT",
+            "amount_minor": 100, "stock_on_hand": 5,
+            "weight_value": 500, "weight_unit": "g",
+            "dim_l": 10, "dim_w": 10, "dim_h": 10, "dim_unit": "cm",
+            "shipping_option_ids": [{"id": shipping["id"], "extra_cost_minor": extra}],
+        },
+    )
+    assert response.status_code == 201, response.text
+    product = response.json()
+    payload = await _payload(
+        runtime_env, [{"d_tag": product["d_tag"], "quantity": 2}],
+        shipping_option_d=shipping["d_tag"], address={"country": "US", "line1": "Test"},
+    )
+    preview = await client.post(f"{API}/public/quote", json=payload)
+    assert preview.status_code == 200, preview.text
+    assert preview.json() == {
+        "subtotal_sat": 200, "shipping_sat": expected, "total_sat": 200 + expected,
+    }
+    assert preview.headers["cache-control"] == "no-store"
+    fresh = await client.get(f"{API}/products/{product['id']}")
+    assert fresh.json()["stock_reserved"] == 0
+    result = await _svcs()["checkout"].checkout(
+        payload={**payload, "expected_total_sat": preview.json()["total_sat"]},
+        idempotency_key=uuid.uuid4().hex * 2, client_scope=uuid.uuid4().hex,
+    )
+    order = await _order_for_token(result["public_token"])
+    assert order["shipping_sat"] == expected
+    assert order["total_sat"] == 200 + expected
+
+
+async def test_reclaimed_checkout_fences_stale_admission(runtime_env, monkeypatch):
+    checkout = _svcs()["checkout"]
+    db_module = importlib.import_module("gammamarkets.db")
+    original = checkout._insert_order_intake
+    paused, resume = asyncio.Event(), asyncio.Event()
+    captured = {}
+
+    async def blocked_intake(**kwargs):
+        if not captured:
+            captured["scope"] = kwargs["scope"]
+            paused.set()
+            await resume.wait()
+        return await original(**kwargs)
+
+    monkeypatch.setattr(checkout, "_insert_order_intake", blocked_intake)
+    client = runtime_env["client"]
+    headers = {"Origin": ORIGIN, "X-CSRF-Token": client.cookies.get("gm_csrf")}
+    response = await client.post(f"{API}/products", headers=headers, json={
+        "catalog_id": runtime_env["catalog_id"], "title": "stale admission",
+        "amount_minor": 100, "currency": "SAT", "format": "digital",
+        "visibility": "on-sale", "stock_on_hand": 2,
+    })
+    assert response.status_code == 201, response.text
+    payload = await _payload(runtime_env, [{"d_tag": response.json()["d_tag"], "quantity": 1}])
+    key = uuid.uuid4().hex * 2
+    first = asyncio.create_task(checkout.checkout(
+        payload=payload, idempotency_key=key, client_scope="stale-admission",
+    ))
+    try:
+        await asyncio.wait_for(paused.wait(), 3)
+        async with db_module.DomainTransaction() as tx:
+            await tx.execute(
+                f"UPDATE {tx.table('idempotency_records')} SET lease_until = 0"
+                " WHERE scope_hash = :s", {"s": captured["scope"]},
+            )
+        second = await checkout.checkout(
+            payload=payload, idempotency_key=key, client_scope="stale-admission",
+        )
+        resume.set()
+        with pytest.raises(checkout.ProblemError) as error:
+            await first
+        assert error.value.status == 409
+        async with db_module.db.connect() as conn:
+            row = await conn.fetchone(
+                f"SELECT state FROM {db_module.table('idempotency_records')} WHERE scope_hash = :s",
+                {"s": captured["scope"]},
+            )
+        assert row["state"] == "completed"
+        replay = await checkout.checkout(
+            payload=payload, idempotency_key=key, client_scope="stale-admission",
+        )
+        assert replay == second
+    finally:
+        resume.set()
+        await asyncio.gather(first, return_exceptions=True)
+
+
+async def test_stock_rejection_does_not_leave_recoverable_received_order(runtime_env, monkeypatch):
+    checkout = _svcs()["checkout"]
+    db_module = importlib.import_module("gammamarkets.db")
+    client = runtime_env["client"]
+    headers = {"Origin": ORIGIN, "X-CSRF-Token": client.cookies.get("gm_csrf")}
+    response = await client.post(f"{API}/products", headers=headers, json={
+        "catalog_id": runtime_env["catalog_id"], "title": "stock rejection",
+        "amount_minor": 100, "currency": "SAT", "format": "digital",
+        "visibility": "on-sale", "stock_on_hand": 1,
+    })
+    assert response.status_code == 201, response.text
+    product = response.json()
+    original = checkout.begin_saga
+
+    async def lose_stock(**kwargs):
+        async with db_module.DomainTransaction() as tx:
+            await tx.execute(
+                f"UPDATE {tx.table('products')} SET stock_on_hand = 0 WHERE id = :i",
+                {"i": product["id"]},
+            )
+        return await original(**kwargs)
+
+    monkeypatch.setattr(checkout, "begin_saga", lose_stock)
+    with pytest.raises(checkout.ProblemError) as error:
+        await checkout.checkout(
+            payload=await _payload(runtime_env, [{"d_tag": product["d_tag"], "quantity": 1}]),
+            idempotency_key=uuid.uuid4().hex * 2, client_scope="stock-rejection",
+        )
+    assert error.value.status == 422
+    async with db_module.db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT o.state FROM {db_module.table('orders')} o"
+            f" JOIN {db_module.table('order_items')} i ON i.order_id = o.id"
+            " WHERE i.product_id = :p", {"p": product["id"]},
+        )
+    assert row["state"] == "rejected"
+
+
+@pytest.mark.parametrize("cap", ["open", "held"])
+async def test_checkout_caps_are_transactional(runtime_env, monkeypatch, cap):
+    checkout = _svcs()["checkout"]
+    db_module = importlib.import_module("gammamarkets.db")
+    client = runtime_env["client"]
+    headers = {"Origin": ORIGIN, "X-CSRF-Token": client.cookies.get("gm_csrf")}
+    response = await client.post(f"{API}/products", headers=headers, json={
+        "catalog_id": runtime_env["catalog_id"], "title": f"{cap} cap race",
+        "amount_minor": 100, "currency": "SAT", "format": "digital", "visibility": "on-sale",
+    })
+    assert response.status_code == 201, response.text
+    product = response.json()
+    counter = "_open_order_count" if cap == "open" else "_held_reservation_count"
+    limit = "MAX_OPEN_ORDERS_PER_SCOPE" if cap == "open" else "MAX_HELD_PER_PRODUCT"
+    monkeypatch.setattr(checkout, limit, 2)
+    original = getattr(checkout, counter)
+    arrived = 0
+    ready = asyncio.Event()
+
+    async def all_read_before_writing(*args):
+        nonlocal arrived
+        count = await original(*args)
+        arrived += 1
+        if arrived == 3:
+            ready.set()
+        await asyncio.wait_for(ready.wait(), 3)
+        return count
+
+    monkeypatch.setattr(checkout, counter, all_read_before_writing)
+    payload = await _payload(runtime_env, [{"d_tag": product["d_tag"], "quantity": 1}])
+    results = await asyncio.gather(*(
+        checkout.checkout(
+            payload=payload, idempotency_key=uuid.uuid4().hex * 2,
+            client_scope=f"cap-{cap}" if cap == "open" else uuid.uuid4().hex,
+        ) for _ in range(3)
+    ), return_exceptions=True)
+    assert sum(isinstance(result, dict) for result in results) == 2
+    errors = [result for result in results if isinstance(result, Exception)]
+    assert len(errors) == 1 and isinstance(errors[0], checkout.ProblemError)
+    assert errors[0].status == (429 if cap == "open" else 422)
+    async with db_module.db.connect() as conn:
+        held = await conn.fetchone(
+            f"SELECT COUNT(*) AS n FROM {db_module.table('inventory_reservations')}"
+            " WHERE product_id = :p AND state = 'held'", {"p": product["id"]},
+        )
+    assert held["n"] == 2
+
+
+async def test_duplicate_cart_items_are_rejected_before_intake(runtime_env):
+    checkout = _svcs()["checkout"]
+    item = {"d_tag": runtime_env["widget"]["d_tag"], "quantity": 1}
+    with pytest.raises(checkout.ProblemError) as error:
+        await checkout._resolve_items(runtime_env["merchant_id"], [item, item])
+    assert error.value.status == 422
+
+
+async def test_non_utc_database_blocks_financial_operations(runtime_env, monkeypatch):
+    from gammamarkets.services import readiness, settlement
+
+    async def local_timezone():
+        return "America/Los_Angeles"
+
+    monkeypatch.setattr(readiness, "_database_timezone", local_timezone)
+    checkout = _svcs()["checkout"]
+    with pytest.raises(checkout.ProblemError) as error:
+        await checkout.checkout(
+            payload={}, idempotency_key=uuid.uuid4().hex,
+            client_scope="timezone",
+        )
+    assert error.value.status == 503
+    assert readiness.readiness()["checkout"] is False
+    with pytest.raises(checkout.ProblemError):
+        readiness.assert_checkout_ready()
+    for operation in (settlement.reconcile, settlement.reservation_expiry_pass):
+        with pytest.raises(checkout.ProblemError):
+            await operation()
+
+    async def utc_timezone():
+        return "UTC"
+
+    monkeypatch.setattr(readiness, "_database_timezone", utc_timezone)
+    monkeypatch.setattr(readiness, "_process_uses_utc", lambda: False)
+    with pytest.raises(checkout.ProblemError):
+        await readiness.assert_database_compatible()
+    monkeypatch.setattr(readiness, "_process_uses_utc", lambda: True)
+    await readiness.assert_database_compatible()
+    assert readiness.readiness()["checkout"] is True
+
+
+async def test_changed_quote_creates_no_order_or_invoice(runtime_env):
+    from gammamarkets.db import db, table
+
+    payload = await _payload(runtime_env, [
+        {"d_tag": runtime_env["widget"]["d_tag"], "quantity": 1},
+    ])
+    client = runtime_env["client"]
+    quoted = await client.post(f"{API}/public/quote", json=payload)
+    assert quoted.status_code == 200, quoted.text
+    async with db.connect() as conn:
+        before = await conn.fetchone(
+            f"SELECT COUNT(*) AS n FROM {table('orders')}"
+        )
+    result = await client.post(
+        f"{API}/public/checkout",
+        json={**payload, "expected_total_sat": quoted.json()["total_sat"] + 1},
+        headers={"Idempotency-Key": uuid.uuid4().hex * 2, "Origin": ORIGIN},
+    )
+    assert result.status_code == 422, result.text
+    assert result.json()["type"] == "urn:gammamarkets:quote-changed"
+    async with db.connect() as conn:
+        after = await conn.fetchone(
+            f"SELECT COUNT(*) AS n FROM {table('orders')}"
+        )
+    assert after["n"] == before["n"]

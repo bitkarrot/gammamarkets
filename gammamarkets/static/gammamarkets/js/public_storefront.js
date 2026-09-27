@@ -116,12 +116,13 @@
     "insufficient-stock":
       "Not enough stock available — reduce quantity or choose another item.",
     "order-expired":
-      "Invoice expired — no payment was taken. Inventory will be released" +
-      " safely; create a new invoice only after status reconciliation" +
-      " finishes.",
+      "Invoice expired. If you already paid, do not pay again;" +
+      " contact the merchant. Wait for status verification before" +
+      " starting a new checkout.",
     "rate-limited": "Too many requests — wait a minute and try again.",
     "invalid-shipping-destination":
-      "This item cannot be shipped to the selected destination."
+      "This item cannot be shipped to the selected destination.",
+    "quote-changed": "The total changed — review the updated price before paying."
   };
 
   GM.problemCopy = function (body) {
@@ -185,9 +186,9 @@
     var main = document.getElementById("gm-gallery-main");
     if (main) main.src = thumb.getAttribute("data-gallery-src");
     document.querySelectorAll(".thumb").forEach(function (el) {
-      el.classList.remove("active");
+      el.classList.toggle("active", el === thumb);
+      el.setAttribute("aria-pressed", el === thumb ? "true" : "false");
     });
-    thumb.classList.add("active");
   });
 
   /* Render a Lightning invoice QR into el using the host-vendored

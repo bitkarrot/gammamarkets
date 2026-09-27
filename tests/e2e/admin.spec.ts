@@ -7,7 +7,7 @@ import path from 'node:path'
  * same credential the host sets after a real login. */
 
 const seed = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '.seed.json'), 'utf8')
+  fs.readFileSync(path.resolve(__dirname, process.env.GM_E2E_SEED_PATH || '.seed.json'), 'utf8')
 )
 
 test.describe.configure({mode: 'serial'})

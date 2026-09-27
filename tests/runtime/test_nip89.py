@@ -196,6 +196,54 @@ async def test_public_product_page_states(runtime_env):
     assert "This product is not available." in resp.text
 
 
+@pytest.mark.parametrize("private_state", ["draft", "hidden", "deleted"])
+async def test_private_product_never_leaks_through_public_json(runtime_env, private_state):
+    client = runtime_env["client"]
+    mid, merchant = await _merchant(runtime_env)
+    headers = _headers(runtime_env)
+    product = await _create_product(
+        client, mid, headers, title=f"private-{uuid.uuid4().hex}",
+        draft=private_state == "draft",
+        visibility="hidden" if private_state == "hidden" else "on-sale",
+    )
+    if private_state == "deleted":
+        response = await client.delete(f"{API}/products/{product['id']}", headers=headers)
+        assert response.status_code == 200
+    response = await client.get(
+        f"{API}/public/products/{merchant['pubkey']}/{product['d_tag']}"
+    )
+    assert response.status_code == 404
+    assert product["title"] not in response.text
+    assert response.headers["cache-control"] == "no-store"
+
+
+async def test_hidden_variation_is_not_exposed_by_public_parent(runtime_env):
+    client = runtime_env["client"]
+    mid, merchant = await _merchant(runtime_env)
+    headers = _headers(runtime_env)
+    parent = await _create_product(client, mid, headers, product_type="variable")
+    child = await _create_product(
+        client, mid, headers, product_type="variation", parent_product_id=parent["id"],
+        visibility="hidden", title=f"restricted-{uuid.uuid4().hex}",
+    )
+    response = await client.get(
+        f"{API}/public/products/{merchant['pubkey']}/{parent['d_tag']}"
+    )
+    assert response.status_code == 200, response.text
+    assert child["title"] not in response.text
+    assert child["d_tag"] not in response.text
+
+
+@pytest.mark.parametrize("currency,decimals", [("SAT", 0), ("USD", 2), ("JPY", 0)])
+async def test_product_currency_precision_is_explicit(runtime_env, currency, decimals):
+    mid, _ = await _merchant(runtime_env)
+    product = await _create_product(
+        runtime_env["client"], mid, _headers(runtime_env), currency=currency,
+        currency_decimals=None,
+    )
+    assert product["currency_decimals"] == decimals
+
+
 async def test_rate_limit_enforced_on_public_routes(runtime_env):
     """120 GET/min/IP — push past the bound and expect 429."""
     client = runtime_env["client"]

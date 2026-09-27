@@ -34,9 +34,9 @@
     "insufficient-stock":
       "Not enough stock available — reduce quantity or choose another item.",
     "order-expired":
-      "Invoice expired — no payment was taken. Inventory will be released" +
-      " safely; create a new invoice only after status reconciliation" +
-      " finishes.",
+      "Invoice expired. If you already paid, do not pay again;" +
+      " contact the merchant. Wait for status verification before" +
+      " starting a new checkout.",
     "rate-limited": "Too many requests — wait a minute and try again.",
     "invalid-shipping-destination":
       "This item cannot be shipped to the selected destination."

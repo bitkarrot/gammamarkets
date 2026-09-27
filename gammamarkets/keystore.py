@@ -18,7 +18,7 @@ import uuid
 from nostr_sdk import Keys, NostrSigner, UnsignedEvent
 
 from . import crypto
-from .db import db, table
+from .db import DomainTransaction, db, table
 from .settings import ExtSettings
 
 KEY_ORIGIN_GENERATED = "generated"
@@ -39,19 +39,23 @@ class MerchantKeyStore:
 
     # --- key lifecycle -------------------------------------------------------
 
-    async def generate(self, merchant_id: str) -> str:
+    async def generate(
+        self, merchant_id: str, *, transaction: DomainTransaction | None = None,
+    ) -> str:
         """Generate a fresh keypair, persist the encrypted nsec, return pubkey.
 
         Refuses when a key row already exists — silent overwrite would
         orphan the old identity. Rotation goes through ``import_key`` (new
         material) or ``rewrap`` (same material, new master version).
         """
-        async with db.connect() as conn:
-            existing = await conn.fetchone(
-                f"SELECT merchant_id FROM {table('merchant_keys')} "
-                "WHERE merchant_id = :m",
-                {"m": merchant_id},
-            )
+        if transaction is None:
+            async with DomainTransaction() as tx:
+                return await self.generate(merchant_id, transaction=tx)
+        existing = await transaction.fetch_one(
+            f"SELECT merchant_id FROM {transaction.table('merchant_keys')} "
+            "WHERE merchant_id = :m",
+            {"m": merchant_id},
+        )
         if existing:
             raise KeystoreError(
                 "merchant already has a key — use import_key or rewrap"
@@ -59,12 +63,18 @@ class MerchantKeyStore:
         keys = Keys.generate()
         nsec = keys.secret_key().to_hex()
         try:
-            await self._store(merchant_id, bytes.fromhex(nsec), KEY_ORIGIN_GENERATED)
+            await self._store(
+                merchant_id, bytes.fromhex(nsec), KEY_ORIGIN_GENERATED,
+                transaction=transaction, replace_existing=False,
+            )
             return keys.public_key().to_hex()
         finally:
             del keys, nsec
 
-    async def import_key(self, merchant_id: str, nsec_bech32: str) -> str:
+    async def import_key(
+        self, merchant_id: str, nsec_bech32: str, *,
+        transaction: DomainTransaction | None = None,
+    ) -> str:
         """Decode a bech32 nsec, validate, encrypt into ``merchant_keys``.
 
         ``Keys.parse`` validates the nsec1 prefix + secp256k1 range; the raw
@@ -76,12 +86,25 @@ class MerchantKeyStore:
             raise KeystoreError("invalid nsec") from exc
         nsec_hex = keys.secret_key().to_hex()
         try:
-            await self._store(merchant_id, bytes.fromhex(nsec_hex), KEY_ORIGIN_IMPORTED)
+            await self._store(
+                merchant_id, bytes.fromhex(nsec_hex), KEY_ORIGIN_IMPORTED,
+                transaction=transaction,
+            )
             return keys.public_key().to_hex()
         finally:
             del keys, nsec_hex
 
-    async def _store(self, merchant_id: str, nsec_bytes: bytes, origin: str) -> None:
+    async def _store(
+        self, merchant_id: str, nsec_bytes: bytes, origin: str, *,
+        transaction: DomainTransaction | None = None, replace_existing: bool = True,
+    ) -> None:
+        if transaction is None:
+            async with DomainTransaction() as tx:
+                await self._store(
+                    merchant_id, nsec_bytes, origin, transaction=tx,
+                    replace_existing=replace_existing,
+                )
+            return
         s = self._settings
         envelope = crypto.encrypt(
             nsec_bytes,
@@ -93,26 +116,24 @@ class MerchantKeyStore:
         )
         nonce = envelope[crypto.VERSION_LEN : crypto.VERSION_LEN + crypto.NONCE_LEN]
         body = envelope[crypto.VERSION_LEN + crypto.NONCE_LEN :]
-        async with db.connect() as conn:
-            await conn.execute(
-                f"""
-                INSERT INTO {table('merchant_keys')}
-                    (merchant_id, key_origin, key_version, nonce, ciphertext,
-                     created_at)
-                VALUES (:m, :o, :v, :n, :c, :t)
-                ON CONFLICT (merchant_id) DO UPDATE SET
-                    key_origin = :o, key_version = :v, nonce = :n,
-                    ciphertext = :c, rotated_at = :t
-                """,
-                {
-                    "m": merchant_id,
-                    "o": origin,
-                    "v": s.active_key_version,
-                    "n": nonce,
-                    "c": body,
-                    "t": int(time.time()),
-                },
-            )
+        update = (
+            " ON CONFLICT (merchant_id) DO UPDATE SET"
+            " key_origin = :o, key_version = :v, nonce = :n,"
+            " ciphertext = :c, rotated_at = :t"
+        ) if replace_existing else ""
+        await transaction.execute(
+            f"INSERT INTO {transaction.table('merchant_keys')} "
+            "(merchant_id, key_origin, key_version, nonce, ciphertext, created_at) "
+            "VALUES (:m, :o, :v, :n, :c, :t)" + update,
+            {
+                "m": merchant_id,
+                "o": origin,
+                "v": s.active_key_version,
+                "n": nonce,
+                "c": body,
+                "t": int(time.time()),
+            },
+        )
 
     async def _load_nsec(self, merchant_id: str) -> bytes:
         """Decrypt the merchant nsec inside the operation; caller releases."""

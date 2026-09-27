@@ -243,6 +243,7 @@ async def test_send_classification(runtime_env, monkeypatch):
     rows = await _queue_rows(order["id"])
     assert rows[0]["state"] == "sent"
     assert rows[0]["sent_at"] is not None
+    assert not rows[0]["recipient_enc"]
     assert sent_calls  # the host send_email was invoked
 
     # False return -> retry with backoff.
@@ -392,3 +393,126 @@ async def test_subject_has_no_pii(runtime_env):
         if bad == "order":  # 'order' IS the label — skip the self-match
             continue
         assert bad not in subject
+
+
+async def test_expired_claim_never_calls_smtp(runtime_env, monkeypatch):
+    import lnbits.core.services.notifications as notifications
+    from lnbits.settings import settings
+
+    from gammamarkets.db import DomainTransaction
+
+    email = _svc()["email"]
+    monkeypatch.setattr(type(settings), "is_email_notifications_configured", lambda self: True)
+    row_id = await email.enqueue_test_send(
+        merchant_id=runtime_env["merchant_id"], recipient="stale@example.com",
+    )
+    rows = await email.claim_batch(int(time.time()), "old-worker")
+    row = next(row for row in rows if row["id"] == row_id)
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('email_queue')} SET claimed_until = 1 WHERE id = :i",
+            {"i": row_id},
+        )
+    sent = []
+
+    async def stale_batch(*args, **kwargs):
+        return [row]
+
+    async def fake_send(*args):
+        sent.append(args)
+        return True
+
+    monkeypatch.setattr(email, "claim_batch", stale_batch)
+    monkeypatch.setattr(notifications, "send_email", fake_send)
+    await email.worker_tick("old-worker")
+    assert sent == []
+
+
+async def test_worker_errors_do_not_log_private_exception_text(runtime_env, monkeypatch):
+    from lnbits.settings import settings
+    from loguru import logger
+
+    email = _svc()["email"]
+    monkeypatch.setattr(type(settings), "is_email_notifications_configured", lambda self: True)
+    await email.enqueue_test_send(
+        merchant_id=runtime_env["merchant_id"], recipient="privacy@example.com",
+    )
+    canary = "private-notification-canary"
+
+    def broken_template(*args):
+        raise RuntimeError(canary)
+
+    monkeypatch.setattr(email, "_render_body", broken_template)
+    messages = []
+    sink = logger.add(messages.append, format="{message}")
+    try:
+        result = await email.worker_tick("privacy-worker")
+    finally:
+        logger.remove(sink)
+    assert result["outcomes"].get("error", 0) >= 1
+    assert messages and all(canary not in message for message in messages)
+
+
+async def test_concurrent_email_claims_do_not_overlap(runtime_env, monkeypatch):
+    from lnbits.db import POSTGRES
+
+    from gammamarkets.db import DomainTransaction, db
+
+    if db.type != POSTGRES:
+        pytest.skip("PostgreSQL row-lock concurrency drill")
+    email = _svc()["email"]
+    await email.enqueue_test_send(
+        merchant_id=runtime_env["merchant_id"], recipient="claim@example.com",
+    )
+    fetch_all = DomainTransaction.fetch_all
+    arrived, ready = 0, asyncio.Event()
+
+    async def synchronize_reads(tx, sql, values=None):
+        nonlocal arrived
+        rows = await fetch_all(tx, sql, values)
+        if sql.startswith("SELECT id FROM") and "email_queue" in sql:
+            arrived += 1
+            if arrived == 2:
+                ready.set()
+            await asyncio.wait_for(ready.wait(), 3)
+        return rows
+
+    monkeypatch.setattr(DomainTransaction, "fetch_all", synchronize_reads)
+    left, right = await asyncio.gather(
+        email.claim_batch(int(time.time()), "left-worker"),
+        email.claim_batch(int(time.time()), "right-worker"),
+    )
+    assert not ({row["id"] for row in left} & {row["id"] for row in right})
+
+
+async def test_email_rate_limit_is_atomic(runtime_env, monkeypatch):
+    from lnbits.db import POSTGRES
+
+    from gammamarkets.db import DomainTransaction, db
+
+    if db.type != POSTGRES:
+        pytest.skip("PostgreSQL rate-bucket concurrency drill")
+    email = _svc()["email"]
+    fetch_one = DomainTransaction.fetch_one
+    arrived, ready = 0, asyncio.Event()
+    scope = uuid.uuid4().hex
+    now = int(time.time())
+
+    async def synchronize_reads(tx, sql, values=None):
+        nonlocal arrived
+        row = await fetch_one(tx, sql, values)
+        if sql.startswith("SELECT count FROM") and "rate_limit_buckets" in sql:
+            arrived += 1
+            if arrived == 2:
+                ready.set()
+            await asyncio.wait_for(ready.wait(), 3)
+        return row
+
+    async def reserve():
+        async with DomainTransaction() as tx:
+            return await email._rate_bucket_ok(tx, scope=scope, bucket="test", cap=1, now=now)
+
+    monkeypatch.setattr(DomainTransaction, "fetch_one", synchronize_reads)
+    results = await asyncio.gather(reserve(), reserve(), return_exceptions=True)
+    assert sum(result is True for result in results) == 1
+    assert sum(result is False for result in results) == 1

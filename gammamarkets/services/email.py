@@ -18,6 +18,7 @@ claim to distinguish transient transport errors from SMTP 5xx.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import random
 import time
@@ -75,6 +76,8 @@ async def claim_batch(
             " AND attempts < :maxa ORDER BY next_attempt_at, id"
             " LIMIT :lim"
         )
+        if tx.for_update:
+            select += tx.for_update + " SKIP LOCKED"
         ids = [
             r["id"] for r in await tx.fetch_all(
                 select, {"n": now, "maxa": settings.email_max_attempts,
@@ -89,13 +92,13 @@ async def claim_batch(
             f"UPDATE {tx.table('email_queue')} SET state = 'claimed',"
             " claimed_by = :w, claimed_at = :n, claimed_until = :u,"
             " claim_token = claim_token + 1"
-            f" WHERE id IN ({placeholders})",
+            f" WHERE id IN ({placeholders}) AND state = 'pending'",
             {"w": worker_id, "n": now, "u": now + CLAIM_LEASE_S, **params},
         )
         return await tx.fetch_all(
             f"SELECT * FROM {tx.table('email_queue')} "
-            f"WHERE id IN ({placeholders})",
-            params,
+            f"WHERE id IN ({placeholders}) AND state = 'claimed' AND claimed_by = :w",
+            {**params, "w": worker_id},
         )
 
 
@@ -105,9 +108,10 @@ async def _leased_write(
     """One claim-token-CAS write; a lost CAS raises."""
     rc = await tx.execute(
         f"UPDATE {tx.table('email_queue')} SET {set_clause}"
-        " WHERE id = :i AND claim_token = :ct AND claimed_until > :n",
+        " WHERE id = :i AND claim_token = :ct AND claimed_until > :n"
+        " AND state = 'claimed' AND claimed_by = :w",
         {**params, "i": row["id"], "ct": row["claim_token"],
-         "n": _now()},
+         "n": await tx.now(), "w": row["claimed_by"]},
     )
     if rc != 1:
         raise RuntimeError(
@@ -122,26 +126,14 @@ async def _rate_bucket_ok(
     (recipient_hash or merchant id), never a raw address (§15/§8.8)."""
     window = now - (now % 3600)
     row = await tx.fetch_one(
-        f"SELECT count FROM {tx.table('rate_limit_buckets')} "
-        "WHERE scope_hash = :s AND bucket = :b AND window_start = :w",
-        {"s": scope, "b": bucket, "w": window},
+        f"INSERT INTO {tx.table('rate_limit_buckets')} AS rate_bucket "
+        "(scope_hash, bucket, window_start, count, expires_at) "
+        "VALUES (:s, :b, :w, 1, :e) "
+        "ON CONFLICT (scope_hash, bucket, window_start) DO UPDATE "
+        "SET count = rate_bucket.count + 1 WHERE rate_bucket.count < :cap RETURNING count",
+        {"s": scope, "b": bucket, "w": window, "e": window + 7200, "cap": cap},
     )
-    if row and row["count"] >= cap:
-        return False
-    if row:
-        await tx.execute(
-            f"UPDATE {tx.table('rate_limit_buckets')} SET count = count + 1"
-            " WHERE scope_hash = :s AND bucket = :b AND window_start = :w",
-            {"s": scope, "b": bucket, "w": window},
-        )
-    else:
-        await tx.execute(
-            f"INSERT INTO {tx.table('rate_limit_buckets')} "
-            "(scope_hash, bucket, window_start, count, expires_at) "
-            "VALUES (:s, :b, :w, 1, :e)",
-            {"s": scope, "b": bucket, "w": window, "e": window + 7200},
-        )
-    return True
+    return row is not None
 
 
 # --- suppression + rendering -----------------------------------------------------
@@ -251,6 +243,18 @@ async def worker_tick(
 
     async def _send(row: dict) -> str:
         async with DomainTransaction(database) as tx:
+            deadline = time.monotonic()
+            db_now = await tx.now()
+            live = await tx.fetch_one(
+                f"SELECT * FROM {tx.table('email_queue')} WHERE id = :i"
+                " AND state = 'claimed' AND claimed_by = :w AND claim_token = :t"
+                " AND claimed_until > :n" + tx.for_update,
+                {"i": row["id"], "w": worker_id, "t": row["claim_token"], "n": db_now},
+            )
+            if not live:
+                return "lost_claim"
+            row = live
+            deadline += row["claimed_until"] - db_now
             merchant = await tx.fetch_one(
                 f"SELECT * FROM {tx.table('merchants')} WHERE id = :m",
                 {"m": row["merchant_id"]},
@@ -318,24 +322,30 @@ async def worker_tick(
         body = _render_body(
             row, order, items, merchant or {}, link
         )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return "lost_claim"
         try:
-            sent = await send_email(
-                host_settings.lnbits_email_notifications_server,
-                host_settings.lnbits_email_notifications_port,
-                host_settings.lnbits_email_notifications_username,
-                host_settings.lnbits_email_notifications_password,
-                host_settings.lnbits_email_notifications_email,
-                [recipient],
-                subject,
-                body,
+            sent = await asyncio.wait_for(
+                send_email(
+                    host_settings.lnbits_email_notifications_server,
+                    host_settings.lnbits_email_notifications_port,
+                    host_settings.lnbits_email_notifications_username,
+                    host_settings.lnbits_email_notifications_password,
+                    host_settings.lnbits_email_notifications_email,
+                    [recipient],
+                    subject,
+                    body,
+                ),
+                timeout=min(30, remaining),
             )
         except Exception:
             sent = False
         async with DomainTransaction(database) as tx:
             if sent:
                 await _leased_write(
-                    tx, row, "state = 'sent', sent_at = :t",
-                    {"t": now},
+                    tx, row, "state = 'sent', sent_at = :t, recipient_enc = :empty",
+                    {"t": now, "empty": b""},
                 )
                 return "sent"
             attempts = row["attempts"] + 1
@@ -361,7 +371,7 @@ async def worker_tick(
             outcome = await _send(row)
         except Exception as exc:  # noqa: BLE001 — per-row isolation
             logger.warning(
-                f"gammamarkets email row {row['id']} failed: {exc}"
+                f"gammamarkets email row {row['id']} failed: {type(exc).__name__}"
             )
             outcome = "error"
         outcomes[outcome] = outcomes.get(outcome, 0) + 1

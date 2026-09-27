@@ -42,8 +42,8 @@ async def _acquire_lease(name: str, ttl: int = LEASE_TTL_S) -> int | None:
     None when another worker holds a live lease."""
     from ..db import DomainTransaction
 
-    now = _now()
     async with DomainTransaction() as tx:
+        now = await tx.now()
         rc = await tx.execute(
             f"UPDATE {tx.table('task_leases')} SET holder_id = :h,"
             " fencing_token = fencing_token + 1, leased_until = :u,"
@@ -78,6 +78,29 @@ def _now() -> int:
     return int(time.time())
 
 
+async def _run_leased(name: str, token: int, operation):
+    from ..db import ACTIVE_TASK_LEASE, DomainTransaction
+
+    context = ACTIVE_TASK_LEASE.set((name, WORKER_ID, token))
+    try:
+        async with DomainTransaction():
+            pass
+        result = await operation()
+        async with DomainTransaction() as tx:
+            if name == "reconciliation":
+                await tx.execute(
+                    f"INSERT INTO {tx.table('task_leases')} "
+                    "(name, holder_id, fencing_token, leased_until, updated_at) "
+                    "VALUES ('reconciliation_complete', :h, :t, 0, :n) "
+                    "ON CONFLICT (name) DO UPDATE SET holder_id = :h,"
+                    " fencing_token = :t, updated_at = :n",
+                    {"h": WORKER_ID, "t": token, "n": await tx.now()},
+                )
+        return result
+    finally:
+        ACTIVE_TASK_LEASE.reset(context)
+
+
 async def outbox_publisher() -> None:
     """§8.6 publisher loop — claim, build-from-current-state, sign, send,
     persist per-relay evidence."""
@@ -95,7 +118,7 @@ async def outbox_publisher() -> None:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning(f"gammamarkets outbox tick failed: {exc}")
+            logger.warning(f"gammamarkets outbox tick failed: {type(exc).__name__}")
         await asyncio.sleep(OUTBOX_INTERVAL_S)
 
 
@@ -116,7 +139,7 @@ async def relay_manager() -> None:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning(f"gammamarkets relay tick failed: {exc}")
+            logger.warning(f"gammamarkets relay tick failed: {type(exc).__name__}")
         await asyncio.sleep(RELAY_TICK_INTERVAL_S)
 
 
@@ -126,22 +149,25 @@ async def email_sender() -> None:
     from . import email as email_service
 
     wdb = worker_db()
-    while True:
-        try:
-            await email_service.recover_stale_claims(database=wdb)
-            result = await email_service.worker_tick(
-                WORKER_ID, database=wdb
-            )
-            if result["claimed"]:
-                logger.debug(
-                    f"gammamarkets email: claimed={result['claimed']}"
-                    f" outcomes={result['outcomes']}"
+    try:
+        while True:
+            try:
+                await email_service.recover_stale_claims(database=wdb)
+                result = await email_service.worker_tick(
+                    WORKER_ID, database=wdb
                 )
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            logger.warning(f"gammamarkets email tick failed: {exc}")
-        await asyncio.sleep(EMAIL_INTERVAL_S)
+                if result["claimed"]:
+                    logger.debug(
+                        f"gammamarkets email: claimed={result['claimed']}"
+                        f" outcomes={result['outcomes']}"
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning(f"gammamarkets email tick failed: {type(exc).__name__}")
+            await asyncio.sleep(EMAIL_INTERVAL_S)
+    finally:
+        await wdb.engine.dispose()
 
 
 async def reservation_expiry() -> None:
@@ -153,7 +179,9 @@ async def reservation_expiry() -> None:
         try:
             token = await _acquire_lease("reservation_expiry")
             if token is not None:
-                result = await settlement.reservation_expiry_pass()
+                result = await _run_leased(
+                    "reservation_expiry", token, settlement.reservation_expiry_pass,
+                )
                 if result["released"] or result["expired_orders"]:
                     logger.debug(
                         f"gammamarkets reservation expiry:"
@@ -164,7 +192,7 @@ async def reservation_expiry() -> None:
             raise
         except Exception as exc:
             logger.warning(
-                f"gammamarkets reservation expiry tick failed: {exc}"
+                f"gammamarkets reservation expiry tick failed: {type(exc).__name__}"
             )
         await asyncio.sleep(RESERVATION_EXPIRY_INTERVAL_S)
 
@@ -172,14 +200,19 @@ async def reservation_expiry() -> None:
 async def reconciliation() -> None:
     """§8.7 pass — runs once immediately (startup reconciliation gates
     checkout readiness), then every 60s under the task lease."""
+    from ..db import DomainTransaction, db, table
     from . import readiness, settlement
 
     first = True
+    started_at = None
     while True:
         try:
+            if started_at is None:
+                async with DomainTransaction() as tx:
+                    started_at = await tx.now()
             token = await _acquire_lease("reconciliation")
             if token is not None:
-                report = await settlement.reconcile()
+                report = await _run_leased("reconciliation", token, settlement.reconcile)
                 if any(report.values()):
                     logger.debug(f"gammamarkets reconcile: {report}")
                 if first:
@@ -189,12 +222,21 @@ async def reconciliation() -> None:
                 # Another worker holds the lease — readiness still flips
                 # once that worker completes its first pass; poll again
                 # quickly rather than waiting the full interval.
-                await asyncio.sleep(5)
-                continue
+                async with db.connect() as conn:
+                    completed = await conn.fetchone(
+                        f"SELECT updated_at FROM {table('task_leases')}"
+                        " WHERE name = 'reconciliation_complete'",
+                    )
+                if completed and completed["updated_at"] >= started_at:
+                    readiness.mark_reconciled()
+                    first = False
+                else:
+                    await asyncio.sleep(5)
+                    continue
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning(f"gammamarkets reconcile tick failed: {exc}")
+            logger.warning(f"gammamarkets reconcile tick failed: {type(exc).__name__}")
             await asyncio.sleep(5)
             continue
         await asyncio.sleep(RECONCILE_INTERVAL_S)
@@ -209,14 +251,14 @@ async def retention_pruner() -> None:
             token = await _acquire_lease("retention_pruner",
                                        ttl=LEASE_TTL_S * 4)
             if token is not None:
-                report = await settlement.retention_prune()
+                report = await _run_leased("retention_pruner", token, settlement.retention_prune)
                 if any(report.values()):
                     logger.debug(f"gammamarkets retention: {report}")
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             logger.warning(
-                f"gammamarkets retention tick failed: {exc}"
+                f"gammamarkets retention tick failed: {type(exc).__name__}"
             )
         await asyncio.sleep(RETENTION_INTERVAL_S)
 

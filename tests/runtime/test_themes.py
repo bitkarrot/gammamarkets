@@ -220,3 +220,19 @@ async def test_reset_to_preset_clears_overrides(runtime_env):
     theme = resp.json()["theme"]
     tokens = themes.resolve_tokens(theme)
     assert tokens["--color-bg"] == "#f7f1e8"  # sketch preset value restored
+
+
+@pytest.mark.parametrize("tokens", [
+    {"--color-text-muted": "#f7f1e8"},
+    {"--color-surface-alt": "#2b241f"},
+    {"--color-primary-hover": "#ffffff"},
+    {"--color-bg": "#225bdb", "--color-surface": "#111111",
+     "--color-surface-alt": "#111111", "--color-text": "#ffffff",
+     "--color-text-muted": "#ffffff"},
+])
+async def test_advanced_tokens_preserve_secondary_text_and_focus(runtime_env, tokens):
+    response, _ = await _patch_theme(
+        runtime_env, {"advanced": tokens, "advanced_opt_in": True},
+    )
+    assert response.status_code == 422
+    assert response.json()["type"] == "urn:gammamarkets:contrast-gate"

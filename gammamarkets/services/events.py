@@ -16,6 +16,8 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 
+from .fx import default_currency_decimals
+
 NIP32_NAMESPACE = "org.gammamarkets.protocol"
 
 GAMMA_KIND_PRODUCT = 30402
@@ -132,7 +134,7 @@ def product_event(
             f"{ref['kind']}:{pubkey}:{ref['d_tag']}",
         ]
         if ref.get("extra_cost_minor") is not None:
-            tag.append(str(ref["extra_cost_minor"]))
+            tag.append(_decimal(ref["extra_cost_minor"], product.get("currency_decimals") or 0))
         tags.append(tag)
     tags.append(["status", product.get("nip99_status") or "active"])
     tags.extend(_nip32_tags(spec_revision))
@@ -183,16 +185,19 @@ def shipping_event(
     spec_revision: str,
 ) -> dict:
     """kind 30406 — section 6.3. Caller has run shipping validation."""
+    decimals = option.get("currency_decimals")
+    if decimals is None:
+        decimals = default_currency_decimals(option.get("currency"))
     tags: list[list[str]] = [
         ["d", option["d_tag"]],
         ["title", option["title"] or ""],
     ]
     if option.get("base_price_minor") is not None and option.get("currency"):
-        # §4.6 stores no currency_decimals for shipping — base price is a
-        # minor unit in the merchant's catalog decimals (default 2).
+        # §3.4 shipping prices use persisted currency precision; fallback
+        # supports pre-m003 fixtures and projections.
         tags.append([
             "price",
-            _decimal(option["base_price_minor"], 2),
+            _decimal(option["base_price_minor"], decimals),
             option["currency"],
         ])
     countries = json.loads(option["countries"]) if option.get("countries") else []
@@ -219,38 +224,26 @@ def shipping_event(
         tags.append(["location", option["location"]])
     if option.get("geohash"):
         tags.append(["g", option["geohash"]])
-    if option.get("weight_min") is not None and option.get("weight_unit"):
-        tags.append([
-            "weight-min",
-            format(Decimal(str(option["weight_min"])).normalize(), "f"),
-            option["weight_unit"],
-        ])
-        tags.append([
-            "weight-max",
-            format(Decimal(str(option["weight_max"])).normalize(), "f"),
-            option["weight_unit"],
-        ])
-    if option.get("dim_min_l") is not None and option.get("dim_unit"):
-        lo = "x".join(
-            format(Decimal(str(v)).normalize(), "f")
-            for v in (
-                option["dim_min_l"], option["dim_min_w"], option["dim_min_h"]
-            )
-        )
-        hi = "x".join(
-            format(Decimal(str(v)).normalize(), "f")
-            for v in (
-                option["dim_max_l"], option["dim_max_w"], option["dim_max_h"]
-            )
-        )
-        tags.append(["dim-min", lo, option["dim_unit"]])
-        tags.append(["dim-max", hi, option["dim_unit"]])
+    for bound in ("min", "max"):
+        weight = option.get(f"weight_{bound}")
+        if weight is not None and option.get("weight_unit"):
+            tags.append([
+                f"weight-{bound}", format(Decimal(str(weight)).normalize(), "f"),
+                option["weight_unit"],
+            ])
+        dimensions = [option.get(f"dim_{bound}_{axis}") for axis in ("l", "w", "h")]
+        if all(value is not None for value in dimensions) and option.get("dim_unit"):
+            tags.append([
+                f"dim-{bound}",
+                "x".join(format(Decimal(str(value)).normalize(), "f") for value in dimensions),
+                option["dim_unit"],
+            ])
     if option.get("price_weight_minor") is not None and option.get(
         "price_weight_unit"
     ):
         tags.append([
             "price-weight",
-            _decimal(option["price_weight_minor"], 2),
+            _decimal(option["price_weight_minor"], decimals),
             option.get("currency") or "",
             option["price_weight_unit"],
         ])
@@ -259,7 +252,7 @@ def shipping_event(
     ):
         tags.append([
             "price-volume",
-            _decimal(option["price_volume_minor"], 2),
+            _decimal(option["price_volume_minor"], decimals),
             option.get("currency") or "",
             option["price_volume_unit"],
         ])

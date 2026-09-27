@@ -78,7 +78,15 @@
   var GATED_PAIRS = [
     ["--color-text", "--color-bg"],
     ["--color-text", "--color-surface"],
-    ["--color-primary", "--color-on-primary"]
+    ["--color-text", "--color-surface-alt"],
+    ["--color-text-muted", "--color-bg"],
+    ["--color-text-muted", "--color-surface"],
+    ["--color-primary", "--color-on-primary"],
+    ["--color-primary-hover", "--color-on-primary"],
+    ["--color-primary", "--color-bg"],
+    ["--color-primary", "--color-surface"],
+    ["--color-focus", "--color-bg"],
+    ["--color-focus", "--color-surface"]
   ];
   var ADVANCED_TOKENS = [
     "--color-bg", "--color-surface", "--color-surface-alt",

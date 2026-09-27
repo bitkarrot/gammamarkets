@@ -167,6 +167,7 @@ class ShippingOption(BaseModel):
     description: str | None = None
     base_price_minor: int | None = None
     currency: str | None = None
+    currency_decimals: int = 2
     service: str
     carrier: str | None = None
     countries: str | None = None

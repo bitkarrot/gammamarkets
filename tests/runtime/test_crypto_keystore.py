@@ -448,3 +448,41 @@ def test_relay_url_validation():
     ):
         with pytest.raises(Exception):
             validate_relay_url(bad)
+
+
+async def test_merchant_and_key_rollback_together(keystore_env, monkeypatch):
+    import uuid
+    from types import SimpleNamespace
+
+    from gammamarkets.services import merchant
+
+    _set_env(monkeypatch)
+    settings = keystore_env["settings"].ext_settings()
+    key_store = keystore_env["keystore"].MerchantKeyStore(settings)
+    generate = key_store.generate
+    captured = []
+
+    async def fail_after_key(merchant_id, **kwargs):
+        captured.append(merchant_id)
+        await generate(merchant_id, **kwargs)
+        raise RuntimeError("simulated identity creation crash")
+
+    async def wallet_owned(*args):
+        return object()
+
+    monkeypatch.setattr(key_store, "generate", fail_after_key)
+    monkeypatch.setattr(merchant, "_keystore", lambda settings: key_store)
+    monkeypatch.setattr(merchant, "_wallet_for_user", wallet_owned)
+    with pytest.raises(RuntimeError, match="simulated identity creation crash"):
+        await merchant.create_merchant(
+            SimpleNamespace(id=uuid.uuid4().hex), wallet_id="test-wallet", settings=settings,
+        )
+    assert len(captured) == 1
+    async with keystore_env["db"].connect() as conn:
+        for table_name in ("merchants", "merchant_keys"):
+            column = "id" if table_name == "merchants" else "merchant_id"
+            row = await conn.fetchone(
+                f"SELECT COUNT(*) AS n FROM gammamarkets.{table_name} WHERE {column} = :m",
+                {"m": captured[0]},
+            )
+            assert row["n"] == 0
