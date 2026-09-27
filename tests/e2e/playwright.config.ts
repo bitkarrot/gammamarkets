@@ -1,5 +1,10 @@
 import {defineConfig} from '@playwright/test'
 
+const nodeMajor = Number(process.versions.node.split('.')[0])
+if (nodeMajor !== 22 && nodeMajor !== 24) {
+  throw new Error(`Playwright requires Node 22 or 24; received ${process.versions.node}`)
+}
+
 /* Playwright E2E for gammamarkets (02-04 verification).
  *
  * Requires the seeded host server:

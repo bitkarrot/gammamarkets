@@ -17,7 +17,8 @@ validated: "2026-09-27"
 | Property | Value |
 |----------|-------|
 | **Frameworks** | pytest 9.x + pytest-asyncio; Playwright 1.63 Chromium |
-| **Config** | `pyproject.toml`, `tests/e2e/playwright.config.ts` |
+| **Node policy** | Node 22.22.3 is pinned locally; browser tooling accepts only Node 22.x or 24.x and CI action runtimes use Node 24 |
+| **Config** | `pyproject.toml`, `.nvmrc`, `tests/e2e/package.json`, `tests/e2e/playwright.config.ts` |
 | **Quick run** | `make verify-runtime` |
 | **Canonical full run** | `make verify` |
 | **Browser run** | `cd tests/e2e && npx playwright test` against `tools/e2e_server.py` |
