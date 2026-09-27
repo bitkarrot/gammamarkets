@@ -1,69 +1,72 @@
 ---
 phase: 02-release-a-safe-web-commerce
-verified: 2026-09-27T07:36:11Z
-status: blocked
-score: 5/5 local acceptance areas exercised; 4/4 Linux CI profiles passed; human review pending
-covered_files:
-  - .planning/phases/02-release-a-safe-web-commerce/02-01-SUMMARY.md
-  - .planning/phases/02-release-a-safe-web-commerce/02-02-SUMMARY.md
-  - .planning/phases/02-release-a-safe-web-commerce/02-03-SUMMARY.md
-  - .planning/phases/02-release-a-safe-web-commerce/02-04-SUMMARY.md
-  - .planning/phases/02-release-a-safe-web-commerce/02-SECURITY.md
-  - evidence/manifest.json
-  - evidence/REPORT.md
-behavior_unverified: 1
+verified: 2026-09-27T22:49:26Z
+status: passed
+score: 5/5 acceptance areas passed; 4/4 required Linux profiles passed; human UAT 3/3; security verified
+implementation_sha: 021c402d620396b671c3fd919ad2275b4c3072ff
+ci_run: 36352552899
+behavior_unverified: 0
 ---
 
 # Phase 2 — Release A Verification
 
-**Verdict: implementation, local checks, required Linux CI and the fresh demo passed; Phase 2 is NOT formally complete or release-approved.** Human buyer/merchant UAT and security/accessibility sign-off remain open. The Phase 2 requirement statuses in `REQUIREMENTS.md` remain Pending.
+**Verdict: passed. Phase 2 satisfies its implementation, automated qualification, threat-review, UI-review and human acceptance gates and is ready to be marked complete.**
 
-## Exact local profile
+## Exact verified profile
 
 | Item | Value |
 |------|-------|
-| Tested date | 2026-09-27 UTC |
-| Tested source | Implementation commit `5928ee9926f7508a34ff5835659b1074486ac6fc`, committed after testing with no code changes; its code/test/harness diff against `ccc7ef75f72f0573e3954486fac3865030324b42` has SHA-256 `f926b59c25bcba8b079f59cc3ac111a1c2381ceaa5b0b63c6653e8f97088fdff` |
-| LNbits host | `1.6.2-rc1`, pinned checkout `e336fe14b841d6f0c940e75b3d343e3ab5cf8433`, clean `git status --short`; no core source changed |
-| Language/OS | Python 3.12.13, Darwin arm64; this is **not** Linux ARM64 evidence |
-| Payment backend | LNbits FakeWallet in a disposable host installation; no real-funds/provider claim |
-| SQLite | Disposable test data directory; application tests plus localhost HTTPS Chromium on an isolated seed |
-| PostgreSQL | Homebrew PostgreSQL 17.9, isolated test databases with session TimeZone UTC and process `TZ=UTC`; same pinned host/FakeWallet |
-| Relay E2E | Owned local WebSocket test relay with positive ACK, not an external public-relay interoperability claim |
+| Verified date | 2026-09-27 UTC |
+| Implementation | `021c402d620396b671c3fd919ad2275b4c3072ff`; subsequent commits before this report modify planning evidence only, with no diff under `gammamarkets/`, `tests/`, `tools/`, `harness/`, `pyproject.toml` or `uv.lock` |
+| Current CI | [Run 36352552899](https://github.com/bitkarrot/gammamarkets/actions/runs/36352552899), conclusion `success`, head SHA `021c402d620396b671c3fd919ad2275b4c3072ff` |
+| LNbits host | `1.6.2-rc1`, pinned checkout `e336fe14b841d6f0c940e75b3d343e3ab5cf8433`, clean; no LNbits core source changed |
+| Language | Python 3.12 |
+| Payment backend | LNbits FakeWallet in disposable host installations; no real-funds/provider claim |
+| Databases | SQLite and PostgreSQL with the qualified single-process/UTC topology |
+| Relay E2E | Owned deterministic LocalRelay with positive/negative/timeout ACK evidence; no external-public-relay claim |
 
-## Automated results
+## Automated and human results
 
-| Gate | SQLite | PostgreSQL |
-|------|--------|------------|
-| Canonical `make verify` (`GAMMA_QUAL_EVIDENCE=1 uv run pytest -q`) | **447 passed, 3 skipped** | **448 passed, 2 skipped**, 1 SQLAlchemy warning in the intentional host auto-commit probe |
-| Runtime subset before the final invoice/gallery regressions | **224 passed, 2 skipped** | **225 passed, 1 skipped** |
-| Focused mismatched amount/wallet invoice tests | **2 passed** | **2 passed** |
-| Focused 16-image storefront page test | **1 passed** | **1 passed** |
-| Chromium Playwright complete admin/buyer suite | **13 passed** | **13 passed** |
-| [Linux CI run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) on `b12e350` | **x86_64 and ARM64 passed** | **x86_64 and ARM64 passed** |
-| Ruff + JS syntax checks | `make lint` passed; changed browser modules passed `node --check` | CI lint passed |
+| Gate | Result |
+|------|--------|
+| Linux SQLite x86_64 | **450 passed, 3 skipped** |
+| Linux SQLite ARM64 | **450 passed, 3 skipped** |
+| Linux PostgreSQL x86_64 | **451 passed, 2 skipped**, one warning from the intentional host auto-commit probe |
+| Linux PostgreSQL ARM64 | **451 passed, 2 skipped**, one warning from the intentional host auto-commit probe |
+| Lint | Ruff: **all checks passed** |
+| Advisory macOS ARM64 SQLite | **450 passed, 3 skipped** |
+| Current UAT-fix runtime subset | **13 passed** on SQLite and **13 passed** on isolated UTC PostgreSQL |
+| Current browser suite | **19 Chromium tests passed** on a fresh server, including admin state/detail, optional-email invoice, navigation, digital delivery, appearance clipping and mobile compact fallback |
+| Port 5099 focused demo | Guided blank-email invoice, distinct order states and digital-order detail checks passed on the current implementation |
+| Human UAT | **3/3 passed, 0 issues** |
+| Nyquist audit | **16/16 Phase 2 requirements have automated behavioral coverage; 0 gaps** |
+| Security audit | **26/26 threats closed, 0 open; ASVS-1 status verified** |
+| UI audit | **21/24, no blocker**; typography/spacing token cleanup recorded as non-blocking consistency work |
 
-The canonical results supersede the older 171-runtime/391-full/12-browser numbers in the 02-04 implementation summary. Both profiles ran the full 450-case tree **after** the invoice correlation, copy and 16-image gallery changes. Skips are the optional external-relay smoke plus two PostgreSQL-only concurrency drills on SQLite, or the optional smoke plus one SQLite-only cancellation drill on PostgreSQL. The isolated browser suites exercised the same extension against both databases, including a real local relay ACK path. PostgreSQL's 13-case Chromium run preceded only the final gallery-cap/scroll change; its new 16-image server-rendered behavior passed the PostgreSQL runtime test after that change. The PostgreSQL harness needed a dialect-portable boolean literal and schema-qualified seed SQL; those fixes remained in `tools/e2e_server.py`, not LNbits.
+Skips are the optional external-relay smoke plus topology-specific concurrency drills. They do not remove coverage from the declared Phase 2 local deployment profile. The PostgreSQL warning is from the qualification probe that deliberately demonstrates the host helper's auto-commit behavior; it is not an application warning.
 
 ## Goal checks
 
-| Phase 2 success criterion | Local evidence | Release status |
-|---------------------------|----------------|----------------|
-| Merchant identity/wallet, canonical catalog, shipping, theme and per-relay publication | Runtime catalog/outbox/theme tests on both dialects; admin browser surfaces and LocalRelay activation | Local and Linux CI pass; human merchant review pending |
-| Local NIP-89 browse, authoritative total, one invoice, private order status | Quote and `expected_total_sat` share server pricing; buyer browser flows and payment token fragment stripping/header-only status | Local and Linux CI pass; human UI sign-off pending |
-| Concurrency, duplicate, mismatched, expired and late payment preserve inventory | Transactional quota and conditional stock tests, reconciliation and new pre-delivery signed-invoice/host-wallet tests; no invoice reissue on uncertainty | Local and Linux CI pass; human exception review pending |
-| Legal merchant order management and notifications | Order admin, queue, worker fencing and retention regressions plus split-workspace browser check | Local and Linux CI pass; human workflow review pending |
-| Security, WCAG theme pairs, responsive layout, topology and Phase 0 assertions | `02-SECURITY.md` register (25 locally mitigated), contrast tests, compact browser test, UTC readiness guard, all applicable P0 probes | Local and Linux CI pass; human security/accessibility review pending |
+| Phase 2 success area | Evidence | Status |
+|----------------------|----------|--------|
+| Merchant identity, wallet, authoritative catalog, shipping, themes and publication | Merchant/catalog/crypto/outbox/theme runtime suites on both dialects; owner-scoped admin browser flows; LocalRelay ACK evidence | passed |
+| NIP-89 discovery, authoritative quote, exactly one invoice and private status | NIP-89/public-page/checkout/status tests; quote and invoice correlation; fragment stripping and header-only token polling; buyer Playwright journey | passed |
+| Inventory/payment safety under races, retries and failure recovery | Conditional stock claims, idempotency, invoice saga, lease fencing, late/mismatched settlement and reconciliation tests on SQLite/PostgreSQL | passed |
+| Legal merchant operations, notifications and digital fulfillment | Order transition, chronology, email queue, retention and post-settlement digital-delivery tests; admin/browser UAT | passed |
+| Security, accessibility, responsive UI and qualified deployment constraints | 26-threat register, WCAG/theme gates, current browser checks, 3/3 human UAT, topology/UTC readiness guards and green Linux matrix | passed |
 
-## Completed external checks
+## Release gates
 
-1. **Linux CI:** [run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) completed successfully on pushed commit `b12e350a5bfe651b2478d63129364663af1165b1`: x86_64 and ARM64 each passed SQLite and PostgreSQL qualification; lint and advisory macOS also passed. The run uploaded per-profile evidence artifacts.
-2. **New demo:** at the user's request, the old 5099 process was stopped and a fresh SQLite/FakeWallet demo started with the current extension code. The previous temporary database files were not deleted but are **not mounted** in this new seed. On port 5099, product and storefront returned HTTP 200; `POST /gammamarkets/api/v1/public/quote` returned HTTP 200 with subtotal 2,500, shipping 0 and total 2,500 sats. Seven targeted Chromium buyer/admin smoke tests passed without creating or settling an order, using `GM_E2E_BASE_URL=https://localhost:5099` and `GM_E2E_SEED_PATH=.cache/phase2-demo-5099-20260927.seed.json` (the default `.seed.json` belongs to the old demo). Isolated full browser suites on ports 5110 and 5111 remain separate evidence, not human UAT.
+- **Current implementation CI:** passed all required Linux x86_64/ARM64 SQLite/PostgreSQL profiles.
+- **Human buyer/merchant UAT:** passed 3/3 after the reported admin cache, order-detail and optional-email regressions were fixed.
+- **Security/accessibility review:** verified with `threats_open: 0`; responsive, focus, contrast, theme-isolation and plain-language checks passed UAT.
+- **Validation coverage:** Nyquist-compliant with no missing requirement-level automated coverage.
+- **UI review:** no blocker; exact typography/spacing-token consolidation and durable screenshot baselines remain recommendations, not Phase 2 acceptance failures.
 
-## Remaining release gate
+## Explicit scope limits
 
-**Human security, accessibility and buyer/merchant UX sign-off:** automated checks do not establish keyboard/screen-reader usability or merchant workflow acceptance. All three tests in `02-UAT.md` still await the user's observations, and `02-SECURITY.md` remains draft despite 25 locally mitigated planned threats and green Linux CI. Until the required human review is recorded, Phase 2 requirements remain Pending.
+Optional external public-relay smoke and real-funding-provider payment tests were not performed. Phase 2's declared reproducible scope uses LocalRelay and FakeWallet; relay ACK remains delivery evidence only, and LNbits settlement remains payment truth. The fresh port 5099 demo is disposable and does not mount the earlier demo database, whose files remain preserved on disk.
 
-Optional external public-relay smoke and real-funding-provider payment tests were not performed; LocalRelay ACK and FakeWallet are the stated local scope. The first PostgreSQL browser seed stopped on an SQLite-only boolean literal, leaving its disposable `gm_phase2_browser_utc` database untouched; the successful run used a new UTC-configured `gm_phase2_browser_v2_utc` database.
+## Decision
 
-**Decision:** do not check off Phase 2 as complete or advance to Phase 3 until buyer/merchant UAT and human security/accessibility review are explicitly recorded. Fresh demo replacement, not data migration, was the user's requested deployment choice; old demo records are preserved on disk but are not visible in the new demo.
+Phase 2 is verified and may be marked complete. Release A requirements MERC-01, CAT-01/02, PUB-01/02, WEB-01/02, PAY-01/02, INV-01, ORD-01, NOTF-01, SEC-01 and UI-01/02/03 can move from Pending to Complete. Phase 3 may start independently; its NIP-17/NIP-07 and Nostr order-history work was not pulled into Phase 2.
