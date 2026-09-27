@@ -15,6 +15,18 @@ test.describe.configure({mode: 'serial'})
 
 let statusUrl = ''
 
+async function reachDelivery(page: import('@playwright/test').Page) {
+  if (await page.locator('#gm-checkout-card').getAttribute('data-mode') === 'guided') {
+    await page.getByRole('button', {name: 'Continue to delivery'}).click()
+  }
+}
+
+async function reachPayment(page: import('@playwright/test').Page) {
+  if (await page.locator('#gm-checkout-card').getAttribute('data-mode') === 'guided') {
+    await page.getByRole('button', {name: 'Continue to payment'}).click()
+  }
+}
+
 test('product page embeds the adaptive checkout card', async ({page}) => {
   const resp = await page.goto(seed.digital_url)
   expect(resp?.status()).toBe(200)
@@ -44,6 +56,19 @@ test('product page embeds the adaptive checkout card', async ({page}) => {
 test('digital checkout creates a Lightning invoice', async ({page}) => {
   await page.goto(seed.digital_url)
   await page.locator('#gm-qty').fill('1')
+  await reachDelivery(page)
+  const email = page.locator('#gm-email')
+  const updates = page.locator('input[name=email_opt_in]')
+  await expect(email).toHaveValue('')
+  await expect(updates).toBeDisabled()
+  await expect(updates).not.toBeChecked()
+  await email.fill('buyer@example.com')
+  await expect(updates).toBeEnabled()
+  await updates.check()
+  await email.fill('')
+  await expect(updates).toBeDisabled()
+  await expect(updates).not.toBeChecked()
+  await reachPayment(page)
   await page.locator('button[type=submit]').click()
 
   const panel = page.locator('#gm-invoice-panel')

@@ -49,16 +49,21 @@ async def test_admin_shell_document(runtime_env):
     """The admin page mounts inside the host shell with all modules."""
     resp = await runtime_env["client"].get("/gammamarkets/")
     assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-store"
     html = resp.text
     assert 'id="gm-admin-root"' in html
     # One nav section — exactly the four surfaces.
     for nav in ("orders", "catalog", "publications", "settings"):
         assert f'data-gm-nav="{nav}"' in html, nav
     # Every module script loads.
+    revisions = set()
     for mod in ("admin_app", "admin_orders", "admin_catalog",
                 "admin_publications", "admin_settings",
                 "admin_notifications"):
-        assert f"{mod}.js" in html, mod
+        match = re.search(rf"{mod}\.js\?v=([0-9a-f]{{12}})", html)
+        assert match, mod
+        revisions.add(match.group(1))
+    assert len(revisions) == 1
 
 
 async def test_admin_verbatim_copy(runtime_env):

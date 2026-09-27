@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>{% block title %}GammaMarkets{% endblock %}{% if brand_name %} · {{ brand_name }}{% endif %}</title>
-  <link rel="stylesheet" href="/gammamarkets/static/gammamarkets/css/gm-public.css">
+  <link rel="stylesheet" href="/gammamarkets/static/gammamarkets/css/gm-public.css?v={{ asset_revision }}">
   {% if theme_css %}<style>{{ theme_css | safe }}</style>{% endif %}
   {% block head %}{% endblock %}
 </head>
@@ -60,7 +60,7 @@
     </div>
   </footer>
 </div>
-<script src="/gammamarkets/static/gammamarkets/js/public_storefront.js" defer></script>
+<script src="/gammamarkets/static/gammamarkets/js/public_storefront.js?v={{ asset_revision }}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

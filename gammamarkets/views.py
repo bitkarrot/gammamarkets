@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import re
+from hashlib import sha256
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -25,6 +27,19 @@ from .views_public_api import PUBLIC_HEADERS
 gammamarkets_generic_router = APIRouter()
 
 _PUBKEY_RE = re.compile(r"[0-9a-f]{64}")
+_ASSET_ROOT = Path(__file__).with_name("static") / "gammamarkets"
+
+
+def _asset_revision() -> str:
+    digest = sha256()
+    for path in sorted(_ASSET_ROOT.rglob("*")):
+        if path.is_file():
+            digest.update(path.relative_to(_ASSET_ROOT).as_posix().encode())
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
+_ASSET_REVISION = _asset_revision()
 
 _PUBLIC_CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -120,6 +135,7 @@ def _public_response(request: Request, template: str, ctx: dict,
     ctx.setdefault("theme_css", "")
     ctx.setdefault("layout", "editorial")
     ctx.setdefault("price_label", nip89.price_label)
+    ctx.setdefault("asset_revision", _ASSET_REVISION)
     resp = gammamarkets_renderer().TemplateResponse(
         request, f"templates/gammamarkets/{template}", ctx,
         status_code=status,
@@ -146,7 +162,7 @@ async def _public_guard(request: Request) -> HTMLResponse | None:
 
 @gammamarkets_generic_router.get("/", response_class=HTMLResponse)
 async def index(request: Request, user: User = Depends(check_user_exists)):
-    return gammamarkets_renderer().TemplateResponse(
+    response = gammamarkets_renderer().TemplateResponse(
         request,
         "templates/gammamarkets/admin.html",
         {
@@ -154,8 +170,11 @@ async def index(request: Request, user: User = Depends(check_user_exists)):
             # user as a JSON STRING (host convention, see
             # lnbits/core/views/generic.py), not a dict.
             "user": user.json(),
+            "asset_revision": _ASSET_REVISION,
         },
     )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # --- NIP-89 handler + public storefront (spec section 5.4) -----------------------

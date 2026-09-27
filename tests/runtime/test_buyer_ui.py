@@ -128,8 +128,9 @@ async def test_product_page_checkout_card(runtime_env):
     assert html.count('aria-live="polite"') >= 3
     # Invoice panel + scripts (shared module first).
     assert 'id="gm-invoice-panel"' in html
-    assert "public_storefront.js" in html
-    assert "public_checkout.js" in html
+    assert "gm-public.css?v=" in html
+    assert "public_storefront.js?v=" in html
+    assert "public_checkout.js?v=" in html
     # Same-origin vendored QR assets only — no third-party script ever.
     assert "/static/vendor/qrcode.vue.browser.js" in html
     assert "https://" not in html.split("vendor/qrcode")[1].split(">")[0]

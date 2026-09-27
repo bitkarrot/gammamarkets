@@ -214,19 +214,22 @@
             <h3 class="co-title">Order updates</h3>
             <div class="field">
               <label for="gm-email">Email for order updates
-                <span class="optional">(optional)</span></label>
+                <span class="optional">(optional — checkout works without it)</span></label>
               <input type="email" id="gm-email" name="email" maxlength="320"
-                     autocomplete="email" placeholder="you@example.com">
+                     autocomplete="email" placeholder="you@example.com"
+                     aria-describedby="gm-email-help">
               {% if not physical and not instant_delivery %}
-              <p class="field-help">Add your email and tick updates so the seller can send your digital item.</p>
+              <p class="field-help" id="gm-email-help">Add your email and turn on updates so the seller can send your digital item, or continue without email and save your private order link.</p>
               {% elif not physical %}
-              <p class="field-help">Your item appears on your order page after payment; with updates on, we also email it to you.</p>
+              <p class="field-help" id="gm-email-help">Leave this blank to continue without email. Your item still appears on your private order page after payment.</p>
+              {% else %}
+              <p class="field-help" id="gm-email-help">Leave this blank to continue without email and save your private order link for updates.</p>
               {% endif %}
               <p class="field-error" data-error-for="email"
                  aria-live="polite" hidden></p>
             </div>
             <label class="check-row">
-              <input type="checkbox" name="email_opt_in">
+              <input type="checkbox" name="email_opt_in" disabled>
               <span>Send transactional updates. No marketing.</span>
             </label>
             <div class="nav-row step-nav">
@@ -293,5 +296,5 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script src="/gammamarkets/static/gammamarkets/js/public_checkout.js" defer></script>
+<script src="/gammamarkets/static/gammamarkets/js/public_checkout.js?v={{ asset_revision }}" defer></script>
 {% endblock %}

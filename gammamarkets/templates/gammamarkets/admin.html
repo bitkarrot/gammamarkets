@@ -1360,12 +1360,12 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/gammamarkets/static/gammamarkets/js/admin_app.js"></script>
-<script src="/gammamarkets/static/gammamarkets/js/admin_orders.js"></script>
-<script src="/gammamarkets/static/gammamarkets/js/admin_catalog.js"></script>
-<script src="/gammamarkets/static/gammamarkets/js/admin_publications.js"></script>
-<script src="/gammamarkets/static/gammamarkets/js/admin_settings.js"></script>
-<script src="/gammamarkets/static/gammamarkets/js/admin_notifications.js"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_app.js?v={{ asset_revision }}"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_orders.js?v={{ asset_revision }}"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_catalog.js?v={{ asset_revision }}"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_publications.js?v={{ asset_revision }}"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_settings.js?v={{ asset_revision }}"></script>
+<script src="/gammamarkets/static/gammamarkets/js/admin_notifications.js?v={{ asset_revision }}"></script>
 <style>
 /* Store bar — shop identity + one-click storefront access (top-level). */
 .gm-topbar {

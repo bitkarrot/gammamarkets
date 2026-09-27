@@ -157,6 +157,22 @@
     }
   }
 
+  var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  var emailInput = form.querySelector("input[name=email]");
+  var emailOptIn = form.querySelector("input[name=email_opt_in]");
+  function syncEmailOptIn() {
+    if (!emailOptIn) return;
+    var email = emailInput ? emailInput.value.trim() : "";
+    var enabled = EMAIL_RE.test(email);
+    if (!enabled) emailOptIn.checked = false;
+    emailOptIn.disabled = !enabled;
+    if (!email) fieldError("email", "");
+  }
+  if (emailInput) emailInput.addEventListener("input", syncEmailOptIn);
+  window.addEventListener("pageshow", syncEmailOptIn);
+  window.setTimeout(syncEmailOptIn, 0);
+  syncEmailOptIn();
+
   /* --- quantity stepper (sketch 001 −/+ control) ------------------------- */
   var qtyInput = form.querySelector("input[name=quantity]");
   var qtyButtons = form.querySelectorAll("[data-qty-step]");
@@ -705,8 +721,7 @@
       if (region) payload.address.region = region;
     }
     var email = val("email");
-    var optIn = form.querySelector("input[name=email_opt_in]");
-    var wantsEmail = optIn && optIn.checked;
+    var wantsEmail = !!(emailOptIn && emailOptIn.checked);
     if (wantsEmail && !email) {
       /* consent-without-email — contract copy */
       fieldError(
@@ -715,7 +730,7 @@
       );
       return;
     }
-    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (email && !EMAIL_RE.test(email)) {
       fieldError("email", "Enter a valid email for order updates.");
       return;
     }
