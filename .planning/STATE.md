@@ -1,18 +1,19 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 2
-current_phase_name: Release A — Safe Web Commerce
-status: executing
-stopped_at: Phase 2 implementation, current-revision Linux CI and fresh demo verified; human UAT and security/accessibility sign-off pending
-last_updated: "2026-09-27T07:36:11.000Z"
+current_phase: 3
+current_phase_name: Release B — Gamma NIP-17 Orders
+status: planning
+stopped_at: Phase 2 complete, ready to plan Phase 3
+last_updated: "2026-09-27T22:51:06.785Z"
 last_activity: 2026-09-27
-last_activity_desc: Local suites, four blocking Linux CI profiles and the fresh 5099 demo passed; human release review remains open
+last_activity_desc: Phase 2 complete, transitioned to Phase 3
+state_head: c3c559e9f5f32850bf9fa9a5441e0d68228702fa
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
   completed_plans: 7
-  percent: 100
+  percent: 50
 ---
 
 # Project State
@@ -22,22 +23,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-20)
 
 **Core value:** A merchant can sell one authoritative inventory safely through LNbits-backed web and Nostr flows without duplicate invoices, double allocation, or relay delivery being mistaken for payment truth.
-**Current focus:** Phase 2 — Release A: Safe Web Commerce
+**Current focus:** Phase 3 — Release B: Gamma NIP-17 Orders
 
 ## Current Position
 
-Phase: 2 of 4 (Release A — Safe Web Commerce)
-Plan: 4 plans written (02-01..02-04), checker-verified, 4/4 implemented
-Status: Executing closeout — local and Linux CI passed, fresh 5099 demo deployed; human security/accessibility/UX review outstanding
-Last activity: 2026-09-27 — four Linux matrix jobs passed on `b12e350`; new 5099 quote route and seven browser smoke checks passed
+Phase: 3 of 4 (Release B — Gamma NIP-17 Orders)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-27 — Phase 2 complete, transitioned to Phase 3
 
-Progress: [██████████] 100% of written implementation plans; only Phase 1 of 4 is formally complete
+Progress: [█████░░░░░] 50% of roadmap phases; Phases 1 and 2 are formally complete
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -46,6 +47,7 @@ Progress: [██████████] 100% of written implementation plans;
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 3 | - | - |
+| 2 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -88,13 +90,14 @@ Decisions are logged in PROJECT.md and the normative specification.
 
 ### Release Closeout Gates
 
-- [x] Current-revision Linux x86_64 and ARM64 CI for SQLite and PostgreSQL passed: run 36303338957 on `b12e350`.
-- [ ] Human buyer/merchant UAT and security/accessibility sign-off in `02-UAT.md` and `02-SECURITY.md`.
-- [x] At the user's request, the 5099 demo was replaced with a fresh seed; quote returned HTTP 200 and buyer/admin browser smoke checks passed. Old disposable database files were not deleted, but are not mounted in the new demo.
+- [x] Current implementation CI passed lint and Linux x86_64/ARM64 SQLite/PostgreSQL qualification: run 36352552899 on `021c402`.
+- [x] Human buyer/merchant UAT passed 3/3; security/accessibility review is verified with 26/26 threats closed.
+- [x] Nyquist validation covers all 16 Phase 2 requirements; UI review found no blocker.
+- [x] At the user's request, the 5099 demo was replaced with a fresh seed; quote and buyer/admin browser checks passed. Old disposable database files were not deleted, but are not mounted in the new demo.
 
 ### Blockers/Concerns
 
-- Phase 2 automated local and Linux verification passed, but human sign-off is still outstanding; Phase 2 is not formally complete (`02-VERIFICATION.md`).
+- Phase 2 has no remaining blocker. Typography/spacing token consolidation and durable visual snapshot baselines are non-blocking UI recommendations in `02-UI-REVIEW.md`.
 - The new demo uses a fresh disposable database rather than migrating old demo orders and the previously hand-added images. If those records must remain visible, the old database requires a separate recovery plan.
 - Release B cannot claim production readiness without deployed egress controls and external-client evidence.
 - Release C requires a live scarce-stock payable-invoice cutover rehearsal.
@@ -109,6 +112,6 @@ Decisions are logged in PROJECT.md and the normative specification.
 
 ## Session Continuity
 
-Last session: 2026-09-27T07:36:11.000Z
-Stopped at: Phase 2 implementation, Linux CI and fresh demo verified; human UAT/security/accessibility sign-off pending
+Last session: 2026-09-27T22:51:06.785Z
+Stopped at: Phase 2 complete, ready to plan Phase 3
 Resume file: .planning/phases/02-release-a-safe-web-commerce/02-VERIFICATION.md

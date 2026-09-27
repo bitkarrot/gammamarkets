@@ -33,22 +33,22 @@
 
 ### Release A — Catalog and Web Commerce
 
-- [ ] **MERC-01**: Merchant can create/import a protected Nostr identity, bind an owned incoming LNbits wallet, configure relays/notifications, and activate/deactivate without exposing raw keys or credentials.
-- [ ] **CAT-01**: Merchant can create and update canonical catalogs, simple/variable/variation products, collections, images/specifications, shipping options, stock, visibility, and local drafts under the normative validation rules.
-- [ ] **CAT-02**: Merchant can soft-delete catalog entities with ordered reference removal, durable tombstones, stable protocol addresses, and retained historical order integrity.
-- [ ] **PUB-01**: Merchant can publish deterministic Gamma/NIP-99 `0`, `30402`, `30405`, `30406`, `31989`, and `31990` events through a durable, ordered outbox with positive per-relay ACK evidence.
-- [ ] **PUB-02**: Merchant can inspect relay health, pending/partial/failed publication state, and retry/supersession outcomes without reading secret-bearing logs.
-- [ ] **WEB-01**: Buyer can open a local NIP-89 naddr product page and browse active public products, collections, shipping, price, and availability without seeing merchant internals.
-- [ ] **WEB-02**: Buyer can submit idempotent web checkout with server-recalculated items/shipping/FX and receive a high-entropy fragment/header status capability that never appears in a request path/query.
-- [ ] **PAY-01**: Buyer can receive exactly one correlated LNbits invoice after stock reservation; unknown creation is reconciled without blind reissue.
-- [ ] **PAY-02**: Settled, expired, cancelled, late, mismatched, and manually accepted/refund-attested payments follow the normative state/exception machine without treating buyer claims or receipts as settlement.
-- [ ] **INV-01**: Concurrent buyers cannot allocate more finite stock than exists; held reservations expire/release once and settlement consumes stock once.
-- [ ] **ORD-01**: Merchant can inspect orders/audit history and apply legal processing, cancellation, shipping, exception, fulfillment, and public-token rotation actions with owner-scoped authorization.
-- [ ] **NOTF-01**: Merchant and opted-in web buyer can receive per-recipient transactional emails through host SMTP with explicit suppressed/failed state, bounded retry, protected token rendering, and opt-out.
-- [ ] **SEC-01**: Release A enforces key/PII encryption, retention, HMAC lookup scopes, CSRF/origin/auth boundaries, rate/input limits, log redaction, unsupported-topology refusal, and cancellation-safe lifecycle behavior.
-- [ ] **UI-01**: Merchant can choose Editorial, Guided, or Compact public layout presets while responsive safety applies a compact mobile fallback and checkout fields, totals, validation, payment states, and security copy remain invariant.
-- [ ] **UI-02**: Merchant can triage and process orders through a responsive split list/detail workspace with search, state filters, exception prominence, legal contextual actions, and embedded payment/inventory/fulfillment chronology.
-- [ ] **UI-03**: Merchant can customize public appearance through Warm Market, Clean Minimal, or High Contrast presets, optional Brand Basics, and opt-in guarded Advanced Tokens while WCAG save gates and public/admin separation remain enforced.
+- [x] **MERC-01**: Merchant can create/import a protected Nostr identity, bind an owned incoming LNbits wallet, configure relays/notifications, and activate/deactivate without exposing raw keys or credentials.
+- [x] **CAT-01**: Merchant can create and update canonical catalogs, simple/variable/variation products, collections, images/specifications, shipping options, stock, visibility, and local drafts under the normative validation rules.
+- [x] **CAT-02**: Merchant can soft-delete catalog entities with ordered reference removal, durable tombstones, stable protocol addresses, and retained historical order integrity.
+- [x] **PUB-01**: Merchant can publish deterministic Gamma/NIP-99 `0`, `30402`, `30405`, `30406`, `31989`, and `31990` events through a durable, ordered outbox with positive per-relay ACK evidence.
+- [x] **PUB-02**: Merchant can inspect relay health, pending/partial/failed publication state, and retry/supersession outcomes without reading secret-bearing logs.
+- [x] **WEB-01**: Buyer can open a local NIP-89 naddr product page and browse active public products, collections, shipping, price, and availability without seeing merchant internals.
+- [x] **WEB-02**: Buyer can submit idempotent web checkout with server-recalculated items/shipping/FX and receive a high-entropy fragment/header status capability that never appears in a request path/query.
+- [x] **PAY-01**: Buyer can receive exactly one correlated LNbits invoice after stock reservation; unknown creation is reconciled without blind reissue.
+- [x] **PAY-02**: Settled, expired, cancelled, late, mismatched, and manually accepted/refund-attested payments follow the normative state/exception machine without treating buyer claims or receipts as settlement.
+- [x] **INV-01**: Concurrent buyers cannot allocate more finite stock than exists; held reservations expire/release once and settlement consumes stock once.
+- [x] **ORD-01**: Merchant can inspect orders/audit history and apply legal processing, cancellation, shipping, exception, fulfillment, and public-token rotation actions with owner-scoped authorization.
+- [x] **NOTF-01**: Merchant and opted-in web buyer can receive per-recipient transactional emails through host SMTP with explicit suppressed/failed state, bounded retry, protected token rendering, and opt-out.
+- [x] **SEC-01**: Release A enforces key/PII encryption, retention, HMAC lookup scopes, CSRF/origin/auth boundaries, rate/input limits, log redaction, unsupported-topology refusal, and cancellation-safe lifecycle behavior.
+- [x] **UI-01**: Merchant can choose Editorial, Guided, or Compact public layout presets while responsive safety applies a compact mobile fallback and checkout fields, totals, validation, payment states, and security copy remain invariant.
+- [x] **UI-02**: Merchant can triage and process orders through a responsive split list/detail workspace with search, state filters, exception prominence, legal contextual actions, and embedded payment/inventory/fulfillment chronology.
+- [x] **UI-03**: Merchant can customize public appearance through Warm Market, Clean Minimal, or High Contrast presets, optional Brand Basics, and opt-in guarded Advanced Tokens while WCAG save gates and public/admin separation remain enforced.
 
 ### Release B — Gamma NIP-17 Orders
 
@@ -118,22 +118,22 @@ A requirement is complete only when implementation (or Phase 0 probe/model), aut
 | QUAL-12 | Phase 1 | Complete |
 | QUAL-13 | Phase 1 | Complete |
 | QUAL-14 | Phase 1 | Complete |
-| MERC-01 | Phase 2 | Pending |
-| CAT-01 | Phase 2 | Pending |
-| CAT-02 | Phase 2 | Pending |
-| PUB-01 | Phase 2 | Pending |
-| PUB-02 | Phase 2 | Pending |
-| WEB-01 | Phase 2 | Pending |
-| WEB-02 | Phase 2 | Pending |
-| PAY-01 | Phase 2 | Pending |
-| PAY-02 | Phase 2 | Pending |
-| INV-01 | Phase 2 | Pending |
-| ORD-01 | Phase 2 | Pending |
-| NOTF-01 | Phase 2 | Pending |
-| SEC-01 | Phase 2 | Pending |
-| UI-01 | Phase 2 | Pending |
-| UI-02 | Phase 2 | Pending |
-| UI-03 | Phase 2 | Pending |
+| MERC-01 | Phase 2 | Complete |
+| CAT-01 | Phase 2 | Complete |
+| CAT-02 | Phase 2 | Complete |
+| PUB-01 | Phase 2 | Complete |
+| PUB-02 | Phase 2 | Complete |
+| WEB-01 | Phase 2 | Complete |
+| WEB-02 | Phase 2 | Complete |
+| PAY-01 | Phase 2 | Complete |
+| PAY-02 | Phase 2 | Complete |
+| INV-01 | Phase 2 | Complete |
+| ORD-01 | Phase 2 | Complete |
+| NOTF-01 | Phase 2 | Complete |
+| SEC-01 | Phase 2 | Complete |
+| UI-01 | Phase 2 | Complete |
+| UI-02 | Phase 2 | Complete |
+| UI-03 | Phase 2 | Complete |
 | GAM-01 | Phase 3 | Pending |
 | GAM-02 | Phase 3 | Pending |
 | GAM-03 | Phase 3 | Pending |
@@ -153,4 +153,4 @@ A requirement is complete only when implementation (or Phase 0 probe/model), aut
 
 ---
 *Requirements defined: 2026-09-20*
-*Last updated: 2026-09-20 after UI sketch validation*
+*Last updated: 2026-09-27 after Phase 2 Release-A verification and completion*

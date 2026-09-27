@@ -13,7 +13,7 @@ The project advances through four gated vertical stages. GSD Phase 1 executes th
 - Decimal phases are reserved for urgent inserted work.
 
 - [x] **Phase 1: Conformance Profile (Contract Phase 0)** - Prove host, SDK, schema, state, security, and protocol assumptions before runtime implementation. (completed 2026-09-20)
-- [ ] **Phase 2: Release A — Safe Web Commerce** - Ship catalog publication and LNbits-backed public checkout as the first production vertical slice.
+- [x] **Phase 2: Release A — Safe Web Commerce** - Ship catalog publication and LNbits-backed public checkout as the first production vertical slice. (completed 2026-09-27)
 - [ ] **Phase 3: Release B — Gamma NIP-17 Orders** - Add encrypted recipient-specific Gamma order messaging and external-client conformance.
 - [ ] **Phase 4: Release C — Legacy Interop and Cutover** - Add literal NIP-15/NIP-04 compatibility and inventory-safe migration.
 
@@ -58,7 +58,7 @@ Plans:
 4. Merchant can triage and manage legal order/fulfillment/exception actions in a responsive split list/detail workspace with embedded chronology and per-recipient notifications.
 5. Release-A security, accessibility/contrast, public/admin theme separation, retention, logging, unsupported-topology, failure-drill, and applicable Phase 0 assertions pass through the real implementation.
 
-**Plans:** 4/4 implementation plans executed; Phase 2 release verification remains open.
+**Plans:** 4/4 plans complete
 **UI prerequisite:** Before Phase 2 plan execution, generate and approve the Phase 2 UI contract using `.devin/skills/sketch-findings-gammamarkets/` and the normative technical specification. *(Satisfied: `02-UI-SPEC.md` approved.)*
 
 Plans:
@@ -73,7 +73,7 @@ Plans:
 - [x] 02-03: Checkout, reservation + invoice saga, settlement/reconciliation, order admin API, email
 - [x] 02-04: Buyer checkout/status UI and merchant admin surfaces (orders, catalog, publications, settings, appearance)
 
-**Release gate:** Local SQLite/PostgreSQL and Chromium suites passed; [CI run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) passed all four required Linux x86_64/ARM64 × SQLite/PostgreSQL profiles on `b12e350`. At the user's request, port 5099 was replaced with a fresh, quote-capable test demo; the old disposable database files were not deleted but are not mounted in the new demo. Human buyer/merchant UAT and security/accessibility sign-off remain required. Do not mark Phase 2 complete or start Phase 3 until they are recorded; see `02-VERIFICATION.md`, `02-SECURITY.md` and `02-UAT.md`.
+**Release gate:** Complete. [Current implementation CI run 36352552899](https://github.com/bitkarrot/gammamarkets/actions/runs/36352552899) passed lint and all four required Linux x86_64/ARM64 × SQLite/PostgreSQL profiles on `021c402`; current local Chromium passed 19/19, human UAT passed 3/3, Nyquist coverage is 16/16 requirements, and the ASVS-1 register is verified with 26/26 threats closed. Port 5099 serves the fresh quote-capable demo; the old disposable database files were preserved but are not mounted. See `02-VERIFICATION.md`, `02-VALIDATION.md`, `02-SECURITY.md`, `02-UI-REVIEW.md` and `02-UAT.md`.
 
 *Plan count revised 3→4 during plan-checker revision: order-backend and UI layers split to keep each executor under the context budget.*
 
@@ -130,6 +130,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Conformance Profile | 3/3 | Complete    | 2026-09-20 |
-| 2. Release A — Safe Web Commerce | 1/4 | In Progress|  |
+| 2. Release A — Safe Web Commerce | 4/4 | Complete    | 2026-09-27 |
 | 3. Release B — Gamma NIP-17 Orders | 0/3 | Not started | - |
 | 4. Release C — Legacy Interop and Cutover | 0/3 | Not started | - |
