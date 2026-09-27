@@ -10,6 +10,8 @@
     { value: "", label: "All" },
     { value: "awaiting_payment", label: "Awaiting payment" },
     { value: "confirmed", label: "Confirmed" },
+    { value: "processing", label: "Processing" },
+    { value: "completed", label: "Completed" },
     { value: "needs_attention", label: "Needs attention" },
     { value: "expired", label: "Expired" },
     { value: "cancelled", label: "Cancelled" }
@@ -25,6 +27,40 @@
     rejected: "Rejected",
     expired: "Expired",
     cancelled: "Cancelled"
+  };
+
+  /* Semantic state styling — colour is always paired with a label and an
+     icon, never the only signal (WCAG 1.4.1). Quasar palette names so the
+     badges follow the host light/dark theme. */
+  var STATE_STYLES = {
+    received: { color: "blue-grey-6", text: "white", icon: "inbox" },
+    invoice_pending: { color: "blue-grey-6", text: "white", icon: "hourglass_top" },
+    awaiting_payment: { color: "amber-7", text: "black", icon: "schedule" },
+    confirmed: { color: "teal-6", text: "white", icon: "paid" },
+    processing: { color: "blue-6", text: "white", icon: "local_shipping" },
+    completed: { color: "green-7", text: "white", icon: "check_circle" },
+    expired: { color: "grey-7", text: "white", icon: "timer_off" },
+    cancelled: { color: "red-6", text: "white", icon: "cancel" },
+    rejected: { color: "red-6", text: "white", icon: "block" }
+  };
+  var CLOSED_STATES = ["completed", "cancelled", "expired", "rejected"];
+
+  var SHIPPING_LABELS = {
+    not_required: "No shipping needed",
+    pending: "Not started",
+    processing: "Preparing",
+    shipped: "Shipped",
+    delivered: "Delivered",
+    exception: "Delivery problem"
+  };
+  var PAYMENT_LABELS = {
+    creating: "Creating invoice",
+    creation_unknown: "Being verified",
+    pending: "Awaiting payment",
+    settled: "Paid",
+    paid: "Paid",
+    failed: "Failed",
+    expired: "Expired"
   };
 
   var CHANNEL_LABELS = { web: "Web", gamma: "Gamma", nip15: "NIP-15" };
@@ -138,13 +174,6 @@
           case "received":
             out.push({ key: "cancel", label: "Cancel", kind: "danger" });
             break;
-          default:
-            out.push({
-              key: "none",
-              label: "No legal action",
-              kind: "disabled",
-              reason: "This order is in a terminal state."
-            });
         }
         if (d.protocol === "web") {
           out.push({
@@ -154,11 +183,53 @@
           });
         }
         return out;
+      },
+      /* Closed orders explain themselves in plain language instead of a
+         disabled "no action" control. */
+      gmOrderClosedNote: function () {
+        var d = this.gmOrders.detail;
+        if (!d || d.payment_exception || CLOSED_STATES.indexOf(d.state) < 0) {
+          return "";
+        }
+        var why = {
+          completed: "This order is complete.",
+          cancelled: "This order was cancelled.",
+          expired: "This order expired before it was paid.",
+          rejected: "This order was rejected."
+        }[d.state];
+        return why + " Its status can no longer change.";
       }
     },
     methods: {
       gmOrderStateLabel: function (s) {
         return STATE_LABELS[s] || s;
+      },
+      gmStateStyle: function (o) {
+        if (!o) return STATE_STYLES.received;
+        if (o.payment_exception) {
+          return { color: "negative", text: "white", icon: "error", label: "Needs attention" };
+        }
+        if (o.oversold) {
+          return { color: "deep-orange-7", text: "white", icon: "warning", label: "Oversold" };
+        }
+        var s = STATE_STYLES[o.state] || { color: "grey-6", text: "white", icon: "help" };
+        return { color: s.color, text: s.text, icon: s.icon, label: STATE_LABELS[o.state] || o.state };
+      },
+      gmStatusLabel: function (s) {
+        return STATE_LABELS[s] || SHIPPING_LABELS[s] || s || "—";
+      },
+      gmShippingLabel: function (s) {
+        return SHIPPING_LABELS[s] || s || "—";
+      },
+      gmPaymentLabel: function (s) {
+        return PAYMENT_LABELS[s] || s || "—";
+      },
+      gmEventColor: function (e) {
+        var s = STATE_STYLES[e.to_state];
+        return s ? s.color : "primary";
+      },
+      gmActorLabel: function (a) {
+        return { system: "Automatic", buyer: "Buyer", merchant: "You" }[a] || a;
       },
       gmChannelLabel: function (p) {
         return CHANNEL_LABELS[p] || p;
@@ -200,7 +271,15 @@
             self.gmApi("GET", "/merchants/" + mid + "/orders/" + id + "/events")
           ]);
           self.gmOrders.detail = pair[0];
-          self.gmOrders.events = pair[1];
+          /* Several transitions share one second; break ties by lifecycle
+             order so the history reads top-to-bottom. */
+          var rank = ["received", "invoice_pending", "awaiting_payment",
+            "confirmed", "processing", "shipped", "delivered", "completed"];
+          self.gmOrders.events = pair[1].slice().sort(function (a, b) {
+            var ra = rank.indexOf(a.to_state), rb = rank.indexOf(b.to_state);
+            return (a.created_at - b.created_at) ||
+              ((ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb));
+          });
         } catch (e) {
           self.gmOrders.detailError = self.gmProblemCopy(e.problem);
         }

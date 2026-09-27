@@ -221,6 +221,96 @@ async def test_settlement_confirms_once(runtime_env):
     assert prod2["stock_on_hand"] == 10 - 3  # stock never decrements twice
 
 
+async def test_digital_delivery_revealed_only_after_confirmed_payment(runtime_env):
+    """Merchant delivery content is encrypted at rest, never public, and
+    reaches the buyer only once LNbits settlement confirms the order."""
+    svcs = _svcs()
+    client = runtime_env["client"]
+    secret = f"https://files.example/dl/{uuid.uuid4().hex}"
+    resp = await client.post(
+        f"{API}/products",
+        json={
+            "catalog_id": runtime_env["catalog_id"], "title": "zine",
+            "amount_minor": 700, "currency": "SAT", "visibility": "on-sale",
+            "stock_on_hand": 5, "format": "digital", "delivery_content": secret,
+        },
+        headers=await runtime_env["cookie"](),
+    )
+    assert resp.status_code == 201, resp.text
+    product = resp.json()
+    assert product["delivery_content"] == secret
+    assert "delivery_enc" not in product
+
+    raw = await _row(
+        "SELECT delivery_enc FROM gammamarkets.products WHERE id = :p",
+        {"p": product["id"]},
+    )
+    assert raw["delivery_enc"] and secret.encode() not in bytes(raw["delivery_enc"])
+
+    mpk = await _mpk(runtime_env)
+    for url in (
+        f"/gammamarkets/p/{mpk}/{product['d_tag']}",
+        f"{API}/public/products/{mpk}/{product['d_tag']}",
+        f"{API}/products/{product['id']}/events",
+    ):
+        page = await client.get(url)
+        assert page.status_code == 200, (url, page.text)
+        assert secret not in page.text, url
+
+    order_resp = await svcs["checkout"].checkout(
+        payload={"merchant_pubkey": mpk,
+                 "items": [{"d_tag": product["d_tag"], "quantity": 1}]},
+        idempotency_key=uuid.uuid4().hex * 2, client_scope="delivery",
+    )
+    token = {"X-Order-Token": order_resp["public_token"]}
+    status = (await client.get(f"{API}/public/order-status", headers=token)).json()
+    assert status["state"] == "awaiting_payment"
+    assert status["digital_delivery"] == []
+
+    from gammamarkets.crypto import token_lookup_hash
+
+    order = await _row(
+        "SELECT id, total_sat FROM gammamarkets.orders WHERE public_token_hash = :h",
+        {"h": token_lookup_hash(order_resp["public_token"])},
+    )
+    order_id, total = order["id"], order["total_sat"]
+    payment = await _settle_core_payment(order_id, total)
+    await svcs["settlement"].invoice_listener(payment)
+    status = (await client.get(f"{API}/public/order-status", headers=token)).json()
+    assert status["state"] == "confirmed"
+    assert status["digital_delivery"] == [{"title": "zine", "content": secret}]
+
+    from gammamarkets.db import DomainTransaction
+
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('orders')} SET payment_exception = TRUE WHERE id = :i",
+            {"i": order_id},
+        )
+    status = (await client.get(f"{API}/public/order-status", headers=token)).json()
+    assert status["digital_delivery"] == []
+
+    body = svcs["email"]._render_body(  # noqa: SLF001
+        {"event_type": "confirmed"}, {"state": "confirmed", "total_sat": total},
+        [], {}, None, [{"title": "zine", "content": secret}],
+    )
+    assert secret in body
+
+
+async def test_delivery_content_rejected_for_physical_products(runtime_env):
+    client = runtime_env["client"]
+    resp = await client.post(
+        f"{API}/products",
+        json={
+            "catalog_id": runtime_env["catalog_id"], "title": "mug",
+            "amount_minor": 700, "currency": "SAT", "visibility": "on-sale",
+            "format": "physical", "delivery_content": "https://x.example/f",
+        },
+        headers=await runtime_env["cookie"](),
+    )
+    assert resp.status_code == 422, resp.text
+
+
 async def test_settlement_foreign_payment_ignored(runtime_env):
     """A payment with another extension tag or wrong external id is not
     settlement evidence."""

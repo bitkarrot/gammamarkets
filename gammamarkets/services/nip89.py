@@ -90,7 +90,7 @@ async def product_detail(product: dict) -> dict:
         )
         shipping = await conn.fetchall(
             f"SELECT so.title, so.base_price_minor, so.currency,"
-            " pso.extra_cost_minor, so.d_tag, so.service "
+            " so.currency_decimals, pso.extra_cost_minor, so.d_tag, so.service "
             f"FROM {table('product_shipping_options')} pso "
             f"JOIN {table('shipping_options')} so "
             "ON so.id = pso.shipping_option_id "
@@ -184,6 +184,7 @@ def public_product_json(product: dict, detail: dict) -> dict:
                 "base_price_minor": s["base_price_minor"],
                 "extra_cost_minor": s["extra_cost_minor"],
                 "currency": s["currency"],
+                "currency_decimals": s["currency_decimals"],
                 "service": s["service"],
             }
             for s in detail["shipping"]

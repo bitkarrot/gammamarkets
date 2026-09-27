@@ -141,6 +141,58 @@ test('settings surface: identity, relays, notifications, appearance', async ({
   ).toBeVisible()
 })
 
+test('storefront is one click away from the admin top level', async ({page}) => {
+  await page.goto('/gammamarkets/')
+  const storefront = `/gammamarkets/public/merchants/${seed.pubkey}`
+  await expect(page.locator('[data-gm="view-storefront"]')).toHaveAttribute('href', storefront)
+  await expect(page.locator('[data-gm-nav="storefront"]')).toHaveAttribute('href', storefront)
+})
+
+test('order states are colour-coded with labels and closed orders explain themselves', async ({page}) => {
+  await page.goto('/gammamarkets/')
+  // The CSRF cookie is issued by the shell's first admin API read.
+  await expect(page.locator('[data-gm="store-bar"]')).toBeVisible({timeout: 20_000})
+  const csrf = (await page.context().cookies()).find(c => c.name === 'gm_csrf')?.value || ''
+  const checkout = await page.request.post('/gammamarkets/api/v1/public/checkout', {
+    headers: {'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID(), Origin: seed.base_url},
+    data: {merchant_pubkey: seed.pubkey, items: [{d_tag: seed.digital.d_tag, quantity: 1}]}
+  })
+  expect(checkout.status()).toBe(201)
+  const orders = await (await page.request.get(`/gammamarkets/api/v1/merchants/${seed.merchant_id}/orders?state=awaiting_payment`)).json()
+  const cancelled = await page.request.post(
+    `/gammamarkets/api/v1/merchants/${seed.merchant_id}/orders/${orders[0].id}/cancel`,
+    {headers: {Origin: seed.base_url, 'X-CSRF-Token': csrf, 'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID()},
+     data: {reason: 'e2e closed-order copy'}}
+  )
+  expect(cancelled.status()).toBe(200)
+
+  await page.reload()
+  const awaiting = page.locator('.gm-state[data-state="awaiting_payment"]').first()
+  const closed = page.locator('.gm-state[data-state="cancelled"]').first()
+  await expect(awaiting).toBeVisible({timeout: 20_000})
+  await expect(closed).toContainText('Cancelled')
+  const bg = (loc: typeof awaiting) => loc.evaluate(el => getComputedStyle(el).backgroundColor)
+  expect(await bg(awaiting)).not.toBe(await bg(closed))
+
+  await page.locator('.gm-order-row').filter({has: closed}).first().click()
+  await expect(page.locator('[data-gm="closed-note"]')).toContainText('This order was cancelled.')
+  await expect(page.getByText('No legal action')).toHaveCount(0)
+})
+
+test('appearance choices are not clipped by the settings panel', async ({page}) => {
+  await page.goto('/gammamarkets/')
+  await page.locator('[data-gm-nav="settings"]').click()
+  await page.getByRole('tab', {name: 'Appearance'}).click()
+  const active = page.locator('.gm-preset-active').first()
+  await expect(active).toBeVisible()
+  // Polled: the tab panel slides in, so measure once it has settled.
+  await expect.poll(() => active.evaluate(el => {
+    const panel = el.closest('.q-tab-panels')!.getBoundingClientRect()
+    const box = el.getBoundingClientRect()
+    return box.left - 2 >= panel.left && box.right + 2 <= panel.right
+  }), {timeout: 5_000}).toBe(true)
+})
+
 test('unauthenticated admin visit redirects or denies', async ({
   browser
 }) => {

@@ -11,6 +11,7 @@ Public pages are STANDALONE documents (never the admin ``base.html``):
 from __future__ import annotations
 
 import json
+import re
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -22,6 +23,8 @@ from .services import nip89
 from .views_public_api import PUBLIC_HEADERS
 
 gammamarkets_generic_router = APIRouter()
+
+_PUBKEY_RE = re.compile(r"[0-9a-f]{64}")
 
 _PUBLIC_CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -65,9 +68,50 @@ def _brand_ctx(merchant: dict | None, theme: dict | None) -> dict:
     return {
         "brand_name": name,
         "brand_initials": initials,
+        "shop_pubkey": pubkey or "",
         "storefront_url": (
             f"/gammamarkets/public/merchants/{pubkey}" if pubkey else ""
         ),
+    }
+
+
+NAV_COLLECTIONS_MAX = 6
+
+
+async def _nav_collections(merchant_id: str) -> list[dict]:
+    """Collections with at least one visible member — zero-member
+    collections are never rendered (they are unpublishable by contract)."""
+    from .db import db, table
+
+    async with db.connect() as conn:
+        rows = await conn.fetchall(
+            f"SELECT c.* FROM {table('collections')} c "
+            "WHERE c.merchant_id = :m AND c.deleted_at IS NULL"
+            " AND EXISTS ("
+            f"SELECT 1 FROM {table('product_collections')} pc "
+            f"JOIN {table('products')} p ON p.id = pc.product_id "
+            "WHERE pc.collection_id = c.id AND p.deleted_at IS NULL"
+            " AND NOT p.draft AND p.visibility != 'hidden'"
+            ") ORDER BY c.title",
+            {"m": merchant_id},
+        )
+    return [
+        {
+            "d_tag": c["d_tag"],
+            "title": c["title"] or "",
+            "description": c["description"] or "",
+        }
+        for c in rows
+    ]
+
+
+async def _store_ctx(merchant: dict, theme: dict | None) -> dict:
+    """Everything the shared store chrome (header nav + footer) needs."""
+    collections = await _nav_collections(merchant["id"])
+    return {
+        **_brand_ctx(merchant, theme),
+        "nav_collections": collections[:NAV_COLLECTIONS_MAX],
+        "all_collections": collections,
     }
 
 
@@ -178,7 +222,11 @@ async def product_page(request: Request, pubkey: str, d_tag: str):
             "merchant_pubkey": pubkey,
             "theme_css": theme_service.emit_css(theme),
             "layout": theme_service.theme_layout(theme),
-            **_brand_ctx(product["_merchant"], theme),
+            "instant_delivery": (
+                product["format"] == "digital"
+                and product.get("delivery_enc") is not None
+            ),
+            **await _store_ctx(product["_merchant"], theme),
         },
     )
 
@@ -219,6 +267,7 @@ async def collection_page(request: Request, pubkey: str, d_tag: str):
     images = await _first_images([m["id"] for m in members])
     for prod, member in zip(collection["products"], member_dicts):
         prod["image"] = images.get(member["id"])
+        prod["format"] = member["format"]
     theme = await theme_service.get_theme(merchant["id"])
     return _public_response(
         request,
@@ -229,7 +278,8 @@ async def collection_page(request: Request, pubkey: str, d_tag: str):
             "merchant_name": merchant.get("display_name") or "",
             "theme_css": theme_service.emit_css(theme),
             "layout": theme_service.theme_layout(theme),
-            **_brand_ctx(merchant, theme),
+            "nav_active": d_tag,
+            **await _store_ctx(merchant, theme),
         },
     )
 
@@ -258,20 +308,6 @@ async def merchant_page(request: Request, pubkey: str):
             " ORDER BY created_at",
             {"m": merchant["id"]},
         )
-        # Storefront index lists only collections with at least one
-        # visible member — zero-member collections are never rendered
-        # (they are unpublishable by contract).
-        collections = await conn.fetchall(
-            f"SELECT c.* FROM {table('collections')} c "
-            "WHERE c.merchant_id = :m AND c.deleted_at IS NULL"
-            " AND EXISTS ("
-            f"SELECT 1 FROM {table('product_collections')} pc "
-            f"JOIN {table('products')} p ON p.id = pc.product_id "
-            "WHERE pc.collection_id = c.id AND p.deleted_at IS NULL"
-            " AND NOT p.draft AND p.visibility != 'hidden'"
-            ") ORDER BY c.title",
-            {"m": merchant["id"]},
-        )
     images = await _first_images([p["id"] for p in products])
     cards = [
         {
@@ -281,6 +317,7 @@ async def merchant_page(request: Request, pubkey: str):
             "currency": p["currency"],
             "currency_decimals": p["currency_decimals"],
             "image": images.get(p["id"]),
+            "format": p["format"],
             "availability": nip89.availability_state(
                 dict(p) | {"_merchant": merchant}
             ),
@@ -290,6 +327,7 @@ async def merchant_page(request: Request, pubkey: str):
     from .services import themes as theme_service
 
     theme = await theme_service.get_theme(merchant["id"])
+    store = await _store_ctx(merchant, theme)
     return _public_response(
         request,
         "public_merchant.html",
@@ -299,16 +337,10 @@ async def merchant_page(request: Request, pubkey: str):
             "about": profile.get("about", ""),
             "picture": profile.get("picture"),
             "products": cards,
-            "collections": [
-                {
-                    "d_tag": c["d_tag"],
-                    "title": c["title"] or "",
-                    "description": c["description"] or "",
-                }
-                for c in collections
-            ],
             "theme_css": theme_service.emit_css(theme),
-            **_brand_ctx(merchant, theme),
+            "nav_active": "shop",
+            **store,
+            "collections": store["all_collections"],
         },
     )
 
@@ -321,4 +353,20 @@ async def order_page(request: Request):
     limited = await _public_guard(request)
     if limited is not None:
         return limited
-    return _public_response(request, "public_order.html", {})
+    # Optional ?shop=<merchant pubkey> (public identity, never a token)
+    # restores the shop's header, navigation and theme around the page.
+    shop = request.query_params.get("shop", "")
+    ctx: dict = {}
+    if _PUBKEY_RE.fullmatch(shop):
+        merchant = await nip89.merchant_by_pubkey(shop)
+        if merchant and merchant["state"] not in ("deactivating", "inactive"):
+            from .services import themes as theme_service
+
+            theme = await theme_service.get_theme(merchant["id"])
+            ctx = {
+                "theme_css": theme_service.emit_css(theme),
+                "nav_active": "track",
+                **await _store_ctx(merchant, theme),
+            }
+    ctx.setdefault("nav_active", "track")
+    return _public_response(request, "public_order.html", ctx)

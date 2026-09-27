@@ -26,16 +26,46 @@
   var copyBtn = document.getElementById("gm-copy-status-link");
   var refEl = document.getElementById("gm-order-ref");
   var countdownTimer = null;
+  var cardEl = document.getElementById("gm-order-card");
+  var promptEl = document.getElementById("gm-order-prompt");
+  var titleEl = root.querySelector(".order-title");
+  var deliveryEl = document.getElementById("gm-order-delivery");
+
+  /* "Track order" entry: paste a private order link (or just its token).
+     The token only ever travels in the URL fragment, which the browser
+     never sends to the server; the reload lets the shared module strip it
+     into memory as usual. */
+  var trackForm = document.getElementById("gm-track-form");
+  if (trackForm) {
+    trackForm.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var input = trackForm.querySelector("input[name=order_link]");
+      var err = trackForm.querySelector('[data-error-for="order_link"]');
+      var raw = (input && input.value || "").trim();
+      var hash = raw.indexOf("#");
+      var candidate = hash >= 0 ? raw.slice(hash + 1) : raw;
+      if (!/^[A-Za-z0-9_-]{43}$/.test(candidate)) {
+        if (err) {
+          err.textContent = "That doesn't look like an order link. Paste the full link you received after checkout.";
+          err.hidden = false;
+        }
+        return;
+      }
+      location.hash = candidate;
+      location.reload();
+    });
+  }
 
   if (!token) {
-    /* No fragment at all — same copy as a dead token would produce is
-       NOT used here (nothing was ever shared); the prompt explains the
-       page expects an order link. */
+    /* No fragment: this is the Track-order page, not a dead link — the
+       invalid-token copy is reserved for links that were shared. */
     if (statusEl) statusEl.textContent = "";
-    var prompt = document.getElementById("gm-order-prompt");
-    if (prompt) prompt.hidden = false;
+    if (cardEl) cardEl.hidden = true;
+    if (titleEl) titleEl.textContent = "Track your order";
+    if (promptEl) promptEl.hidden = false;
     return;
   }
+  if (promptEl) promptEl.hidden = true;
 
   function setChecking(on) {
     /* Loading = last-known content + "checking…" — never spinner-only. */
@@ -44,15 +74,17 @@
 
   function renderInvalid() {
     /* Identical copy for dead/rotated/wrong/nonexistent tokens — no
-       existence oracle (§11.4). */
-    if (statusEl)
+       existence oracle (§11.4). The recovery help stays reachable. */
+    if (statusEl) {
       statusEl.textContent = "This order link is no longer valid.";
+      statusEl.setAttribute("data-state", "invalid");
+    }
     if (detailEl) GM.clear(detailEl);
     if (invoiceEl) invoiceEl.hidden = true;
     if (optOutBtn) optOutBtn.hidden = true;
     if (copyBtn) copyBtn.hidden = true;
-    var prompt = document.getElementById("gm-order-prompt");
-    if (prompt) prompt.hidden = true;
+    GM.renderDelivery(deliveryEl, []);
+    if (promptEl) promptEl.hidden = false;
   }
 
   function labelFor(body) {
@@ -63,26 +95,27 @@
   }
 
   function render(body) {
-    var prompt = document.getElementById("gm-order-prompt");
-    if (prompt) prompt.hidden = true;
+    if (promptEl) promptEl.hidden = true;
     if (statusEl) {
       statusEl.textContent = labelFor(body);
-      statusEl.setAttribute("data-state", body.state || "");
+      var held = body.payment_exception || body.payment_status === "creation_unknown";
+      statusEl.setAttribute("data-state", held ? "on_hold" : (body.state || ""));
     }
     if (refEl && body.total_sat !== undefined) {
       refEl.textContent = GM.sats(body.total_sat);
     }
     if (detailEl) {
       GM.clear(detailEl);
-      if (body.shipping_state) {
+      if (body.shipping_state && body.shipping_state !== "not_required") {
         detailEl.appendChild(
           GM.h("p", {
             class: "order-shipping",
-            text: "Shipping: " + body.shipping_state
+            text: "Delivery: " + (GM.SHIPPING_LABELS[body.shipping_state] || body.shipping_state)
           })
         );
       }
     }
+    GM.renderDelivery(deliveryEl, body.digital_delivery);
     if (itemsEl) {
       GM.clear(itemsEl);
       (body.items || []).forEach(function (i) {

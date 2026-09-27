@@ -25,7 +25,7 @@
       {% elif p.availability == 'preorder' %}
       <p class="card-meta"><span class="chip chip-preorder">Pre-order</span></p>
       {% else %}
-      <p class="card-meta">In stock</p>
+      <p class="card-meta">In stock{% if p.format == 'digital' %}<span class="card-tag">Digital</span>{% endif %}</p>
       {% endif %}
       {% if p.amount_minor is not none %}
       <p class="card-price">{{ price_label(p.amount_minor, p.currency, p.currency_decimals) }}</p>

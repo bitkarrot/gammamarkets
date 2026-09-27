@@ -47,7 +47,30 @@
            @click="gmCreateMerchant"></q-btn>
   </q-card>
 
-  <div v-else class="gm-shell">
+  <div v-else class="gm-frame">
+  <header class="gm-topbar" data-gm="store-bar">
+    <div class="gm-topbar-brand">
+      <span class="gm-topbar-mark">{{ (gm.merchant.display_name || 'S').slice(0, 1).toUpperCase() }}</span>
+      <div>
+        <div class="gm-topbar-name">{{ gm.merchant.display_name || 'Your store' }}</div>
+        <div class="gm-topbar-meta">
+          <q-badge rounded :color="gm.merchant.state === 'active' ? 'green-7' : 'grey-7'"
+                   :label="gm.merchant.state === 'active' ? 'Open for orders' : gm.merchant.state"></q-badge>
+          <span class="q-ml-sm">Lightning checkout</span>
+        </div>
+      </div>
+    </div>
+    <div class="gm-topbar-actions">
+      <q-btn flat dense no-caps icon="content_copy" label="Copy store link"
+             @click="gmCopy(gmOrigin() + '/gammamarkets/public/merchants/' + gm.merchant.pubkey)"></q-btn>
+      <q-btn unelevated no-caps color="primary" icon="storefront"
+             label="View storefront" data-gm="view-storefront"
+             :href="'/gammamarkets/public/merchants/' + gm.merchant.pubkey"
+             target="_blank" rel="noopener"></q-btn>
+    </div>
+  </header>
+
+  <div class="gm-shell">
     <nav class="gm-nav" aria-label="GammaMarkets sections">
       <q-list padding>
         <q-item clickable :active="gm.view === 'orders'"
@@ -69,6 +92,14 @@
                 @click="gmNav('settings')" data-gm-nav="settings">
           <q-item-section avatar><q-icon name="settings"></q-icon></q-item-section>
           <q-item-section>Settings</q-item-section>
+        </q-item>
+        <q-separator spaced></q-separator>
+        <q-item clickable tag="a" target="_blank" rel="noopener"
+                :href="'/gammamarkets/public/merchants/' + gm.merchant.pubkey"
+                data-gm-nav="storefront">
+          <q-item-section avatar><q-icon name="storefront"></q-icon></q-item-section>
+          <q-item-section>Storefront</q-item-section>
+          <q-item-section side class="gm-nav-ext"><q-icon name="open_in_new" size="xs"></q-icon></q-item-section>
         </q-item>
       </q-list>
     </nav>
@@ -143,8 +174,12 @@
                 <q-item-section side>
                   <q-item-label><strong>{{ gmSats(o.total_sat) }}</strong></q-item-label>
                   <q-item-label>
-                    <q-badge :color="o.payment_exception || o.oversold ? 'negative' : 'grey-6'"
-                             :label="o.payment_exception ? 'Needs attention' : gmOrderStateLabel(o.state)">
+                    <q-badge class="gm-state" rounded
+                             :color="gmStateStyle(o).color"
+                             :text-color="gmStateStyle(o).text"
+                             :data-state="o.payment_exception ? 'needs_attention' : o.state">
+                      <q-icon :name="gmStateStyle(o).icon" size="12px" class="q-mr-xs"></q-icon>
+                      {{ gmStateStyle(o).label }}
                     </q-badge>
                   </q-item-label>
                 </q-item-section>
@@ -171,8 +206,12 @@
                   <h2 class="text-h6 q-my-none">{{ gmTrunc(gmOrders.detail.id, 10, 6) }}</h2>
                   <q-chip dense>{{ gmChannelLabel(gmOrders.detail.protocol) }}</q-chip>
                   <span class="text-caption">{{ gmOrders.detail.contact ? (gmOrders.detail.contact.email || '') : (gmOrders.list.find(o => o.id === gmOrders.selectedId) || {}).buyer || 'no contact' }}</span>
-                  <q-badge :color="gmOrders.detail.payment_exception ? 'negative' : 'primary'"
-                           :label="gmOrders.detail.payment_exception ? 'Needs attention' : gmOrderStateLabel(gmOrders.detail.state)">
+                  <q-badge class="gm-state gm-state-lg" rounded
+                           :color="gmStateStyle(gmOrders.detail).color"
+                           :text-color="gmStateStyle(gmOrders.detail).text"
+                           data-gm="detail-state">
+                    <q-icon :name="gmStateStyle(gmOrders.detail).icon" size="14px" class="q-mr-xs"></q-icon>
+                    {{ gmStateStyle(gmOrders.detail).label }}
                   </q-badge>
                 </div>
 
@@ -197,14 +236,18 @@
                   {{ gmOrders.actionError }}
                 </q-banner>
 
-                <!-- ③ legal contextual actions only -->
+                <!-- ③ contextual actions — only changes this order can make -->
+                <div v-if="gmOrderClosedNote" class="gm-closed-note q-mb-sm"
+                     data-gm="closed-note">
+                  <q-icon name="lock" size="16px" class="q-mr-xs"></q-icon>
+                  {{ gmOrderClosedNote }}
+                </div>
                 <div class="row q-gutter-sm q-mb-md">
-                  <q-btn v-for="a in gmOrderActions" :key="a.key"
+                  <q-btn v-for="a in gmOrderActions" :key="a.key" no-caps
                          :unelevated="a.kind === 'primary'"
-                         :outline="a.kind === 'secondary'"
-                         :flat="a.kind === 'disabled'"
+                         :outline="a.kind !== 'primary'"
                          :color="a.kind === 'danger' ? 'negative' : 'primary'"
-                         :label="a.label" :disable="a.kind === 'disabled'"
+                         :label="a.label"
                          @click="gmDoAction(a)">
                     <q-tooltip v-if="a.reason">{{ a.reason }}</q-tooltip>
                   </q-btn>
@@ -221,13 +264,13 @@
                   <div class="col-6 col-sm-3">
                     <q-card flat bordered class="q-pa-sm">
                       <div class="text-caption">Payment</div>
-                      <div>{{ (gmOrders.detail.payment || {}).status || '—' }}</div>
+                      <div>{{ gmPaymentLabel((gmOrders.detail.payment || {}).status) }}</div>
                     </q-card>
                   </div>
                   <div class="col-6 col-sm-3">
                     <q-card flat bordered class="q-pa-sm">
-                      <div class="text-caption">Inventory</div>
-                      <div>{{ gmOrders.detail.oversold ? 'oversold' : 'reserved' }}</div>
+                      <div class="text-caption">Delivery</div>
+                      <div>{{ gmShippingLabel(gmOrders.detail.shipping_state) }}</div>
                     </q-card>
                   </div>
                   <div class="col-6 col-sm-3">
@@ -256,7 +299,7 @@
                     <div v-if="gmOrders.detail.fulfillment" class="q-mt-sm">
                       <div class="text-subtitle2">Fulfillment</div>
                       <div class="text-caption">
-                        {{ gmOrders.detail.shipping_state }}
+                        {{ gmShippingLabel(gmOrders.detail.shipping_state) }}
                         <template v-if="gmOrders.detail.fulfillment.tracking">
                           · {{ gmOrders.detail.fulfillment.carrier || '' }}
                           {{ gmOrders.detail.fulfillment.tracking }}
@@ -272,13 +315,15 @@
                     <div class="text-subtitle2 q-mb-sm">History</div>
                     <q-timeline dense>
                       <q-timeline-entry v-for="(e, i) in gmOrders.events"
-                                        :key="i"
-                                        :subtitle="gmTime(e.created_at)">
-                        {{ e.actor }}:
-                        {{ e.from_state || '—' }} → {{ e.to_state }}
-                        <span v-if="e.detail && e.detail.reason" class="text-caption">
-                          ({{ e.detail.reason }})
+                                        :key="i" :color="gmEventColor(e)"
+                                        :subtitle="gmTime(e.created_at) + ' · ' + gmActorLabel(e.actor)">
+                        <strong>{{ gmStatusLabel(e.to_state) }}</strong>
+                        <span v-if="e.from_state" class="text-caption q-ml-xs">
+                          from {{ gmStatusLabel(e.from_state) }}
                         </span>
+                        <div v-if="e.detail && e.detail.reason" class="text-caption">
+                          Reason: {{ e.detail.reason }}
+                        </div>
                       </q-timeline-entry>
                     </q-timeline>
                   </q-card-section>
@@ -578,7 +623,7 @@
         <q-tab-panels v-model="gm.settingsTab" animated>
 
           <!-- B4 merchant -->
-          <q-tab-panel name="merchant" class="q-pa-none">
+          <q-tab-panel name="merchant" class="gm-tab-panel">
             <div class="row q-col-gutter-md">
               <div class="col-12 col-md-6">
                 <q-card flat bordered>
@@ -733,7 +778,7 @@
           </q-tab-panel>
 
           <!-- B5 notifications -->
-          <q-tab-panel name="notifications" class="q-pa-none">
+          <q-tab-panel name="notifications" class="gm-tab-panel">
             <div class="row q-col-gutter-md">
               <div class="col-12 col-md-6">
                 <q-card flat bordered>
@@ -817,18 +862,21 @@
           </q-tab-panel>
 
           <!-- B6 appearance -->
-          <q-tab-panel name="appearance" class="q-pa-none">
+          <q-tab-panel name="appearance" class="gm-tab-panel">
             <q-banner class="bg-info text-white q-mb-md" data-gm="boundary-note">
               {{ gmSettings.boundaryNote }}
             </q-banner>
             <div class="row q-col-gutter-md">
               <div class="col-12 col-md-7">
                 <div class="text-subtitle2 q-mb-sm">Preset</div>
-                <div class="row q-gutter-sm q-mb-md">
+                <div class="gm-choice-grid q-mb-md" role="radiogroup" aria-label="Theme preset">
                   <q-card v-for="p in ['warm-market', 'clean-minimal', 'high-contrast']"
-                          :key="p" flat bordered class="cursor-pointer q-pa-sm"
+                          :key="p" flat bordered class="cursor-pointer q-pa-sm gm-choice"
                           :class="{ 'gm-preset-active': gmSettings.theme.preset === p }"
-                          style="min-width: 140px"
+                          role="radio" tabindex="0"
+                          :aria-checked="gmSettings.theme.preset === p ? 'true' : 'false'"
+                          @keydown.enter.prevent="gmSetPreset(p)"
+                          @keydown.space.prevent="gmSetPreset(p)"
                           @click="gmSetPreset(p)">
                     <div class="text-body2">{{ gmSettings.presetNames[p] }}</div>
                     <div class="row q-gutter-xs q-mt-xs">
@@ -840,10 +888,14 @@
                 </div>
 
                 <div class="text-subtitle2 q-mb-sm">Layout preset</div>
-                <div class="row q-gutter-sm q-mb-xs">
+                <div class="gm-choice-grid gm-choice-grid-sm q-mb-xs" role="radiogroup" aria-label="Layout preset">
                   <q-card v-for="l in gmSettings.layouts" :key="l.value"
-                          flat bordered class="cursor-pointer q-pa-sm"
+                          flat bordered class="cursor-pointer q-pa-sm gm-choice"
                           :class="{ 'gm-preset-active': gmSettings.theme.layout === l.value }"
+                          role="radio" tabindex="0"
+                          :aria-checked="gmSettings.theme.layout === l.value ? 'true' : 'false'"
+                          @keydown.enter.prevent="gmSetLayout(l.value)"
+                          @keydown.space.prevent="gmSetLayout(l.value)"
                           @click="gmSetLayout(l.value)">
                     <div class="text-body2">{{ l.label }}</div>
                   </q-card>
@@ -969,6 +1021,7 @@
       </section>
     </main>
   </div>
+  </div>
 
   <!-- ======== dialogs ======== -->
 
@@ -1088,6 +1141,12 @@
           <q-select v-model="gmCatalog.editor.form.format" dense outlined
                     class="col" label="Format"
                     :options="gmCatalog.formats"></q-select>
+        </div>
+        <div v-if="gmCatalog.editor.form.format === 'digital'" data-gm="delivery-editor">
+          <q-input v-model="gmCatalog.editor.form.delivery_content" dense
+                   outlined type="textarea" autogrow maxlength="4000"
+                   label="Digital delivery — download link, license key or instructions"
+                   hint="Stored encrypted. Buyers see this on their order page and confirmation email only after their payment is confirmed. Never published to Nostr."></q-input>
         </div>
         <div class="row q-gutter-sm">
           <q-input v-model.number="gmCatalog.editor.form.amount_minor" dense
@@ -1308,21 +1367,79 @@
 <script src="/gammamarkets/static/gammamarkets/js/admin_settings.js"></script>
 <script src="/gammamarkets/static/gammamarkets/js/admin_notifications.js"></script>
 <style>
+/* Store bar — shop identity + one-click storefront access (top-level). */
+.gm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 12px;
+  background: rgba(128, 128, 128, 0.06);
+}
+.gm-topbar-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gm-topbar-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px;
+  background: var(--q-primary); color: #fff;
+  font-weight: 800; font-size: 18px; flex: 0 0 auto;
+}
+.gm-topbar-name { font-size: 18px; font-weight: 700; line-height: 1.2; }
+.gm-topbar-meta { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+.gm-topbar-actions { display: flex; align-items: center; gap: 8px; }
+
 .gm-shell { display: flex; gap: 24px; }
 .gm-nav { width: 200px; flex-shrink: 0; }
+.gm-nav .q-item { border-radius: 10px; margin-bottom: 2px; }
+.gm-nav .q-item.q-router-link--active,
+.gm-nav .q-item--active { background: rgba(128, 128, 128, 0.14); font-weight: 600; }
+.gm-nav-ext { opacity: 0.6; }
 .gm-content { flex: 1; min-width: 0; }
+.gm-content h1.text-h6 { font-weight: 700; letter-spacing: -0.01em; }
+.gm-content .q-card--bordered { border-radius: 12px; }
 .gm-workspace {
   display: grid;
   grid-template-columns: 390px minmax(0, 1fr);
   gap: 16px;
 }
-.gm-order-row { border-radius: 8px; }
+.gm-order-row { border-radius: 10px; padding-top: 10px; padding-bottom: 10px; }
 .gm-order-active {
   background: rgba(37, 99, 235, 0.1);
   box-shadow: inset 3px 0 var(--q-primary);
 }
+/* State badges carry an icon + label; colour is never the only signal. */
+.gm-state {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  letter-spacing: 0.01em;
+}
+.gm-state-lg { font-size: 13px; padding: 5px 10px; }
+.gm-closed-note {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.12);
+  font-size: 14px;
+}
+/* Tab panels clip their overflow (slide animation); keep a small inset so
+   gutters, focus rings and the selected-card outline are never cut off. */
+.gm-tab-panel { padding: 4px 4px 16px; }
+.gm-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.gm-choice-grid-sm { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+.gm-choice { border-radius: 10px; transition: outline-color 0.15s ease; }
+.gm-choice:focus-visible { outline: 2px solid var(--q-primary); outline-offset: 2px; }
 .gm-preset-active {
   outline: 2px solid var(--q-primary);
+  outline-offset: 0;
 }
 .gm-preview {
   border: 1px solid #dfcfbb;
@@ -1376,6 +1493,7 @@
 @media (max-width: 1023px) {
   .gm-nav { width: 72px; }
   .gm-nav .q-item__section:not(.q-item__section--avatar) { display: none; }
+  .gm-nav .q-separator { display: none; }
   .gm-workspace { grid-template-columns: 320px minmax(0, 1fr); }
 }
 @media (max-width: 560px) {

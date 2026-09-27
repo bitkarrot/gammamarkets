@@ -109,7 +109,7 @@
             visibility: "on-sale", draft: false,
             stock_on_hand: null,
             parent_product_id: "",
-            collection_ids: [], images_text: ""
+            collection_ids: [], images_text: "", delivery_content: ""
           }
         };
       },
@@ -134,7 +134,8 @@
             collection_ids: d.collection_ids || [],
             images_text: (d.images || [])
               .map(function (i) { return i.url; })
-              .join("\n")
+              .join("\n"),
+            delivery_content: d.delivery_content || ""
           }
         };
       },
@@ -162,6 +163,9 @@
               : Number(f.stock_on_hand),
           collection_ids: f.collection_ids || []
         };
+        if (f.format === "digital") {
+          body.delivery_content = (f.delivery_content || "").trim();
+        }
         if (f.product_type === "variation" && f.parent_product_id) {
           body.parent_product_id = f.parent_product_id;
         }

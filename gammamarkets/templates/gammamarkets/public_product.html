@@ -62,6 +62,26 @@
       {% if state == 'sold' %}<span class="chip chip-sold">Sold out</span>{% endif %}
       {% if state == 'preorder' %}<span class="chip chip-preorder">Pre-order — purchasing opens later.</span>{% endif %}
     </header>
+    {% if state == 'available' %}
+    {#- Shipping and delivery are answered before checkout — unexpected
+        costs are the top abandonment reason (ecommerce-design-guide). -#}
+    <ul class="trust-list" data-gm="trust-list">
+      {% if physical %}
+      {%- set ns = namespace(best=none) -%}
+      {%- for s in product.shipping -%}
+        {%- if s.base_price_minor is not none and (ns.best is none or s.base_price_minor < ns.best.base_price_minor) -%}{%- set ns.best = s -%}{%- endif -%}
+      {%- endfor %}
+      <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5h11v9H3zM14 8h4l3 3v3h-7zM6.5 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm11 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        {% if ns.best %}Shipping from {{ price_label(ns.best.base_price_minor, ns.best.currency, ns.best.currency_decimals) }} — exact cost shown before you pay{% else %}Shipping cost shown before you pay{% endif %}</li>
+      {% else %}
+      <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v11m0 0l-4-4m4 4l4-4M4 17v3h16v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        {% if instant_delivery %}Digital item — available on your order page right after payment{% else %}Digital item — no shipping; the seller sends it to you after payment{% endif %}</li>
+      {% endif %}
+      <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 11V8a6 6 0 0 1 12 0v3M5 11h14v10H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        Private checkout — no account needed</li>
+      <li>{{ bolt }}Pay with any Lightning wallet</li>
+    </ul>
+    {% endif %}
 
     {% if state == 'available' %}
     {#- A2 adaptive checkout card — the field set, summary, validation,
@@ -197,6 +217,11 @@
                 <span class="optional">(optional)</span></label>
               <input type="email" id="gm-email" name="email" maxlength="320"
                      autocomplete="email" placeholder="you@example.com">
+              {% if not physical and not instant_delivery %}
+              <p class="field-help">Add your email and tick updates so the seller can send your digital item.</p>
+              {% elif not physical %}
+              <p class="field-help">Your item appears on your order page after payment; with updates on, we also email it to you.</p>
+              {% endif %}
               <p class="field-error" data-error-for="email"
                  aria-live="polite" hidden></p>
             </div>

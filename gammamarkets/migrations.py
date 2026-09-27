@@ -767,3 +767,11 @@ async def m003_checkout_safety(db: Connection):
         f"UPDATE {s}products SET currency_decimals = 2"
         " WHERE currency_decimals IS NULL AND currency IS NOT NULL"
     )
+
+
+async def m004_digital_delivery(db: Connection):
+    """Merchant-entered digital delivery content (download link, license
+    key or instructions), AEAD-encrypted and revealed to the buyer only
+    after LNbits-confirmed payment."""
+    s = db.references_schema
+    await db.execute(f"ALTER TABLE {s}products ADD COLUMN delivery_enc {db.blob}")

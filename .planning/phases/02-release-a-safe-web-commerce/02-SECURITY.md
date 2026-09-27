@@ -9,7 +9,7 @@ created: "2026-09-27"
 
 # Phase 2 — Security
 
-This is an ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04. `threats_open: 0` means the specified mitigations were found in the extension and exercised locally; it is **not** a Release-A sign-off. [Linux CI run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) passed all four blocking profiles on `b12e350`; human security/UX review remains outstanding. The pinned LNbits source was not changed.
+This is an ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04, plus T-205-01 added when UAT introduced digital delivery. `threats_open: 0` means the specified mitigations were found in the extension and exercised locally; it is **not** a Release-A sign-off. [Linux CI run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) passed all four blocking profiles on `b12e350`; human security/UX review remains outstanding. The pinned LNbits source was not changed.
 
 ## Trust Boundaries
 
@@ -53,6 +53,7 @@ All statuses below describe local implementation evidence, not deployed-platform
 | T-204-03 | Information disclosure | admin renders secrets | high | mitigate | Redacted admin projections and technical details; `test_admin_ui.py`, `test_order_admin.py` | closed |
 | T-204-04 | Elevation | merchant theme crosses into admin | medium | mitigate | `.gm-public`-scoped CSS and no admin theme token emission; `test_themes.py`, `test_admin_ui.py` | closed |
 | T-204-05 | Denial of service | buyer induced to pay twice | critical | mitigate | `public_checkout.js` preserves uncertain idempotency keys and offers no second invoice; invoice/expiry text avoids claiming unpaid without proof; `buyer.spec.ts`, `test_order_saga.py` | closed |
+| T-205-01 | Information disclosure | digital delivery content released before payment or published | high | mitigate | Added after UAT (2026-09-27). `products.delivery_enc` AEAD at rest (`services/catalog.py`); only the owner-scoped admin API decrypts it; `services/orders.py::digital_delivery` returns content only for `confirmed/processing/completed` without payment exception or oversell; never in public product JSON/HTML or NIP-99 events; buyer UI renders it as text with http(s) links only (no innerHTML). `test_order_saga.py::test_digital_delivery_revealed_only_after_confirmed_payment`, `test_public_contract.py`, `buyer.spec.ts` | closed |
 
 A shareable order link intentionally contains a token in its **URL fragment** until the receiving page strips it. The protection is that the fragment is not sent in HTTP paths, queries or referrers; the link itself must be kept private. No broader claim that the token never appears in a URL is made.
 
@@ -66,6 +67,7 @@ No accepted risks. A relay can retain already-public catalog events despite a ki
 |------------|---------------|----------------|--------------------|--------|
 | 2026-09-27 | 25 | 25 | 0 | Devin, source review + SQLite/PostgreSQL qualification and Chromium |
 | 2026-09-27 | 25 | 25 | 0 | Linux CI run 36303338957: x86_64/ARM64 × SQLite/PostgreSQL all passed on `b12e350` |
+| 2026-09-27 | 26 | 26 | 0 | Devin, UAT redesign: T-205-01 digital delivery gating — local SQLite runtime + Chromium; Linux CI pending push |
 
 ## Sign-Off
 

@@ -93,6 +93,8 @@ Plans:
 
 **Plans:** 3 plans
 
+**Carried from Phase 2 UAT (2026-09-27):** Nostr buyers retrieve order status and history from their NIP-17 message history (order keyed by buyer pubkey + order id); an optional NIP-07 "Sign in with Nostr" for the web storefront; and a merchant `web_checkout_enabled` setting so a shop can run Nostr-only once Gamma ordering exists. Web buyers keep per-order private links — no buyer accounts.
+
 Plans:
 
 - [ ] 03-01: Merchant/peer inbox discovery, transport pools, NIP-42, and egress controls

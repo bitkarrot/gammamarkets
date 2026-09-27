@@ -77,7 +77,7 @@
     layoutEl.classList.toggle(
       "is-sticky",
       effectiveLayout() === "editorial" && window.innerWidth > 860 &&
-        detailEl.offsetHeight < window.innerHeight - 32
+        detailEl.offsetHeight < window.innerHeight - 104
     );
   }
   window.addEventListener("resize", syncSticky);
@@ -356,7 +356,7 @@
   /* Keep the invoice in view when the form collapses (mobile users are
      usually scrolled down to the pay button). */
   function revealPanel() {
-    if (!card.getBoundingClientRect || card.getBoundingClientRect().top >= 0) return;
+    if (!card.getBoundingClientRect || card.getBoundingClientRect().top >= 80) return;
     var reduce = window.matchMedia &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     card.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
@@ -458,8 +458,15 @@
     countdownTimer = setInterval(tick, 1000);
   }
 
+  var shownConfirmed = null;
   function renderConfirmed(body) {
     if (!panel) return;
+    /* Polling continues through processing — don't rebuild an identical
+       view (it would reset copy feedback every 5s). */
+    var key = body.state + "|" + JSON.stringify(body.digital_delivery || []);
+    if (panel.getAttribute("data-invoice-state") === "confirmed" &&
+        shownConfirmed === key) return;
+    shownConfirmed = key;
     GM.clear(panel);
     shownBolt11 = null;
     if (countdownTimer) {
@@ -494,6 +501,9 @@
       });
       wrap.appendChild(ul);
     }
+    var delivery = GM.h("div", { class: "order-delivery" });
+    GM.renderDelivery(delivery, body.digital_delivery);
+    wrap.appendChild(delivery);
     wrap.appendChild(statusLinkBlock());
     panel.appendChild(wrap);
   }

@@ -704,8 +704,55 @@ async def _replace_product_details(
 _PRODUCT_PAYLOAD_FIELDS = set(_PRODUCT_FIELDS) | {
     "catalog_id", "d_tag", "product_type", "format", "parent_product_id",
     "stock_reserved", "images", "specs", "categories", "collection_ids",
-    "shipping_option_ids", "shipping_collection_ids",
+    "shipping_option_ids", "shipping_collection_ids", "delivery_content",
 }
+
+DELIVERY_MAX = 4000
+
+
+def _delivery_enc(product_id: str, fmt: str, value) -> bytes | None:
+    """Encrypt merchant digital-delivery content (never published, never
+    in public JSON; revealed to the buyer only after confirmed payment)."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if not isinstance(value, str) or len(value) > DELIVERY_MAX:
+        raise unprocessable(
+            "invalid-content",
+            f"delivery_content must be text of at most {DELIVERY_MAX} characters",
+        )
+    if fmt != "digital":
+        raise unprocessable(
+            "invalid-content", "delivery_content is only for digital products",
+        )
+    settings = ext_settings()
+    from .. import crypto
+
+    return crypto.encrypt(
+        value.strip().encode(), settings.master_keys[settings.active_key_version],
+        record_id=product_id, table="products", column="delivery_enc",
+        key_version=settings.active_key_version,
+    )
+
+
+def decrypt_delivery(product_id: str, blob) -> str | None:
+    if blob is None:
+        return None
+    from .. import crypto
+
+    settings = ext_settings()
+    ver = crypto.envelope_version(blob)
+    return crypto.decrypt(
+        blob, settings.master_keys[ver], record_id=product_id,
+        table="products", column="delivery_enc", key_version=ver,
+    ).decode()
+
+
+def _product_out(row: dict) -> dict:
+    """Owner-scoped admin projection: the ciphertext never leaves the
+    service; the merchant sees their own delivery content in plain text."""
+    blob = row.pop("delivery_enc", None)
+    row["delivery_content"] = decrypt_delivery(row["id"], blob)
+    return row
 
 
 async def create_product(merchant_id: str, user, payload: dict) -> dict:
@@ -750,6 +797,12 @@ async def create_product(merchant_id: str, user, payload: dict) -> dict:
             f"({', '.join(cols)}) VALUES ({placeholders})",
             {f"p{i}": v for i, v in enumerate(vals)},
         )
+        delivery = _delivery_enc(product_id, fmt, payload.get("delivery_content"))
+        if delivery is not None:
+            await tx.execute(
+                f"UPDATE {tx.table('products')} SET delivery_enc = :d WHERE id = :i",
+                {"d": delivery, "i": product_id},
+            )
         await _replace_product_details(tx, product_id, payload, merchant_id)
         # membership changes republish affected collections FIRST (§8.6
         # ordering) so the product intent's dependency edges bind to them
@@ -792,12 +845,12 @@ async def list_products(merchant_id: str, user,
     sql += " ORDER BY created_at, id"
     async with db.connect() as conn:
         rows = await conn.fetchall(sql, params)
-    return [dict(r) for r in rows]
+    return [_product_out(dict(r)) for r in rows]
 
 
 async def get_product(merchant_id: str, user, product_id: str) -> dict:
     await _merchant_owned(merchant_id, user)
-    row = await _fetch("products", product_id, merchant_id)
+    row = _product_out(await _fetch("products", product_id, merchant_id))
     if row["deleted_at"] is not None:
         raise not_found("product not found")
     row["images"] = await _detail_list(
@@ -909,6 +962,14 @@ async def patch_product(merchant_id: str, user, product_id: str,
             await tx.execute(
                 f"UPDATE {tx.table('products')} SET {col} = :v WHERE id = :i",
                 {"v": val, "i": product_id},
+            )
+        if "delivery_content" in patch:
+            await tx.execute(
+                f"UPDATE {tx.table('products')} SET delivery_enc = :d WHERE id = :i",
+                {
+                    "d": _delivery_enc(product_id, row["format"], patch["delivery_content"]),
+                    "i": product_id,
+                },
             )
         await tx.execute(
             f"UPDATE {tx.table('products')} SET revision = revision + 1,"

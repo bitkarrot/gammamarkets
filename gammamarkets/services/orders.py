@@ -128,6 +128,44 @@ def _now() -> int:
     return int(time.time())
 
 
+# Digital delivery is revealed only once LNbits settlement has moved the
+# order into a paid state and nothing about the payment is under review.
+DELIVERY_STATES = frozenset({"confirmed", "processing", "completed"})
+
+
+def delivery_unlocked(order: dict) -> bool:
+    return (
+        order.get("state") in DELIVERY_STATES
+        and not order.get("payment_exception")
+        and not order.get("oversold")
+    )
+
+
+async def digital_delivery(conn, order: dict) -> list[dict]:
+    """Buyer-facing delivery content for the order's digital items —
+    ``[]`` until :func:`delivery_unlocked`. ``conn`` is any connection or
+    transaction exposing ``fetchall``/``fetch_all``."""
+    if not delivery_unlocked(order):
+        return []
+    from ..db import table as default_table
+    from .catalog import decrypt_delivery
+
+    table = conn.table if isinstance(conn, DomainTransaction) else default_table
+    sql = (
+        f"SELECT oi.title, p.id AS product_id, p.delivery_enc"
+        f" FROM {table('order_items')} oi"
+        f" JOIN {table('products')} p ON p.id = oi.product_id"
+        " WHERE oi.order_id = :o AND p.format = 'digital'"
+        " AND p.delivery_enc IS NOT NULL ORDER BY oi.title"
+    )
+    fetch = getattr(conn, "fetchall", None) or conn.fetch_all
+    rows = await fetch(sql, {"o": order["id"]})
+    return [
+        {"title": r["title"], "content": decrypt_delivery(r["product_id"], r["delivery_enc"])}
+        for r in rows
+    ]
+
+
 # --- transition_order (section 7.1 single entry path) ------------------------
 
 

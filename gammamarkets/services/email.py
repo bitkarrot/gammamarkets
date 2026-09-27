@@ -172,8 +172,10 @@ def _subject(merchant: dict, event_type: str) -> str:
 def _render_body(
     row: dict, order: dict | None, items: list[dict],
     merchant: dict, status_link: str | None,
+    delivery: list[dict] | None = None,
 ) -> str:
-    """Plain-text body — item summaries, totals, state, status link.
+    """Plain-text body — item summaries, totals, state, status link, and
+    (on the paid confirmation only) the merchant's digital delivery.
 
     Never carries decrypted addresses, keys, payment secrets, or full
     BOLT11/preimage material (§8.8).
@@ -188,6 +190,8 @@ def _render_body(
         lines.append(
             f"- {item.get('title') or 'item'} x{item['quantity']}"
         )
+    for entry in delivery or []:
+        lines.append(f"\nYour digital item — {entry['title']}:\n{entry['content']}")
     if status_link:
         lines.append(f"Order status: {status_link}")
     lines.append(
@@ -271,6 +275,11 @@ async def worker_tick(
                     " WHERE order_id = :o",
                     {"o": row["order_id"]},
                 )
+            delivery: list[dict] = []
+            if order and row["channel"] == "customer" and row["event_type"] == "confirmed":
+                from .orders import digital_delivery
+
+                delivery = await digital_delivery(tx, order)
             reason = await _suppression_reason(
                 tx, row, merchant, order, host_ready
             )
@@ -320,7 +329,7 @@ async def worker_tick(
         link = await _status_link(order, settings)
         subject = _subject(merchant or {}, row["event_type"])
         body = _render_body(
-            row, order, items, merchant or {}, link
+            row, order, items, merchant or {}, link, delivery
         )
         remaining = deadline - time.monotonic()
         if remaining <= 0:

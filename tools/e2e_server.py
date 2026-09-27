@@ -217,6 +217,10 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
                 "stock_on_hand": 10,
                 "format": "digital",
                 "images": [{"url": f"{img_base}/demo-digital.svg"}],
+                "delivery_content": (
+                    "Download your tour: https://files.example/e2e-digital-tour.zip\n"
+                    "Access code: E2E-TOUR-2026"
+                ),
             },
             headers=await cookie(),
         )
@@ -255,6 +259,22 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
         )
         assert resp.status_code == 201, resp.text
         physical = resp.json()
+
+        # One collection so the storefront navigation has a category link.
+        resp = await client.post(
+            f"{api}/collections",
+            json={"title": "Featured", "description": "Staff picks"},
+            headers=await cookie(),
+        )
+        assert resp.status_code == 201, resp.text
+        collection = resp.json()
+        for prod in (digital, physical):
+            resp = await client.patch(
+                f"{api}/products/{prod['id']}",
+                json={"collection_ids": [collection["id"]]},
+                headers=await cookie(),
+            )
+            assert resp.status_code == 200, resp.text
 
         # Real publish path: enqueues every aggregate intent; the outbox
         # worker signs + delivers to the local relay and flips the merchant

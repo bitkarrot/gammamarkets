@@ -79,7 +79,9 @@
   var _token = null;
   if (location.hash.length > 1) {
     _token = location.hash.slice(1);
-    history.replaceState(null, "", location.pathname);
+    /* Keep the (public, non-secret) ?shop= context; drop only the
+       fragment that carries the bearer token. */
+    history.replaceState(null, "", location.pathname + location.search);
   }
   GM.orderToken = function () {
     return _token;
@@ -91,10 +93,67 @@
   };
   GM.statusUrl = function () {
     /* The shareable status link carries the token in its fragment — the
-       fragment is never sent to the server by any browser. */
-    return _token
-      ? location.origin + "/gammamarkets/order#" + _token
-      : location.origin + "/gammamarkets/order";
+       fragment is never sent to the server by any browser. The shop
+       pubkey (public identity) restores the shop's header and nav. */
+    var root = document.querySelector(".gm-public[data-shop]");
+    var shop = root ? root.getAttribute("data-shop") : "";
+    var base = location.origin + "/gammamarkets/order" +
+      (/^[0-9a-f]{64}$/.test(shop || "") ? "?shop=" + shop : "");
+    return _token ? base + "#" + _token : base;
+  };
+
+  GM.SHIPPING_LABELS = {
+    not_required: "No shipping needed",
+    pending: "Preparing to ship",
+    processing: "Being prepared",
+    shipped: "Shipped",
+    delivered: "Delivered",
+    exception: "Delivery problem — the seller will be in touch"
+  };
+
+  /* Merchant digital-delivery content, rendered as text with http(s)
+     links made clickable — never innerHTML (merchant-authored text). */
+  var URL_RE = /(https?:\/\/[^\s<>"']+)/g;
+  function linkified(text) {
+    var frag = document.createDocumentFragment();
+    String(text).split(URL_RE).forEach(function (part, i) {
+      if (i % 2 === 1) {
+        var a = GM.h("a", { href: part, text: part });
+        a.setAttribute("target", "_blank");
+        a.setAttribute("rel", "noopener noreferrer");
+        frag.appendChild(a);
+      } else if (part) {
+        frag.appendChild(document.createTextNode(part));
+      }
+    });
+    return frag;
+  }
+  GM.renderDelivery = function (el, list) {
+    if (!el) return;
+    GM.clear(el);
+    list = list || [];
+    el.hidden = !list.length;
+    if (!list.length) return;
+    el.appendChild(GM.h("h2", { class: "delivery-title", text: "Your digital items" }));
+    list.forEach(function (entry) {
+      var item = GM.h("div", { class: "delivery-item", "data-gm": "delivery-item" });
+      item.appendChild(GM.h("strong", { text: entry.title || "Digital item" }));
+      var body = GM.h("p", { class: "delivery-text" });
+      body.appendChild(linkified(entry.content || ""));
+      item.appendChild(body);
+      var only = String(entry.content || "").trim();
+      if (/^https?:\/\/\S+$/.test(only)) {
+        var dl = GM.h("a", { class: "btn-primary", href: only, text: "Download" });
+        dl.setAttribute("target", "_blank");
+        dl.setAttribute("rel", "noopener noreferrer");
+        item.appendChild(dl);
+      }
+      el.appendChild(item);
+    });
+    el.appendChild(GM.h("p", {
+      class: "delivery-note",
+      text: "Keep your order link — you can come back here any time to access this again."
+    }));
   };
 
   /* --- buyer-facing labels + RFC 9457 -> friendly copy (copywriting

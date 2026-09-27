@@ -67,7 +67,9 @@ test('digital checkout creates a Lightning invoice', async ({page}) => {
   statusUrl = await page.evaluate(() =>
     (window as unknown as {GM: {statusUrl(): string}}).GM.statusUrl()
   )
-  expect(statusUrl).toContain('/gammamarkets/order#')
+  // Token only in the fragment; the optional query is the public shop id.
+  expect(statusUrl).toMatch(/\/gammamarkets\/order(\?shop=[0-9a-f]{64})?#[A-Za-z0-9_-]{43}$/)
+  expect(new URL(statusUrl).search).not.toContain(new URL(statusUrl).hash.slice(1))
 })
 
 test('order status page: fragment stripped, polls, settles', async ({
@@ -98,6 +100,33 @@ test('order status page: fragment stripped, polls, settles', async ({
   )
   // Invoice panel collapses once paid (bolt11 leaves the DOM)
   await expect(page.locator('#gm-order-invoice')).toBeHidden()
+  // Digital delivery appears only now that payment is confirmed
+  await expect(page.locator('[data-gm="delivery-item"]')).toContainText('E2E-TOUR-2026')
+  await expect(page.locator('[data-gm="delivery-item"] a').first()).toHaveAttribute(
+    'href', 'https://files.example/e2e-digital-tour.zip'
+  )
+})
+
+test('storefront navigation and track-order recovery', async ({page}) => {
+  await page.goto(seed.digital_url)
+  const nav = page.locator('.store-nav')
+  await expect(nav.getByRole('link', {name: 'Shop'})).toBeVisible()
+  await expect(nav.getByRole('link', {name: 'Featured'})).toBeVisible()
+  await expect(page.locator('[data-gm="trust-list"]')).toContainText('available on your order page right after payment')
+  await nav.getByRole('link', {name: 'Track order'}).click()
+
+  await expect(page.locator('.order-title')).toHaveText('Track your order')
+  await expect(page.locator('#gm-order-card')).toBeHidden()
+  await expect(page.locator('.store-nav').getByRole('link', {name: 'Shop'})).toBeVisible()
+  await page.locator('#gm-track-link').fill('not a link')
+  await page.getByRole('button', {name: 'Open my order'}).click()
+  await expect(page.locator('[data-error-for="order_link"]')).toBeVisible()
+
+  await page.locator('#gm-track-link').fill(statusUrl)
+  await page.getByRole('button', {name: 'Open my order'}).click()
+  await expect(page.locator('#gm-order-state')).toContainText('Payment confirmed', {timeout: 20_000})
+  expect(new URL(page.url()).hash).toBe('')
+  await expect(page.locator('#gm-order-state')).toHaveAttribute('data-state', /confirmed|processing|completed/)
 })
 
 test('invalid order token shows identical dead-link copy', async ({

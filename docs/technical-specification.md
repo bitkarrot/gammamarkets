@@ -279,6 +279,7 @@ the boundary—never interpolated into SQL.
 | weight_value / weight_unit | | ISO 80000-1 |
 | dim_l / dim_w / dim_h / dim_unit | | |
 | nip15_product_id | TEXT NULL | persisted id emitted as 30018 `d`/content `id` and accepted inbound; normally `d_tag`, composite/hash for variations (§6.6) |
+| delivery_enc | BLOB NULL | digital products only: AEAD-encrypted merchant delivery content (download link, license key or instructions, ≤4000 chars). Never published, never in public catalog JSON/HTML; revealed to the buyer only per §5.4/§8.8 after confirmed payment |
 | published_at | TIMESTAMP NULL | first 30402 publication |
 | revision | INTEGER NOT NULL DEFAULT 0 | incremented on every mutation; feeds outbox |
 | deleted_at | TIMESTAMP NULL | soft deletion; row retained for order snapshots and tombstones |
@@ -629,7 +630,10 @@ Response `201`:
 ```
 
 The public order endpoint MUST return only: state, shipping_state, total_sat, bolt11,
-payment status, item summaries, and expiry. It does not return payment hash separately.
+payment status, item summaries, expiry, the buyer-safe `payment_exception` hold flag, and
+`digital_delivery` (a list of `{title, content}` for the order's digital items). The
+delivery list is empty unless the order is `confirmed|processing|completed` with no
+payment exception and no oversell under review. It does not return payment hash separately.
 It MUST NOT return merchant internals, internal IDs, buyer address/contact echoes,
 tracking numbers, or other orders' data.
 Responses set `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and must not
@@ -1261,7 +1265,9 @@ Send path:
    event type, or a customer row's `email_opt_in` was revoked.
 3. Render the plaintext template. Subjects carry only the merchant display name and
    event name—never a buyer name, address, email, pubkey, or internal order id. Bodies
-   may include item summaries, `total_sat`, state, and the public status link. The link
+   may include item summaries, `total_sat`, state, the public status link, and — on the
+   customer `confirmed` notification only, under the same gate as §5.4 — the digital
+   delivery content. The link
    uses the protected encrypted `public_token`; this is inherent to the magic-link
    design and is disclosed in §19/§21.
 4. Deliver via `lnbits.core.services.notifications.send_email` (host

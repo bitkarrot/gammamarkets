@@ -245,8 +245,9 @@ async def public_order_status(request: Request, response: Response):
 
     The response is restricted to exactly the §5.4 field set: state,
     shipping_state, total_sat, bolt11 (while awaiting_payment), payment
-    status, item summaries, and expiry. No internals, no payment_hash,
-    no buyer echoes.
+    status, item summaries, expiry, and digital delivery content (only
+    after confirmed payment). No internals, no payment_hash, no buyer
+    echoes.
     """
     await _guard(request, response)
     order = await _order_for_token(request.headers.get("x-order-token"))
@@ -261,6 +262,9 @@ async def public_order_status(request: Request, response: Response):
             "WHERE order_id = :o",
             {"o": order["id"]},
         )
+        from .services.orders import digital_delivery
+
+        delivery = await digital_delivery(conn, order)
     bolt11 = None
     if (
         order["state"] == "awaiting_payment"
@@ -290,6 +294,9 @@ async def public_order_status(request: Request, response: Response):
         # Buyer-safe hold flag — drives the "On hold — the merchant is
         # reviewing a payment issue." label (never the reason detail).
         "payment_exception": bool(order["payment_exception"]),
+        # Merchant digital delivery content — [] until LNbits-confirmed
+        # payment with no exception/oversell under review.
+        "digital_delivery": delivery,
     }
 
 
