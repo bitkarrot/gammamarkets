@@ -37,7 +37,7 @@
       <p class="card-meta">In stock</p>
       {% endif %}
       {% if p.amount_minor is not none %}
-      <p class="card-price">{{ p.amount_minor }} {{ p.currency }}</p>
+      <p class="card-price">{{ price_label(p.amount_minor, p.currency, p.currency_decimals) }}</p>
       {% endif %}
     </div>
   </a>

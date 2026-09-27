@@ -109,6 +109,27 @@ async def test_product_page_headers_and_scoping(runtime_env):
     assert "nsec" not in resp.text
 
 
+async def test_prices_render_in_major_units(runtime_env):
+    client = runtime_env["client"]
+    merchant = await _merchant(runtime_env)
+    _, usd = await _catalog_and_product(runtime_env, amount_minor=1500)
+    _, sat = await _catalog_and_product(
+        runtime_env, amount_minor=2500, currency="SAT", currency_decimals=0,
+    )
+
+    usd_page = await client.get(f"/gammamarkets/p/{merchant['pubkey']}/{usd['d_tag']}")
+    assert "15.00 USD" in usd_page.text
+    assert "1500 USD" not in usd_page.text
+    sat_page = await client.get(f"/gammamarkets/p/{merchant['pubkey']}/{sat['d_tag']}")
+    assert "2,500 sats" in sat_page.text
+    assert "2500 SAT" not in sat_page.text
+
+    storefront = await client.get(f"/gammamarkets/public/merchants/{merchant['pubkey']}")
+    assert "15.00 USD" in storefront.text
+    assert "2,500 sats" in storefront.text
+    assert "1500 USD" not in storefront.text
+
+
 async def test_product_gallery_exposes_all_supported_images(runtime_env):
     client = runtime_env["client"]
     merchant = await _merchant(runtime_env)

@@ -75,6 +75,7 @@ def _public_response(request: Request, template: str, ctx: dict,
                    status: int = 200) -> HTMLResponse:
     ctx.setdefault("theme_css", "")
     ctx.setdefault("layout", "editorial")
+    ctx.setdefault("price_label", nip89.price_label)
     resp = gammamarkets_renderer().TemplateResponse(
         request, f"templates/gammamarkets/{template}", ctx,
         status_code=status,

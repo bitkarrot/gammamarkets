@@ -43,6 +43,8 @@ blocked: 0
 
 Machine evidence is separate: 13 Chromium tests passed against each isolated SQLite and PostgreSQL server; seven Chromium smoke tests passed on the fresh port 5099 demo without creating or settling an order, and its quote route returned HTTP 200 with a 2,500-sat total. Neither those tests nor earlier demo screenshots count as a new human response to the tests above. The user-requested 5099 replacement runs current code on a fresh disposable database; the prior demo's database files were left untouched but are not mounted in this demo.
 
+**Buyer UI refinement before UAT (2026-09-27):** the product/checkout pages were polished after the green CI run — major-unit prices (`2,500 sats` / `15.00 USD`), checkout column beside the gallery (sticky when it fits), compact/guided thumbnail header, quantity stepper, option chips, clearer summary and quote-error messages, guided Pay step with a single invoice CTA, and an invoice view with “Open in wallet”. Blank or short state codes (`IL` → `US-IL`) no longer break the shipping quote. Checkout semantics, totals, payment states and security copy are unchanged. SQLite/PostgreSQL public/checkout runtime tests (77 each), the full SQLite suite (448 passed, 3 skipped) and 15 Chromium tests passed locally; this revision still needs a push for CI. The 5099 demo was restarted fresh on this code, so run the tests above against it.
+
 ## Gaps
 
 None reported by the user in this UAT session. Unanswered tests are pending, not passes or failures.

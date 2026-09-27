@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import time
+from decimal import Decimal
 
 from ..db import db, table
 from ..security import ProblemError
@@ -137,6 +138,17 @@ def availability_state(product: dict) -> str:
     if on_hand is not None and on_hand - product.get("stock_reserved", 0) <= 0:
         return "sold"
     return "available"
+
+
+def price_label(amount_minor, currency, decimals) -> str:
+    """Buyer-facing price in major units: ``2,500 sats`` / ``15.00 USD``."""
+    if amount_minor is None:
+        return ""
+    code = (currency or "SAT").upper()
+    if code in ("SAT", "SATS"):
+        return f"{int(amount_minor):,} sats"
+    places = 2 if decimals is None else int(decimals)
+    return f"{Decimal(int(amount_minor)).scaleb(-places):,.{places}f} {code}"
 
 
 def public_product_json(product: dict, detail: dict) -> dict:

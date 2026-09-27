@@ -49,6 +49,12 @@
     });
     var payBack = card.querySelector("[data-pay-back]");
     if (payBack) payBack.hidden = !(mode === "guided" && step === 3);
+    /* Guided: the invoice CTA belongs to the Pay step only (sketch
+       001-B); the summary itself stays visible at every step. */
+    var payRow = card.querySelector(".pay-row");
+    if (payRow) payRow.hidden = mode === "guided" && step !== 3;
+    var payIntro = card.querySelector("[data-pay-intro]");
+    if (payIntro) payIntro.hidden = !(mode === "guided" && step === 3);
     card.querySelectorAll(".progress-step").forEach(function (el) {
       el.classList.toggle(
         "active",
@@ -61,14 +67,31 @@
     });
   }
 
+  /* Editorial desktop keeps the title/price/checkout column in view while
+     the gallery and description scroll — only when the whole column fits
+     the viewport, so a tall physical-delivery form never hides its CTA. */
+  var layoutEl = card.closest(".product-layout");
+  var detailEl = card.closest(".product-detail");
+  function syncSticky() {
+    if (!layoutEl || !detailEl) return;
+    layoutEl.classList.toggle(
+      "is-sticky",
+      effectiveLayout() === "editorial" && window.innerWidth > 860 &&
+        detailEl.offsetHeight < window.innerHeight - 32
+    );
+  }
+  window.addEventListener("resize", syncSticky);
+  if (window.ResizeObserver && detailEl) {
+    new window.ResizeObserver(syncSticky).observe(detailEl);
+  }
+
   function applyLayout() {
     var mode = effectiveLayout();
     card.setAttribute("data-mode", mode);
     /* The preset recomposes the WHOLE page shell, not just the card —
        guided = focused step flow, compact = narrow express sheet
        (sketch 001-B/C). */
-    var layout = card.closest(".product-layout");
-    if (layout) layout.setAttribute("data-mode", mode);
+    if (layoutEl) layoutEl.setAttribute("data-mode", mode);
     var progress = card.querySelector(".progress");
     if (progress) progress.hidden = mode !== "guided";
     card.querySelectorAll(".co-section").forEach(function (sec) {
@@ -95,6 +118,7 @@
       lastMode = mode;
     }
     syncVisibility();
+    syncSticky();
   }
   if (mqNarrow.addEventListener) {
     mqNarrow.addEventListener("change", applyLayout);
@@ -133,17 +157,73 @@
     }
   }
 
+  /* --- quantity stepper (sketch 001 −/+ control) ------------------------- */
+  var qtyInput = form.querySelector("input[name=quantity]");
+  var qtyButtons = form.querySelectorAll("[data-qty-step]");
+  function qtyMax() {
+    return Math.min(10000, Number(qtyInput && qtyInput.max) || 10000);
+  }
+  function syncQtyButtons() {
+    var q = currentQty();
+    qtyButtons.forEach(function (btn) {
+      var dir = Number(btn.getAttribute("data-qty-step"));
+      btn.disabled = !qtyInput || qtyInput.disabled ||
+        (dir < 0 ? q <= 1 : q >= qtyMax());
+    });
+  }
+  qtyButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (!qtyInput || qtyInput.disabled) return;
+      var next = Math.min(qtyMax(), Math.max(1,
+        currentQty() + Number(btn.getAttribute("data-qty-step"))));
+      if (next === currentQty()) return;
+      qtyInput.value = String(next);
+      qtyInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  });
+
   /* --- order summary (persistent Items/Shipping/Total) ------------------- */
+  var summaryEl = card.querySelector(".summary");
   var summaryItems = card.querySelector('[data-sum="items"]');
   var summaryShipping = card.querySelector('[data-sum="shipping"]');
   var summaryTotal = card.querySelector('[data-sum="total"]');
+  var summaryQty = card.querySelector("[data-sum-qty]");
+  var summaryHint = card.querySelector("[data-sum-hint]");
   var refreshQuote = card.querySelector("[data-refresh-quote]");
+  var hintCopy = summaryHint ? summaryHint.textContent : "";
+  function setBusy(on) {
+    if (summaryEl) summaryEl.setAttribute("aria-busy", on ? "true" : "false");
+  }
+  /* Quote problems read as a message under the summary, never as the
+     Total value itself. */
+  function showHint(text, isError) {
+    if (!summaryHint) return;
+    summaryHint.textContent = text || hintCopy;
+    summaryHint.classList.toggle("is-error", !!isError);
+    summaryHint.hidden = false;
+  }
+  function hideHint() {
+    if (summaryHint) summaryHint.hidden = true;
+  }
   var quote = null;
   var quoteVersion = 0;
   var quoteTimer = null;
   var lastQuotePayload = null;
   var QUOTE_API = "/gammamarkets/api/v1/public/quote";
 
+  /* Region is optional ISO 3166-2 (spec §8.1): omit it when blank and
+     accept the short subdivision code a buyer naturally types ("IL" with
+     country US → "US-IL"). */
+  var REGION_COPY = "Use the state or region code, e.g. CA.";
+  function regionFor(country) {
+    var raw = val("region").toUpperCase().replace(/\s+/g, "");
+    if (!raw) return null;
+    return raw.indexOf("-") < 0 && country ? country + "-" + raw : raw;
+  }
+  function regionOk(country, region) {
+    return !region || (/^[A-Z]{2}-[A-Z0-9]{1,3}$/.test(region) &&
+      region.indexOf(country + "-") === 0);
+  }
   function currentQty() {
     var q = Number((form.querySelector("input[name=quantity]") || {}).value || "0");
     return Number.isInteger(q) ? q : 0;
@@ -160,9 +240,13 @@
     if (form.getAttribute("data-physical") === "true") {
       var country = countrySel ? countrySel.value : "";
       var shipping = form.querySelector("select[name=shipping_option]");
-      if (!country || !shipping || !shipping.value) return null;
+      var region = regionFor(country);
+      var badRegion = !!country && !regionOk(country, region);
+      fieldError("region", badRegion ? REGION_COPY : "");
+      if (!country || !shipping || !shipping.value || badRegion) return null;
       payload.shipping_option_d = shipping.value;
-      payload.address = {country: country, region: val("region")};
+      payload.address = {country: country};
+      if (region) payload.address.region = region;
     }
     return payload;
   }
@@ -170,6 +254,9 @@
     if (ev && ["quantity", "variation", "country", "region", "shipping_option"]
         .indexOf(ev.target.name) < 0) return;
     if (pendingPayload) return;
+    syncQtyButtons();
+    var qty = currentQty();
+    if (summaryQty) summaryQty.textContent = qty > 0 ? "× " + qty : "";
     var payload = quotePayload();
     var signature = payload ? JSON.stringify(payload) : null;
     if (ev && signature === lastQuotePayload) return;
@@ -177,12 +264,15 @@
     var version = ++quoteVersion;
     clearTimeout(quoteTimer);
     quote = null;
+    var physical = form.getAttribute("data-physical") === "true";
     if (refreshQuote) refreshQuote.hidden = true;
     if (submitButton) submitButton.disabled = true;
     if (summaryItems) summaryItems.textContent = "—";
     if (summaryShipping) summaryShipping.textContent =
-      form.getAttribute("data-physical") === "true" ? "Choose delivery" : "0 sats";
-    if (summaryTotal) summaryTotal.textContent = "—";
+      physical ? "Choose delivery" : "0 sats";
+    if (summaryTotal) summaryTotal.textContent = payload ? "Calculating…" : "—";
+    if (physical && !payload && qty > 0) showHint(); else hideHint();
+    setBusy(!!payload);
     if (!payload) {
       if (submitButton) submitButton.disabled = false;
       return;
@@ -193,8 +283,10 @@
         body: JSON.stringify(payload)
       }).then(function (r) {
         if (version !== quoteVersion || pendingPayload) return;
+        setBusy(false);
         if (r.status !== 200 || !Number.isSafeInteger(r.body.total_sat)) {
-          if (summaryTotal) summaryTotal.textContent = GM.problemCopy(r.body);
+          if (summaryTotal) summaryTotal.textContent = "—";
+          showHint(GM.problemCopy(r.body), true);
           if (refreshQuote) refreshQuote.hidden = false;
           return;
         }
@@ -205,7 +297,9 @@
         if (submitButton) submitButton.disabled = false;
       }).catch(function () {
         if (version === quoteVersion && summaryTotal) {
-          summaryTotal.textContent = "Price unavailable — try again shortly.";
+          setBusy(false);
+          summaryTotal.textContent = "—";
+          showHint("Price unavailable — try again shortly.", true);
           if (refreshQuote) refreshQuote.hidden = false;
         }
       });
@@ -228,9 +322,52 @@
     return GM.h("span", { class: "pill pill-" + kind, text: label });
   }
 
+  /* Copy with visible feedback that resets, and a select-the-text
+     fallback when the Clipboard API is unavailable or refused. */
+  function copyButton(label, getText, fallbackEl) {
+    var btn = GM.h("button", { type: "button", class: "btn-secondary", text: label });
+    var reset = null;
+    function fallback() {
+      if (fallbackEl && fallbackEl.select) fallbackEl.select();
+    }
+    btn.addEventListener("click", function () {
+      var text = getText();
+      if (!text) return;
+      if (!navigator.clipboard) return fallback();
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = "Copied";
+        clearTimeout(reset);
+        reset = setTimeout(function () { btn.textContent = label; }, 2000);
+      }, fallback);
+    });
+    return btn;
+  }
+
+  function statusLinkBlock() {
+    return GM.h("div", { class: "invoice-actions" }, [
+      copyButton("Copy status link", function () { return GM.statusUrl(); }),
+      GM.h("p", {
+        class: "invoice-help",
+        text: "Save this private link to check your order later."
+      })
+    ]);
+  }
+
+  /* Keep the invoice in view when the form collapses (mobile users are
+     usually scrolled down to the pay button). */
+  function revealPanel() {
+    if (!card.getBoundingClientRect || card.getBoundingClientRect().top >= 0) return;
+    var reduce = window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    card.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  }
+
+  var shownBolt11 = null;
+
   function renderCreating() {
     if (!panel) return;
     GM.clear(panel);
+    shownBolt11 = null;
     panel.hidden = false;
     panel.setAttribute("data-invoice-state", "creating");
     panel.appendChild(
@@ -241,17 +378,22 @@
         GM.h("p", { class: "invoice-note", text: "Creating your invoice…" })
       ])
     );
+    revealPanel();
   }
 
   function renderAwaiting(bolt11, expiresAt, totalSat) {
     if (!panel) return;
+    /* Polls re-deliver the same invoice every 5s — don't rebuild the QR,
+       reset copy feedback, or drop a text selection mid-copy. */
+    if (panel.getAttribute("data-invoice-state") === "awaiting_payment" &&
+        shownBolt11 === bolt11) return;
     GM.clear(panel);
+    shownBolt11 = bolt11;
     panel.hidden = false;
     panel.setAttribute("data-invoice-state", "awaiting_payment");
     var wrap = GM.h("div", { class: "invoice-view" });
     wrap.appendChild(pill("Waiting for payment", "waiting"));
-    var qr = GM.h("div", { class: "invoice-qr" });
-    wrap.appendChild(qr);
+    wrap.appendChild(GM.h("h3", { class: "invoice-title", text: "Scan or open in your wallet" }));
     if (totalSat !== null && totalSat !== undefined) {
       wrap.appendChild(
         GM.h("p", { class: "invoice-amount", text: GM.sats(totalSat) })
@@ -262,37 +404,29 @@
       "aria-live": "polite"
     });
     wrap.appendChild(countdown);
+    var qr = GM.h("div", { class: "invoice-qr" });
+    wrap.appendChild(qr);
     var ta = GM.h("textarea", {
       class: "bolt11",
       readonly: "",
       "aria-label": "Lightning invoice"
     });
+    ta.rows = 2;
     ta.value = bolt11 || "";
-    wrap.appendChild(ta);
-    var copyBtn = GM.h("button", {
-      type: "button",
-      class: "btn-secondary",
-      text: "Copy invoice"
-    });
-    copyBtn.addEventListener("click", function () {
-      if (navigator.clipboard && bolt11) {
-        navigator.clipboard.writeText(bolt11);
-        copyBtn.textContent = "Copied";
-      }
-    });
-    wrap.appendChild(copyBtn);
-    var linkBtn = GM.h("button", {
-      type: "button",
-      class: "btn-secondary",
-      text: "Copy status link"
-    });
-    linkBtn.addEventListener("click", function () {
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(GM.statusUrl());
-        linkBtn.textContent = "Copied";
-      }
-    });
-    wrap.appendChild(linkBtn);
+    wrap.appendChild(
+      GM.h("div", { class: "invoice-actions" }, [
+        GM.h("a", {
+          class: "btn-primary btn-pay",
+          href: "lightning:" + (bolt11 || ""),
+          text: "Open in wallet"
+        }),
+        GM.h("div", { class: "invoice-string" }, [
+          ta,
+          copyButton("Copy invoice", function () { return bolt11; }, ta)
+        ])
+      ])
+    );
+    wrap.appendChild(statusLinkBlock());
     wrap.appendChild(
       GM.h("p", {
         class: "invoice-security",
@@ -304,6 +438,7 @@
     panel.appendChild(wrap);
     GM.renderQr(qr, "lightning:" + (bolt11 || ""));
     startCountdown(countdown, expiresAt);
+    revealPanel();
   }
 
   function startCountdown(el, expiresAt) {
@@ -326,6 +461,11 @@
   function renderConfirmed(body) {
     if (!panel) return;
     GM.clear(panel);
+    shownBolt11 = null;
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
     panel.hidden = false;
     panel.setAttribute("data-invoice-state", "confirmed");
     var wrap = GM.h("div", { class: "invoice-view" });
@@ -335,6 +475,7 @@
         "success"
       )
     );
+    wrap.appendChild(GM.h("h3", { class: "invoice-title", text: "Thank you for your order" }));
     wrap.appendChild(
       GM.h("p", {
         class: "invoice-amount",
@@ -353,18 +494,7 @@
       });
       wrap.appendChild(ul);
     }
-    var linkBtn = GM.h("button", {
-      type: "button",
-      class: "btn-secondary",
-      text: "Copy status link"
-    });
-    linkBtn.addEventListener("click", function () {
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(GM.statusUrl());
-        linkBtn.textContent = "Copied";
-      }
-    });
-    wrap.appendChild(linkBtn);
+    wrap.appendChild(statusLinkBlock());
     panel.appendChild(wrap);
   }
 
@@ -507,6 +637,7 @@
       lockedFields.forEach(function (field) { field.el.disabled = field.disabled; });
       lockedFields = null;
     }
+    syncQtyButtons();
   }
 
   form.addEventListener("submit", function (ev) {
@@ -552,11 +683,16 @@
       payload.shipping_option_d = shipSel.value;
       payload.address = {
         country: country,
-        region: val("region"),
         line1: val("line1"),
         city: val("city"),
         postal_code: val("postal_code")
       };
+      var region = regionFor(country);
+      if (!regionOk(country, region)) {
+        fieldError("region", REGION_COPY);
+        return;
+      }
+      if (region) payload.address.region = region;
     }
     var email = val("email");
     var optIn = form.querySelector("input[name=email_opt_in]");

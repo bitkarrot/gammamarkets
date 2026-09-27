@@ -144,6 +144,40 @@ test('physical product requires destination + shipping', async ({
   )
 })
 
+test('quantity stepper drives the server-priced summary', async ({page}) => {
+  await page.goto(seed.digital_url)
+  await expect(page.locator('.product-price')).toContainText('2,500 sats')
+  const minus = page.locator('.qty-btn[data-qty-step="-1"]')
+  await expect(minus).toBeDisabled()
+  await page.locator('.qty-btn[data-qty-step="1"]').click()
+  await expect(page.locator('#gm-qty')).toHaveValue('2')
+  await expect(page.locator('[data-sum-qty]')).toHaveText('× 2')
+  await expect(page.locator('[data-sum="total"]')).toContainText('5,000')
+  await minus.click()
+  await expect(page.locator('[data-sum="total"]')).toContainText('2,500')
+})
+
+test('physical total needs no region and accepts short region codes', async ({page}) => {
+  const quotes: string[] = []
+  page.on('request', req => {
+    if (req.url().endsWith('/api/v1/public/quote')) quotes.push(req.postData() || '')
+  })
+  await page.goto(seed.physical_url)
+  await expect(page.locator('[data-sum-hint]')).toBeVisible()
+  await page.locator('#gm-country').selectOption('US')
+  await page.locator('#gm-shipping').selectOption({index: 1})
+  await expect(page.locator('[data-sum="total"]')).toContainText('8,000')
+  await expect(page.locator('[data-sum-hint]')).toBeHidden()
+  expect(JSON.parse(quotes[quotes.length - 1]).address).toEqual({country: 'US'})
+
+  await page.locator('#gm-region').fill('il')
+  await expect(page.locator('[data-sum="total"]')).toContainText('8,000')
+  await expect.poll(() => JSON.parse(quotes[quotes.length - 1]).address.region).toBe('US-IL')
+
+  await page.locator('#gm-region').fill('Illinois')
+  await expect(page.locator('[data-error-for="region"]')).toContainText('state or region code')
+})
+
 test('compact layout is forced at <=560px', async ({page}) => {
   await page.setViewportSize({width: 375, height: 800})
   await page.goto(seed.digital_url)
