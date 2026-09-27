@@ -1,7 +1,7 @@
 ---
 phase: "02"
 slug: "release-a-safe-web-commerce"
-status: draft
+status: verified
 threats_open: 0
 asvs_level: 1
 created: "2026-09-27"
@@ -9,7 +9,7 @@ created: "2026-09-27"
 
 # Phase 2 — Security
 
-This is an ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04, plus T-205-01 added when UAT introduced digital delivery. `threats_open: 0` means the specified mitigations were found in the extension and exercised locally; it is **not** a Release-A sign-off. [Linux CI run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) passed all four blocking profiles on `b12e350`; human security/UX review remains outstanding. The pinned LNbits source was not changed.
+This is an ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04, plus T-205-01 added when UAT introduced digital delivery. `threats_open: 0` means all 26 specified mitigations were found in the extension and exercised. [Current implementation CI run 36352552899](https://github.com/bitkarrot/gammamarkets/actions/runs/36352552899) passed lint and all four blocking Linux profiles on `021c402`; human UAT passed 3/3, including payment/privacy wording, responsive accessibility, theme isolation and merchant operations. The pinned LNbits source was not changed. Optional public-relay and real-funding-provider interoperability remain outside this Phase 2 sign-off.
 
 ## Trust Boundaries
 
@@ -67,7 +67,8 @@ No accepted risks. A relay can retain already-public catalog events despite a ki
 |------------|---------------|----------------|--------------------|--------|
 | 2026-09-27 | 25 | 25 | 0 | Devin, source review + SQLite/PostgreSQL qualification and Chromium |
 | 2026-09-27 | 25 | 25 | 0 | Linux CI run 36303338957: x86_64/ARM64 × SQLite/PostgreSQL all passed on `b12e350` |
-| 2026-09-27 | 26 | 26 | 0 | Devin, UAT redesign: T-205-01 digital delivery gating — local SQLite runtime + Chromium; Linux CI pending push |
+| 2026-09-27 | 26 | 26 | 0 | Current implementation CI run 36352552899: x86_64/ARM64 × SQLite/PostgreSQL all passed on `021c402` |
+| 2026-09-27 | 26 | 26 | 0 | Human UAT 3/3: checkout/payment wording, private order/admin workflow, responsive accessibility and theme isolation passed |
 
 ## Sign-Off
 
@@ -75,6 +76,6 @@ No accepted risks. A relay can retain already-public catalog events despite a ki
 - [x] No risk was silently accepted as a substitute for a missing mitigation.
 - [x] `threats_open: 0` for local code-level verification.
 - [x] Current-revision Linux x86_64 and ARM64 CI evidence reviewed.
-- [ ] Human security/UX review completed; set `status: verified` only then.
+- [x] Human security/UX and accessibility review completed through UAT 3/3.
 
-**Approval:** pending human security/UX review.
+**Approval:** verified for the Phase 2 Release-A scope on 2026-09-27. Optional external public-relay and real-funding-provider tests remain explicitly outside this approval.
