@@ -1,0 +1,77 @@
+---
+phase: "02"
+slug: "release-a-safe-web-commerce"
+status: draft
+threats_open: 0
+asvs_level: 1
+created: "2026-09-27"
+---
+
+# Phase 2 — Security
+
+This is a local ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04. `threats_open: 0` means the specified mitigations were found in the extension and exercised locally; it is **not** a Release-A sign-off. Current-revision Linux CI and human security/UX review are outstanding. The pinned LNbits source was not changed.
+
+## Trust Boundaries
+
+| Boundary | Data crossing | Control |
+|----------|---------------|---------|
+| Merchant browser → admin API | Session, configuration, identity import, order actions | Host owner authentication plus extension Origin/CSRF validation, legal actions and ciphertext key custody |
+| Anonymous browser → public API | Cart, delivery information, idempotency key and private order token | Server-priced quote, stock claim, bounded rates, fragment-to-memory token extraction and header-only status access |
+| Extension → LNbits wallet/database | Invoice request and authoritative payment record | UTC readiness, wallet/amount/hash/expiry correlation before invoice delivery and again at settlement; no retrying an uncertain invoice creation |
+| Workers → extension database | Durable outbox, settlement, email and reservation writes | Conditional state changes, fencing tokens and per-recipient claims |
+| Extension → Nostr relays | Signed public catalog/profile projections and relay ACKs | Validated relay targets, recipient-limited sending and durable ACK evidence; no order or payment authority crosses this boundary |
+| Public theme → admin interface | Merchant-controlled token values | Allowlist, contrast gates and `.gm-public` CSS scope |
+
+## Threat Register
+
+All statuses below describe local implementation evidence, not deployed-platform certification. Severity and disposition are transcribed from the phase plans.
+
+| Threat ID | Category | Component | Severity | Disposition | Mitigation and evidence | Status |
+|-----------|----------|-----------|----------|-------------|-------------------------|--------|
+| T-201-01 | Information disclosure | nsec import/key storage | high | mitigate | `keystore.py`, `crypto.py`; encrypted storage and log-redaction regressions in `test_crypto_keystore.py` | closed |
+| T-201-02 | Elevation | cross-origin admin mutation | high | mitigate | `security.py` and admin API owner/Origin/CSRF guards; runtime auth probes and P0-12 | closed |
+| T-201-03 | Tampering | catalog write without outbox | high | mitigate | `services/catalog.py` enqueues in the domain transaction; `test_catalog_api.py`, `test_outbox.py` | closed |
+| T-201-04 | Information disclosure | markdown/JSON persistence or injection | medium | mitigate | Bounded catalog DTOs and sanitized rendering; catalog round-trip and public-page tests | closed |
+| T-201-05 | Denial of service | oversized catalog input | medium | mitigate | `services/catalog.py` input bounds; `test_catalog_api.py` | closed |
+| T-201-06 | Elevation | unsupported deployment topology | medium | mitigate | `services/readiness.py` refuses incompatible database/process timezones; `test_db.py`, `test_checkout.py` | closed |
+| T-202-01 | Information disclosure | public pages expose internals | high | mitigate | `services/nip89.py` public projections; `test_public_contract.py`, `test_catalog_api.py` exclude draft, hidden and deleted data | closed |
+| T-202-02 | Tampering | forged publication state | high | mitigate | `services/outbox.py` claim-token/lease CAS and durable relay evidence; `test_outbox.py` | closed |
+| T-202-03 | Repudiation | lost or misattributed relay ACK | medium | mitigate | Per-target `relay_publications` evidence and positive LocalRelay ACK in isolated browser harness; `test_outbox.py` | closed |
+| T-202-04 | Denial of service | stalled relay send | medium | mitigate | Bounded transport/retry and independent relay failures; `services/transport.py`, `test_outbox.py` | closed |
+| T-202-05 | Elevation | CSS/script theme injection | medium | mitigate | `services/themes.py` allowlist and contrast checks, scoped emitted CSS/CSP; `test_themes.py` | closed |
+| T-202-06 | Information disclosure | NIP-89 relay-hint fetch | medium | mitigate | `services/nip89.py` resolves local identifiers without fetching embedded hints; `test_nip89.py` and P0-11 | closed |
+| T-202-07 | Tampering | relay URL changed or redirected after validation | medium | mitigate | `services/transport.py` revalidates before sync, connect and send; `test_relay_config_api.py` | closed |
+| T-203-01 | Tampering | duplicate invoice/double allocation | critical | mitigate | `services/checkout.py` idempotency claim, conditional reservation, single Core external ID, invoice correlation and no blind reissue; `test_checkout.py`, `test_order_saga.py` on both databases | closed |
+| T-203-02 | Information disclosure | bearer token in path/query/log | critical | mitigate | `views_public_api.py` accepts `X-Order-Token`; browser immediately removes inbound fragment with `replaceState`; redaction/dead-token and Playwright tests | closed |
+| T-203-03 | Tampering | buyer or relay evidence as payment | high | mitigate | `services/settlement.py` trusts only verified LNbits rows, not client or relay state; `test_order_saga.py` | closed |
+| T-203-04 | Denial of service | stock squatting/checkout flood | high | mitigate | Bounded open orders/held stock and transactional rate buckets, TTL expiry; `test_checkout.py`, `test_email_queue.py` | closed |
+| T-203-05 | Information disclosure | buyer address/contact | high | mitigate | AEAD fields, restricted public response and retention erasure; `test_order_saga.py`, `test_public_contract.py` | closed |
+| T-203-06 | Repudiation | unproven refund claim | medium | mitigate | Merchant refund attestation is an audit event, not an automatic refund; `services/orders.py`, `test_order_admin.py` | closed |
+| T-203-07 | Tampering | expired worker lease | high | mitigate | `services/tasks.py`, `services/email.py` and `services/outbox.py` guard leased writes; stale-claim tests | closed |
+| T-204-01 | Information disclosure | fragment/history/referrer token leak | critical | mitigate | `public_order.js` strips fragment to memory; no token path/query in shipped API or E2E settle route; `test_buyer_ui.py`, `buyer.spec.ts` | closed |
+| T-204-02 | Tampering | illegal action from admin UI | high | mitigate | `services/orders.py` legal transitions and admin action map; `test_order_admin.py` | closed |
+| T-204-03 | Information disclosure | admin renders secrets | high | mitigate | Redacted admin projections and technical details; `test_admin_ui.py`, `test_order_admin.py` | closed |
+| T-204-04 | Elevation | merchant theme crosses into admin | medium | mitigate | `.gm-public`-scoped CSS and no admin theme token emission; `test_themes.py`, `test_admin_ui.py` | closed |
+| T-204-05 | Denial of service | buyer induced to pay twice | critical | mitigate | `public_checkout.js` preserves uncertain idempotency keys and offers no second invoice; invoice/expiry text avoids claiming unpaid without proof; `buyer.spec.ts`, `test_order_saga.py` | closed |
+
+A shareable order link intentionally contains a token in its **URL fragment** until the receiving page strips it. The protection is that the fragment is not sent in HTTP paths, queries or referrers; the link itself must be kept private. No broader claim that the token never appears in a URL is made.
+
+## Accepted Risks Log
+
+No accepted risks. A relay can retain already-public catalog events despite a kind-5 deletion; checkout always checks the canonical database instead of trusting relay availability or stock.
+
+## Security Audit Trail
+
+| Audit Date | Threats Total | Closed locally | Open at/above high | Run By |
+|------------|---------------|----------------|--------------------|--------|
+| 2026-09-27 | 25 | 25 | 0 | Devin, source review + SQLite/PostgreSQL qualification and Chromium |
+
+## Sign-Off
+
+- [x] Each planned threat has a mitigation and local source/test evidence.
+- [x] No risk was silently accepted as a substitute for a missing mitigation.
+- [x] `threats_open: 0` for local code-level verification.
+- [ ] Current-revision Linux x86_64 and ARM64 CI evidence reviewed.
+- [ ] Human security/UX review completed; set `status: verified` only then.
+
+**Approval:** pending external gates.

@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 2
 current_phase_name: Release A — Safe Web Commerce
 status: executing
-stopped_at: Plan 02-03 complete — orders, checkout saga, settlement/reconciliation, order admin API, email queue
-last_updated: "2026-09-22T06:07:44.000Z"
-last_activity: 2026-09-21
-last_activity_desc: Plan 02-03 executed — 157 runtime tests green, full regression 377 passed 1 skipped
+stopped_at: All 02-01..02-04 implementation plans executed; Phase 2 closeout blocked by Linux CI, human review and stale demo deployment
+last_updated: "2026-09-27T07:24:47.000Z"
+last_activity: 2026-09-27
+last_activity_desc: Local SQLite/PostgreSQL full qualification and both Chromium suites passed; release verification remains open
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 7
-  completed_plans: 6
-  percent: 85
+  completed_plans: 7
+  percent: 100
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-09-20)
 ## Current Position
 
 Phase: 2 of 4 (Release A — Safe Web Commerce)
-Plan: 4 plans written (02-01..02-04), checker-verified, 3/4 complete
-Status: Executing — 02-03 done, next 02-04 (buyer checkout/status UI + merchant admin surfaces)
-Last activity: 2026-09-22 — Plan 02-03 executed and verified
+Plan: 4 plans written (02-01..02-04), checker-verified, 4/4 implemented
+Status: Executing closeout — Linux CI, human security/UX review and safe demo deployment outstanding
+Last activity: 2026-09-27 — local full qualification and Chromium checks passed on both databases
 
-Progress: [████████░░] 85%
+Progress: [██████████] 100% of written implementation plans; only Phase 1 of 4 is formally complete
 
 ## Performance Metrics
 
@@ -88,11 +88,14 @@ Decisions are logged in PROJECT.md and the normative specification.
 
 ### Pending Todos
 
-None yet.
+- Obtain current-revision Linux x86_64 and ARM64 CI runs for SQLite and PostgreSQL after an authorized push.
+- Complete human buyer/merchant UAT and security/accessibility sign-off in `02-UAT.md` and `02-SECURITY.md`.
+- Move the running port 5099 demo to the current backend without deleting its data; recheck the quote route before buyer checkout.
 
 ### Blockers/Concerns
 
-- SDK `0.44.8` is a candidate, not an approved binary, until QUAL-01 through QUAL-03 pass.
+- Phase 2 local automated verification passed on macOS, not Linux CI; code remains local and Phase 2 is not formally complete (`02-VERIFICATION.md`).
+- Port 5099 serves old backend code without the new quote route, while its static assets now use the route; it currently fails closed for checkout.
 - Release B cannot claim production readiness without deployed egress controls and external-client evidence.
 - Release C requires a live scarce-stock payable-invoice cutover rehearsal.
 
@@ -106,6 +109,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-22T06:07:44.000Z
-Stopped at: Plan 02-01 complete — extension skeleton, m001, crypto/keystore, §5.1+5.2 APIs, outbox intents
-Resume file: .planning/phases/02-release-a-safe-web-commerce/02-03-PLAN.md
+Last session: 2026-09-27T07:24:47.000Z
+Stopped at: Phase 2 code and local verification complete; external release gates still open
+Resume file: .planning/phases/02-release-a-safe-web-commerce/02-VERIFICATION.md

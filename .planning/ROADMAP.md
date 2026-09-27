@@ -58,7 +58,7 @@ Plans:
 4. Merchant can triage and manage legal order/fulfillment/exception actions in a responsive split list/detail workspace with embedded chronology and per-recipient notifications.
 5. Release-A security, accessibility/contrast, public/admin theme separation, retention, logging, unsupported-topology, failure-drill, and applicable Phase 0 assertions pass through the real implementation.
 
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 implementation plans executed; Phase 2 release verification remains open.
 **UI prerequisite:** Before Phase 2 plan execution, generate and approve the Phase 2 UI contract using `.devin/skills/sketch-findings-gammamarkets/` and the normative technical specification. *(Satisfied: `02-UI-SPEC.md` approved.)*
 
 Plans:
@@ -66,12 +66,14 @@ Plans:
 - [x] 02-01-PLAN.md
 - [x] 02-02-PLAN.md
 - [x] 02-03-PLAN.md
-- [ ] 02-04-PLAN.md
+- [x] 02-04-PLAN.md
 
 - [x] 02-01: Extension skeleton, key custody, database/migrations, merchant and catalog domain
 - [x] 02-02: Relay transport + durable outbox publication, NIP-89 handler, public storefront, theme backend
 - [x] 02-03: Checkout, reservation + invoice saga, settlement/reconciliation, order admin API, email
-- [ ] 02-04: Buyer checkout/status UI and merchant admin surfaces (orders, catalog, publications, settings, appearance)
+- [x] 02-04: Buyer checkout/status UI and merchant admin surfaces (orders, catalog, publications, settings, appearance)
+
+**Release gate:** Local SQLite/PostgreSQL qualification and browser suites passed on macOS. Current-revision Linux x86_64/ARM64 CI, human review and a data-preserving restart of the old demo are still required. Do not mark Phase 2 complete or start Phase 3 on the basis of plan checkboxes alone; see `02-VERIFICATION.md`, `02-SECURITY.md` and `02-UAT.md`.
 
 *Plan count revised 3→4 during plan-checker revision: order-backend and UI layers split to keep each executor under the context budget.*
 

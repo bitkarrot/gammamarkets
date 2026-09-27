@@ -212,5 +212,15 @@ Bugs found by the browser run and fixed in shipped code:
   in-DOM template compilation (HTML parser foster-parents table
   children out of unknown elements); relay health now uses `q-table`.
 
-Not verified: PostgreSQL `SKIP LOCKED` variants (CI); real relay
-publish/ACK round-trips (RELAY_IO=off by design in E2E).
+Not verified at the time of this plan's original execution: PostgreSQL `SKIP LOCKED` variants (CI); real relay publish/ACK round-trips (RELAY_IO=off in the initial E2E harness).
+
+## Post-plan Phase 2 closeout review (2026-09-27)
+
+This section supersedes the earlier test totals and initial-execution caveat; it does not retroactively mark Phase 2 released. The browser harness now uses an owned local relay with a real positive ACK and supports both SQLite and a separate UTC-configured PostgreSQL database. The extension was tightened for PostgreSQL transaction locking/timezones, catalog privacy, shipping unit/currency precision, stale-worker fencing, quote/invoice agreement, advanced theme contrast, gallery accessibility (all 16 permitted images), buyer retry safety and pre-delivery signed-invoice/wallet correlation. Invoice uncertainty never creates a second invoice, and relay delivery remains separate from payment truth.
+
+- Canonical SQLite qualification: **447 passed, 3 skipped**.
+- Canonical PostgreSQL qualification: **448 passed, 2 skipped**, 1 warning from the deliberate host auto-commit probe.
+- Chromium admin/buyer browser journey: **13 passed** on SQLite and **13 passed** on PostgreSQL, with LocalRelay publication ACKs; the PostgreSQL browser run preceded the last gallery-only change, which passed separately on PostgreSQL.
+- Ruff and changed JS syntax checks: passed. The pinned LNbits checkout remained clean and unchanged.
+
+The 25 planned threat mitigations have local implementation/test evidence in `02-SECURITY.md`. Phase 2 completion is still **blocked** by current-revision Linux x86_64/ARM64 CI, human accessibility/security/UX review, and a data-preserving deployment refresh for the old demo on port 5099. `02-VERIFICATION.md` has the exact profiles, source fingerprint, skips and remaining gates; `02-UAT.md` tracks the unanswered human checks. No Phase 3 work was started.
