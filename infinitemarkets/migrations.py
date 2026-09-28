@@ -786,3 +786,104 @@ async def m005_order_archiving(db: Connection):
         f"CREATE INDEX ix_orders_merchant_archive "
         f"ON {s}orders(merchant_id, archived_at, created_at)"
     )
+
+
+async def m006_gamma_inbox(db: Connection):
+    """Plan 03-01 — Release B Gamma inbox schema (spec section 4.11).
+
+    Creates the deferred ``peer_relays`` / ``relay_cursors`` tables plus the
+    ``inbox_blocklist`` (D-23 mute surface), the ``merchants.inbox_state``
+    activation state machine column (``off|pending|active|error|
+    deactivating`` — enforced in the domain layer, GAM-01/D-16), the
+    ``relay_configs`` NIP-42/paid-relay auth columns (D-26..D-28), and the
+    ``order_messages`` Messages-surface markers (conversation threading +
+    read markers, written from plan 03-02 onward).
+    """
+    s = db.references_schema
+    int_t = db.big_int
+    blob_t = db.blob
+
+    # --- 4.11 peer_relays: buyer kind-10050 discovery cache --------------------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}peer_relays (
+            id TEXT PRIMARY KEY,
+            merchant_id TEXT NOT NULL
+                REFERENCES {s}merchants(id) ON DELETE RESTRICT,
+            pubkey_hash TEXT NOT NULL,
+            pubkey_enc {blob_t},
+            relay_url TEXT NOT NULL,
+            fetched_at {int_t},
+            expires_at {int_t}
+        )
+        """
+    )
+    await db.execute(
+        f"CREATE UNIQUE INDEX ux_peer_relays "
+        f"ON {s}peer_relays(merchant_id, pubkey_hash, relay_url)"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_peer_relays_pubkey "
+        f"ON {s}peer_relays(pubkey_hash)"
+    )
+
+    # --- 4.11 relay_cursors: EOSE-bound session cursors (section 9.2) ----------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}relay_cursors (
+            id TEXT PRIMARY KEY,
+            merchant_id TEXT NOT NULL
+                REFERENCES {s}merchants(id) ON DELETE CASCADE,
+            relay_url TEXT NOT NULL,
+            protocol TEXT NOT NULL,
+            last_completed_session_start {int_t},
+            eose_session_id TEXT,
+            eose_at {int_t},
+            updated_at {int_t},
+            UNIQUE (merchant_id, relay_url, protocol)
+        )
+        """
+    )
+
+    # --- inbox_blocklist: muted authors dropped at intake (D-23) ---------------
+    await db.execute(
+        f"""
+        CREATE TABLE {s}inbox_blocklist (
+            id TEXT PRIMARY KEY,
+            merchant_id TEXT NOT NULL
+                REFERENCES {s}merchants(id) ON DELETE CASCADE,
+            author_hash TEXT NOT NULL,
+            reason TEXT,
+            created_at {int_t},
+            UNIQUE (merchant_id, author_hash)
+        )
+        """
+    )
+
+    # --- merchants.inbox_state: kind-10050 activation state machine ------------
+    await db.execute(
+        f"ALTER TABLE {s}merchants ADD COLUMN inbox_state TEXT"
+        " NOT NULL DEFAULT 'off'"
+    )
+
+    # --- relay_configs: per-relay NIP-42/paid-relay auth surface (D-26..D-28) --
+    await db.execute(
+        f"ALTER TABLE {s}relay_configs ADD COLUMN auth_state TEXT"
+    )
+    await db.execute(
+        f"ALTER TABLE {s}relay_configs ADD COLUMN auth_note TEXT"
+    )
+    await db.execute(
+        f"ALTER TABLE {s}relay_configs ADD COLUMN paid_invoice TEXT"
+    )
+    await db.execute(
+        f"ALTER TABLE {s}relay_configs ADD COLUMN auth_updated_at {int_t}"
+    )
+
+    # --- order_messages: Messages-surface markers (03-02 writes them) ----------
+    await db.execute(
+        f"ALTER TABLE {s}order_messages ADD COLUMN conversation_id TEXT"
+    )
+    await db.execute(
+        f"ALTER TABLE {s}order_messages ADD COLUMN read_at {int_t}"
+    )

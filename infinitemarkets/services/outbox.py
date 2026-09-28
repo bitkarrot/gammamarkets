@@ -470,6 +470,27 @@ async def render_intent(row: dict, database=None) -> dict | None:
                 zones.append(events.digital_zone())
             return events.stall_event(dict(cat), zones=zones)
 
+        if agg == "merchant":
+            # kind-10050 inbox profile (GAM-01/D-16) — rebuilt from the
+            # CURRENT enabled inbox relay set, like every other aggregate.
+            merchant = await conn.fetchone(
+                f"SELECT * FROM {table('merchants')} WHERE id = :m",
+                {"m": row["merchant_id"]})
+            if not merchant or kind != 10050:
+                return None
+            inbox_rows = await conn.fetchall(
+                f"SELECT relay_url FROM {table('relay_configs')} "
+                "WHERE (merchant_id = :m OR merchant_id IS NULL) AND enabled"
+                " AND direction IN ('inbox', 'both') ORDER BY relay_url",
+                {"m": row["merchant_id"]})
+            urls = [r["relay_url"] for r in inbox_rows]
+            if not urls:
+                return None
+            # §9.3/§6.9: the public advertisement carries at most 3 relay
+            # tags — the sorted head is the deterministic choice.
+            return events.build_kind10050(
+                merchant["pubkey"], urls[:3])
+
         if agg == "merchant_profile":
             merchant = await conn.fetchone(
                 f"SELECT * FROM {table('merchants')} WHERE id = :m",
@@ -586,6 +607,7 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
             if accepted:
                 await _cas_state(tx, row, "published", now)
                 await _maybe_activate_merchant(tx, row)
+                await _maybe_update_inbox_state(tx, row, "published")
                 return "published"
             if row["event_kind"] == 5 and not row.get("event_address"):
                 await _cas_state(tx, row, "superseded", now)
@@ -595,6 +617,7 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
                 tx, row, state, now, next_attempt_at=now + _backoff(row["attempts"] + 1),
                 last_error="no-relay-targets",
             )
+            await _maybe_update_inbox_state(tx, row, state)
             return state
 
         # sign inside the tx window — key released immediately after
@@ -654,6 +677,7 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
                 await _record_address(tx, row, event_id, created_at, now)
             await _cas_state(tx, row, "published", now)
             await _maybe_activate_merchant(tx, row)
+            await _maybe_update_inbox_state(tx, row, "published")
             return "published"
         if any(r == "accepted" for _, r, _ in results):
             state = "partially_published"
@@ -664,6 +688,7 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
             state = "failed"
             next_at = 0
         await _cas_state(tx, row, state, now, next_attempt_at=next_at)
+        await _maybe_update_inbox_state(tx, row, state)
         return state
 
 
@@ -677,6 +702,40 @@ async def _maybe_activate_merchant(tx, row) -> None:
         f"UPDATE {tx.table('merchants')} SET state = 'active',"
         " updated_at = :n WHERE id = :m AND state = 'publication_pending'",
         {"n": _now(), "m": row["aggregate_id"]},
+    )
+
+
+async def _maybe_update_inbox_state(tx, row, outcome: str) -> None:
+    """GAM-01/D-16/D-17: ``merchants.inbox_state`` tracks durable relay
+    evidence for the kind-10050 profile — never the intent itself.
+
+    - ``pending -> active`` only when the 10050 intent reaches
+      ``published`` (≥1 ``accepted`` relay_publications row exists);
+    - ``pending -> error`` when the intent exhausts attempts (``failed``);
+    - ``deactivating -> off`` when the ``10050:<pk>:`` kind-5 tombstone
+      publishes; a failed tombstone surfaces as ``error`` so a stuck
+      deactivation is visible rather than silently retaining reachability.
+    """
+    if row["aggregate_type"] != "merchant":
+        return
+    address = row.get("event_address") or ""
+    new_state = None
+    if row["event_kind"] == 10050:
+        if outcome == "published":
+            new_state = "active"
+        elif outcome == "failed":
+            new_state = "error"
+    elif row["event_kind"] == 5 and address.startswith("10050:"):
+        if outcome == "published":
+            new_state = "off"
+        elif outcome == "failed":
+            new_state = "error"
+    if new_state is None:
+        return
+    await tx.execute(
+        f"UPDATE {tx.table('merchants')} SET inbox_state = :s,"
+        " updated_at = :n WHERE id = :m",
+        {"s": new_state, "n": _now(), "m": row["aggregate_id"]},
     )
 
 
@@ -723,6 +782,34 @@ async def _sign(settings, keystore, row, unsigned, created_at):
     return await keystore.sign_event(row["merchant_id"], unsigned_event)
 
 
+def _targets_inbox_set(row: dict) -> bool:
+    """The kind-10050 profile and its kind-5 tombstone publish to the
+    discovery set buyers query — enabled public ∪ inbox targets (OQ1)."""
+    if row["event_kind"] == 10050:
+        return True
+    return row["event_kind"] == 5 and (
+        row.get("event_address") or ""
+    ).startswith("10050:")
+
+
+async def publish_targets(row: dict, database=None) -> list[str]:
+    """Relay targets for one intent: the public set for catalog/profile
+    events; public ∪ inbox for the kind-10050 publish set."""
+    from . import relay as relay_service
+
+    if _targets_inbox_set(row):
+        public = await relay_service.relay_targets(
+            row["merchant_id"], "public", database=database
+        )
+        inbox = await relay_service.relay_targets(
+            row["merchant_id"], "inbox", database=database
+        )
+        return sorted(set(public) | set(inbox))
+    return await relay_service.relay_targets(
+        row["merchant_id"], "public", database=database
+    )
+
+
 async def recover_stale_claims(now: int, database=None) -> int:
     """Lease-expired claims return to pending/partially_published with the
     claim-token CAS; durable accepted evidence is reconstructed (§8.6)."""
@@ -755,7 +842,6 @@ async def worker_tick(worker_id: str, *, now: int | None = None) -> dict:
     from .. import keystore as keystore_mod
     from ..db import worker_db
     from . import metrics
-    from . import relay as relay_service
     from .transport import transport
 
     now = now or _now()
@@ -770,9 +856,7 @@ async def worker_tick(worker_id: str, *, now: int | None = None) -> dict:
         outcomes = []
         ks = keystore_mod.key_store()
         for row in claimed:
-            targets = await relay_service.relay_targets(
-                row["merchant_id"], "public", database=wdb
-            )
+            targets = await publish_targets(row, database=wdb)
             try:
                 outcome = await publish_intent(
                     row, transport=tport, keystore=ks,

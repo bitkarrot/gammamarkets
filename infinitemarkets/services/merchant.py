@@ -127,6 +127,8 @@ def _public_merchant(row: dict) -> dict:
         "notify_emails": json.loads(row["notify_emails"]) if row["notify_emails"] else [],
         "notify_events": json.loads(row["notify_events"]) if row["notify_events"] else {},
         "state": row["state"],
+        # m006 column — defaults to 'off' pre-migration for fixture safety.
+        "inbox_state": row.get("inbox_state") or "off",
         "theme": json.loads(row["theme"]) if row.get("theme") else None,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -488,6 +490,129 @@ async def publish(merchant_id: str, user,
                 {"t": now, "i": merchant_id},
             )
     return {"enqueued": True, "state": "publication_pending"}
+
+
+INBOX_STATES = ("off", "pending", "active", "error", "deactivating")
+INBOX_PUBLISH_AGGREGATE = "merchant"
+
+
+async def _inbox_revision(tx: DomainTransaction, merchant_id: str) -> int:
+    """Next aggregate revision for the merchant's kind-10050 profile —
+    §8.6 supersession: a new publish set always outranks stale intents."""
+    row = await tx.fetch_one(
+        f"SELECT COALESCE(MAX(aggregate_revision), 0) + 1 AS r "
+        f"FROM {tx.table('outbox_events')} "
+        "WHERE aggregate_type = :at AND aggregate_id = :ai",
+        {"at": INBOX_PUBLISH_AGGREGATE, "ai": merchant_id},
+    )
+    return int(row["r"])
+
+
+async def enable_inbox(merchant_id: str, user,
+                       settings: ExtSettings | None = None) -> dict:
+    """Activate Gamma inbox ordering (D-16/GAM-01).
+
+    Requires ≥1 enabled ``direction='inbox'|'both'`` relay_config — a
+    merchant with NO relay rows at all opts into the visible starter set
+    (``ensure_default_inbox_relays``). Sets ``inbox_state='pending'`` and
+    enqueues the kind-10050 publish intent at a bumped revision; the
+    outbox worker flips ``pending -> active`` only on ≥1 durable
+    ``accepted`` relay_publications row (never on intent alone).
+    """
+    row = await get_merchant_row(merchant_id, str(user.id))
+    if row["state"] in ("deactivating", "inactive"):
+        raise conflict(
+            "invalid-transition", "Merchant not editable",
+            "merchant is deactivating/inactive",
+        )
+    from . import relay as relay_service
+
+    await relay_service.ensure_default_inbox_relays(merchant_id)
+    if not await relay_service.relay_targets(merchant_id, "inbox"):
+        raise unprocessable(
+            "no-inbox-relays", "No inbox relays configured",
+            "enable at least one direction=inbox|both relay_config",
+        )
+    address = events_inbox_address(row["pubkey"])
+    async with DomainTransaction() as tx:
+        revision = await _inbox_revision(tx, merchant_id)
+        await tx.execute(
+            f"UPDATE {tx.table('merchants')} SET inbox_state = 'pending',"
+            " updated_at = :t WHERE id = :i",
+            {"t": _now(), "i": merchant_id},
+        )
+        await _enqueue_intent(
+            tx, merchant_id, INBOX_PUBLISH_AGGREGATE, merchant_id,
+            10050, revision=revision, event_address=address,
+        )
+    return {"inbox_state": "pending"}
+
+
+async def disable_inbox(merchant_id: str, user,
+                        settings: ExtSettings | None = None) -> dict:
+    """Deactivate Gamma inbox ordering (D-17).
+
+    Enqueues the kind-5 tombstone for the non-addressable ``10050:<pk>:``
+    profile at a bumped revision (superseding any live publish intent) and
+    moves ``inbox_state -> 'deactivating'`` — the intake subscription keys
+    off ``inbox_state == 'active'`` and stops. The worker flips to 'off'
+    when the tombstone publishes; in-flight orders are untouched.
+    """
+    row = await get_merchant_row(merchant_id, str(user.id))
+    if row.get("inbox_state", "off") == "off":
+        return {"inbox_state": "off"}
+    address = events_inbox_address(row["pubkey"])
+    async with DomainTransaction() as tx:
+        revision = await _inbox_revision(tx, merchant_id)
+        await tx.execute(
+            f"UPDATE {tx.table('merchants')} SET inbox_state = 'deactivating',"
+            " updated_at = :t WHERE id = :i",
+            {"t": _now(), "i": merchant_id},
+        )
+        await _enqueue_intent(
+            tx, merchant_id, INBOX_PUBLISH_AGGREGATE, merchant_id,
+            5, revision=revision, event_address=address,
+        )
+    return {"inbox_state": "deactivating"}
+
+
+def events_inbox_address(pubkey: str) -> str:
+    from . import events
+
+    return events.inbox_profile_address(pubkey)
+
+
+async def get_inbox_state(merchant_id: str, user) -> dict:
+    """Inbox-state admin read: state machine, declared inbox relays, and
+    the latest durable publication evidence for the 10050/tombstone
+    intents."""
+    row = await get_merchant_row(merchant_id, str(user.id))
+    from . import relay as relay_service
+
+    inbox_relays = await relay_service.relay_targets(merchant_id, "inbox")
+    async with db.connect() as conn:
+        evidence = await conn.fetchall(
+            f"SELECT rp.relay_url, rp.delivery_copy, rp.result, rp.message,"
+            " rp.attempted_at, oe.event_kind, oe.event_address "
+            f"FROM {table('relay_publications')} rp "
+            f"JOIN {table('outbox_events')} oe ON oe.id = rp.outbox_event_id "
+            "WHERE oe.merchant_id = :m AND oe.aggregate_type = :at "
+            "ORDER BY rp.attempted_at DESC LIMIT 20",
+            {"m": merchant_id, "at": INBOX_PUBLISH_AGGREGATE},
+        )
+        latest_intent = await conn.fetchone(
+            f"SELECT state, event_kind, attempts, last_error, updated_at "
+            f"FROM {table('outbox_events')} "
+            "WHERE merchant_id = :m AND aggregate_type = :at "
+            "ORDER BY aggregate_revision DESC, created_at DESC LIMIT 1",
+            {"m": merchant_id, "at": INBOX_PUBLISH_AGGREGATE},
+        )
+    return {
+        "inbox_state": row.get("inbox_state") or "off",
+        "inbox_relays": inbox_relays,
+        "latest_intent": dict(latest_intent) if latest_intent else None,
+        "last_publication_evidence": [dict(e) for e in evidence],
+    }
 
 
 async def get_notifications(merchant_id: str, user) -> dict:

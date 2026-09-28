@@ -135,7 +135,10 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
     # binds the SQLite path at construction, and the host's migration loader
     # uses whatever module object is in sys.modules. Purge any earlier
     # import so the boot binds this run's data folder.
-    for mod in [m for m in sys.modules if m == "infinitemarkets" or m.startswith("infinitemarkets.")]:
+    for mod in [
+        m for m in sys.modules
+        if m == "infinitemarkets" or m.startswith("infinitemarkets.")
+    ]:
         del sys.modules[mod]
 
     # The core DB (.cache/qual-data) is shared across boots: prior runs leave
@@ -254,12 +257,22 @@ async def keystore_env(tmp_path_factory):
         keystore = importlib.import_module("infinitemarkets.keystore")
         crypto = importlib.import_module("infinitemarkets.crypto")
         gsettings = importlib.import_module("infinitemarkets.settings")
-        from infinitemarkets.migrations import m001_initial, m002_orders, m003_checkout_safety
+        from infinitemarkets.migrations import (
+            m001_initial,
+            m002_orders,
+            m003_checkout_safety,
+            m004_digital_delivery,
+            m005_order_archiving,
+            m006_gamma_inbox,
+        )
 
         async with gdb.db.connect() as conn:
             await m001_initial(conn)
             await m002_orders(conn)
             await m003_checkout_safety(conn)
+            await m004_digital_delivery(conn)
+            await m005_order_archiving(conn)
+            await m006_gamma_inbox(conn)
         yield {
             "db": gdb.db,
             "keystore": keystore,

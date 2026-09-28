@@ -247,6 +247,38 @@ async def retry_outbox_intent(
     return await relay_service.retry_intent(merchant_id, intent_id)
 
 
+@infinitemarkets_api_router.post("/merchants/{merchant_id}/inbox/enable")
+@problem_boundary
+async def enable_inbox(
+    request: Request,
+    merchant_id: str, user: User = Depends(check_user_exists)
+):
+    """Gamma inbox activation (D-16/GAM-01): enqueues the kind-10050
+    publish intent; ``inbox_state`` reaches ``active`` only through
+    durable relay ACK evidence."""
+    return await merchant_service.enable_inbox(merchant_id, user)
+
+
+@infinitemarkets_api_router.post("/merchants/{merchant_id}/inbox/disable")
+@problem_boundary
+async def disable_inbox(
+    request: Request,
+    merchant_id: str, user: User = Depends(check_user_exists)
+):
+    """D-17: kind-5 tombstone for the 10050 profile + intake stop;
+    in-flight orders are untouched."""
+    return await merchant_service.disable_inbox(merchant_id, user)
+
+
+@infinitemarkets_api_router.get("/merchants/{merchant_id}/inbox-state")
+@problem_boundary
+async def get_inbox_state(
+    request: Request,
+    merchant_id: str, user: User = Depends(check_user_exists)
+):
+    return await merchant_service.get_inbox_state(merchant_id, user)
+
+
 @infinitemarkets_api_router.get("/merchants/{merchant_id}/notifications")
 @problem_boundary
 async def get_notifications(

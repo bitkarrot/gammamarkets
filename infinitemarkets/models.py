@@ -26,6 +26,7 @@ class Merchant(BaseModel):
     notify_events: str | None = None
     theme: str | None = None
     state: str = "draft"
+    inbox_state: str = "off"
     created_at: int = 0
     updated_at: int = 0
 
@@ -216,8 +217,41 @@ class RelayConfig(BaseModel):
     relay_url: str
     direction: str
     enabled: bool = True
+    auth_state: str | None = None
+    auth_note: str | None = None
+    paid_invoice: str | None = None
+    auth_updated_at: int | None = None
     created_at: int = 0
     updated_at: int = 0
+
+
+class PeerRelay(BaseModel):
+    id: str
+    merchant_id: str
+    pubkey_hash: str
+    pubkey_enc: bytes | None = None
+    relay_url: str
+    fetched_at: int | None = None
+    expires_at: int | None = None
+
+
+class RelayCursor(BaseModel):
+    id: str
+    merchant_id: str
+    relay_url: str
+    protocol: str
+    last_completed_session_start: int | None = None
+    eose_session_id: str | None = None
+    eose_at: int | None = None
+    updated_at: int | None = None
+
+
+class InboxBlocklist(BaseModel):
+    id: str
+    merchant_id: str
+    author_hash: str
+    reason: str | None = None
+    created_at: int | None = None
 
 
 class OutboxEvent(BaseModel):

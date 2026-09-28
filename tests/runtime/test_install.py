@@ -58,10 +58,15 @@ M002_TABLES = {
     "inbox_events",
 }
 
-# Tables no migration creates yet (Phase 3/4).
-ABSENT_TABLES = {
+# Tables m006 creates (Gamma inbox — peer relays, cursors, blocklist).
+M006_TABLES = {
     "peer_relays",
     "relay_cursors",
+    "inbox_blocklist",
+}
+
+# Tables no migration creates yet (Phase 4).
+ABSENT_TABLES = {
     "migration_jobs",
 }
 
@@ -119,17 +124,33 @@ async def test_discovered_and_registered(runtime_env):
 
 async def test_m001_tables_created(runtime_env):
     tables = await _table_names(runtime_env["ext_module"])
-    missing = (M001_TABLES | M002_TABLES) - tables
-    assert not missing, f"missing m001/m002 tables: {missing}"
+    missing = (M001_TABLES | M002_TABLES | M006_TABLES) - tables
+    assert not missing, f"missing m001/m002/m006 tables: {missing}"
     stray = ABSENT_TABLES & tables
     assert not stray, f"migrations created tables owned by later phases: {stray}"
+
+
+async def test_m006_columns_created(runtime_env):
+    """m006 column adds: merchants.inbox_state, relay_configs auth fields,
+    order_messages surface markers."""
+    merchants = await _columns(runtime_env["ext_module"], "merchants")
+    assert "inbox_state" in merchants
+    relay_configs = await _columns(
+        runtime_env["ext_module"], "relay_configs"
+    )
+    assert {"auth_state", "auth_note", "paid_invoice",
+            "auth_updated_at"} <= relay_configs
+    order_messages = await _columns(
+        runtime_env["ext_module"], "order_messages"
+    )
+    assert {"conversation_id", "read_at"} <= order_messages
 
 
 async def test_modeled_columns_match_registry(runtime_env):
     """Every modeled field set (spec section 4 literals) is a subset of the
     migrated table's columns — the registry<->migration diff."""
     ext_module = runtime_env["ext_module"]
-    for name in M001_TABLES | M002_TABLES:
+    for name in M001_TABLES | M002_TABLES | M006_TABLES:
         if TABLE_CLASSIFICATION.get(name) != "modeled":
             continue
         modeled = SCHEMA_FIELDS[name]

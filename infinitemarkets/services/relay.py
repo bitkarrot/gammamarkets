@@ -34,6 +34,16 @@ DEFAULT_BLOSSOM_SERVERS = (
     "https://blossom.band",
 )
 
+# Starter inbox (kind-10050) relays — merchant-editable, seeded only when
+# the merchant has NO relay_configs rows at all (the same visible-starter
+# posture as DEFAULT_RELAYS; §9.3 requires a recipient-gated inbox relay
+# for Release-B production-ready mode, which is an operator/qualification
+# concern beyond this starter set).
+DEFAULT_INBOX_RELAYS = (
+    "wss://nos.lol",
+    "wss://relay.damus.io",
+)
+
 
 def _now() -> int:
     return int(time.time())
@@ -90,6 +100,35 @@ async def ensure_default_relays(merchant_id: str) -> None:
                 f"INSERT INTO {tx.table('relay_configs')} "
                 "(id, merchant_id, relay_url, direction, enabled,"
                 " created_at, updated_at) VALUES (:i, :m, :u, 'public', TRUE,"
+                " :t, :t)",
+                {
+                    "i": uuid.uuid4().hex,
+                    "m": merchant_id,
+                    "u": url,
+                    "t": _now(),
+                },
+            )
+
+
+async def ensure_default_inbox_relays(merchant_id: str) -> None:
+    """Seed the starter inbox set when a merchant enabling Gamma inbox has
+    NO relay_configs rows of its own — the merchant opts into defaults by
+    never having configured any. A merchant that already manages relay
+    rows must add an ``inbox``/``both`` row explicitly (D-16)."""
+    async with db.connect() as conn:
+        existing = await conn.fetchone(
+            f"SELECT id FROM {table('relay_configs')} "
+            "WHERE merchant_id = :m LIMIT 1",
+            {"m": merchant_id},
+        )
+    if existing:
+        return
+    async with DomainTransaction() as tx:
+        for url in DEFAULT_INBOX_RELAYS:
+            await tx.execute(
+                f"INSERT INTO {tx.table('relay_configs')} "
+                "(id, merchant_id, relay_url, direction, enabled,"
+                " created_at, updated_at) VALUES (:i, :m, :u, 'inbox', TRUE,"
                 " :t, :t)",
                 {
                     "i": uuid.uuid4().hex,

@@ -27,6 +27,9 @@ GAMMA_KIND_TOMBSTONE = 5
 GAMMA_KIND_PROFILE = 0
 NIP89_KIND_HANDLER_INFO = 31990
 NIP89_KIND_RECOMMENDATION = 31989
+#: NIP-17 inbox relay advertisement (§9.3). Non-addressable replaceable
+#: kind — its protocol_addresses d_tag is the empty string (§4.13).
+GAMMA_KIND_INBOX_RELAYS = 10050
 
 GAMMA_FREQ_UNITS = ("D", "W", "Y")  # pinned Gamma units (§6.1 divergence)
 
@@ -448,6 +451,46 @@ def nip15_product_event(
         "kind": NIP15_KIND_PRODUCT,
         "content": _json(content),
         "tags": [["d", product_id]],
+    }
+
+
+def inbox_profile_address(pubkey: str) -> str:
+    """The protocol address of a kind-10050 profile: ``10050:<pk>:`` — the
+    empty d-tag marks it non-addressable replaceable (§4.13)."""
+    return f"{GAMMA_KIND_INBOX_RELAYS}:{pubkey}:"
+
+
+def build_kind10050(merchant_pubkey: str, relay_urls: list[str]) -> dict:
+    """kind 10050 — NIP-17 inbox relay list (§9.3, D-16).
+
+    Empty content, one ``["relay", <url>]`` tag per advertised inbox relay
+    (1–3, normalized through the §9.5 target validator). Identical inputs
+    produce byte-identical output — tags keep caller order after
+    normalization + dedupe. The advertisement is public: a >3 set or any
+    non-``wss://`` target raises instead of emitting a profile other
+    clients could not trust.
+    """
+    from ..security import unprocessable
+    from .transport import validate_relay_target
+
+    if not merchant_pubkey:
+        raise unprocessable(
+            "invalid-relay", "kind 10050 requires the merchant pubkey"
+        )
+    normalized: list[str] = []
+    for raw in relay_urls:
+        url = validate_relay_target(raw)
+        if url not in normalized:
+            normalized.append(url)
+    if not 1 <= len(normalized) <= 3:
+        raise unprocessable(
+            "invalid-relay",
+            "kind 10050 advertises between 1 and 3 inbox relays",
+        )
+    return {
+        "kind": GAMMA_KIND_INBOX_RELAYS,
+        "content": "",
+        "tags": [["relay", url] for url in normalized],
     }
 
 
