@@ -775,3 +775,14 @@ async def m004_digital_delivery(db: Connection):
     after LNbits-confirmed payment."""
     s = db.references_schema
     await db.execute(f"ALTER TABLE {s}products ADD COLUMN delivery_enc {db.blob}")
+
+
+async def m005_order_archiving(db: Connection):
+    s = db.references_schema
+    await db.execute(
+        f"ALTER TABLE {s}orders ADD COLUMN archived_at {db.big_int}"
+    )
+    await db.execute(
+        f"CREATE INDEX ix_orders_merchant_archive "
+        f"ON {s}orders(merchant_id, archived_at, created_at)"
+    )

@@ -74,6 +74,8 @@
           list: [],
           q: "",
           stateFilter: "",
+          archiveView: "active",
+          selectedIds: [],
           selectedId: null,
           detail: null,
           events: [],
@@ -82,6 +84,10 @@
           mobileDetail: false,
           stateFilters: STATE_FILTERS,
           actionError: null,
+          bulkError: null,
+          bulkBusy: false,
+          notice: null,
+          archiveDialog: { show: false, busy: false, error: null },
           cancelDialog: { show: false, reason: "", busy: false },
           shipDialog: {
             show: false, target: "", tracking: "", carrier: "", eta: "",
@@ -94,6 +100,9 @@
     },
     computed: {
       gmOrdersSummary: function () {
+        if (this.gmOrders.archiveView === "archived") {
+          return this.gmOrders.list.length + " archived orders";
+        }
         var active = this.gmOrders.list.filter(function (o) {
           return ["completed", "rejected", "cancelled", "expired"].indexOf(
             o.state
@@ -103,6 +112,19 @@
           return o.payment_exception || o.oversold;
         }).length;
         return active + " active orders · " + attention + " need attention";
+      },
+      gmSelectableOrders: function () {
+        var self = this;
+        return self.gmOrders.list.filter(function (order) {
+          return self.gmOrderCanSelect(order);
+        });
+      },
+      gmAllSelectableOrdersSelected: function () {
+        var selected = this.gmOrders.selectedIds;
+        return this.gmSelectableOrders.length > 0 &&
+          this.gmSelectableOrders.every(function (order) {
+            return selected.indexOf(order.id) >= 0;
+          });
       },
       gmOrderActions: function () {
         /* §7.1/§7.2 legal-action map — only legal controls render; the
@@ -122,6 +144,7 @@
           );
           return out;
         }
+        if (d.archived_at) return out;
         switch (d.state) {
           case "confirmed":
             out.push({
@@ -201,6 +224,81 @@
       }
     },
     methods: {
+      gmOrderCanSelect: function (order) {
+        if (!order) return false;
+        if (this.gmOrders.archiveView === "archived") {
+          return !!order.archived_at;
+        }
+        return !!order.archive_eligible;
+      },
+      gmToggleOrderSelection: function (orderId, selected) {
+        var ids = this.gmOrders.selectedIds.slice();
+        var index = ids.indexOf(orderId);
+        if (selected && index < 0) ids.push(orderId);
+        if (!selected && index >= 0) ids.splice(index, 1);
+        this.gmOrders.selectedIds = ids;
+      },
+      gmToggleAllOrders: function (selected) {
+        this.gmOrders.selectedIds = selected
+          ? this.gmSelectableOrders.map(function (order) { return order.id; })
+          : [];
+      },
+      gmSwitchOrderView: function () {
+        this.gmOrders.selectedIds = [];
+        this.gmOrders.selectedId = null;
+        this.gmOrders.detail = null;
+        this.gmOrders.events = [];
+        this.gmOrders.mobileDetail = false;
+        this.gmOrders.bulkError = null;
+        this.gmLoadOrders();
+      },
+      gmAskArchiveOrders: function () {
+        if (!this.gmOrders.selectedIds.length) return;
+        this.gmOrders.archiveDialog = {
+          show: true, busy: false, error: null
+        };
+      },
+      gmRunOrderBulk: async function (action) {
+        var self = this;
+        var ids = self.gmOrders.selectedIds.slice();
+        if (!ids.length) return;
+        var mid = self.gmMerchantId();
+        self.gmOrders.bulkBusy = true;
+        self.gmOrders.bulkError = null;
+        self.gmOrders.archiveDialog.error = null;
+        if (action === "archive") self.gmOrders.archiveDialog.busy = true;
+        try {
+          await self.gmApi(
+            "POST",
+            "/merchants/" + mid + "/orders/bulk",
+            { order_ids: ids, action: action }
+          );
+          self.gmOrders.notice = ids.length + " " +
+            (ids.length === 1 ? "order" : "orders") + " " +
+            (action === "archive" ? "archived." : "restored.");
+          self.gmOrders.archiveDialog.show = false;
+          self.gmOrders.selectedIds = [];
+          if (ids.indexOf(self.gmOrders.selectedId) >= 0) {
+            self.gmOrders.selectedId = null;
+            self.gmOrders.detail = null;
+            self.gmOrders.events = [];
+            self.gmOrders.mobileDetail = false;
+          }
+          await self.gmLoadOrders();
+        } catch (e) {
+          var message = self.gmProblemCopy(e.problem);
+          self.gmOrders.bulkError = message;
+          self.gmOrders.archiveDialog.error = message;
+        }
+        self.gmOrders.bulkBusy = false;
+        self.gmOrders.archiveDialog.busy = false;
+      },
+      gmArchiveConfirm: function () {
+        return this.gmRunOrderBulk("archive");
+      },
+      gmRestoreOrders: function () {
+        return this.gmRunOrderBulk("restore");
+      },
       gmOrderStateLabel: function (s) {
         return STATE_LABELS[s] || s;
       },
@@ -248,9 +346,20 @@
           if (self.gmOrders.q) {
             params.push("q=" + encodeURIComponent(self.gmOrders.q));
           }
+          if (self.gmOrders.archiveView === "archived") {
+            params.push("archived=true");
+          }
           var qs = params.length ? "?" + params.join("&") : "";
-          self.gmOrders.list = await self.gmApi(
+          var rows = await self.gmApi(
             "GET", "/merchants/" + mid + "/orders" + qs
+          );
+          self.gmOrders.list = rows;
+          self.gmOrders.selectedIds = self.gmOrders.selectedIds.filter(
+            function (id) {
+              return rows.some(function (order) {
+                return order.id === id && self.gmOrderCanSelect(order);
+              });
+            }
           );
         } catch (e) {
           self.gmOrders.error = self.gmProblemCopy(e.problem);

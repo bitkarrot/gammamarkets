@@ -195,6 +195,7 @@ HTTP_ROUTES: tuple[str, ...] = (
     "DELETE /catalogs/{id}",
     "GET /products",
     "POST /products",
+    "POST /products/bulk",
     "GET /products/{id}",
     "PATCH /products/{id}",
     "DELETE /products/{id}",
@@ -212,6 +213,7 @@ HTTP_ROUTES: tuple[str, ...] = (
     "GET /products/{id}/events",
     # 5.3 admin — orders
     "GET /orders",
+    "POST /orders/bulk",
     "GET /orders/{id}",
     "POST /orders/{id}/status",
     "POST /orders/{id}/shipping",

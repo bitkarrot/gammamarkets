@@ -216,6 +216,167 @@ async def test_list_and_detail(runtime_env):
     assert detail["payment"]["status"] == "pending"
 
 
+async def test_bulk_archive_and_restore_closed_orders(runtime_env):
+    client = runtime_env["client"]
+    cookie = runtime_env["cookie"]
+    mid = runtime_env["merchant_id"]
+    closed = await _order(runtime_env)
+    active = await _order(runtime_env)
+    services = _svcs()
+    result = await services["settlement"].confirm_settlement(
+        order_id=closed["id"], source="test"
+    )
+    assert result["action"] == "confirmed"
+    for to_state in ("processing", "completed"):
+        response = await client.post(
+            f"{_admin(runtime_env, closed['id'])}/status",
+            json={"to_state": to_state},
+            headers=await cookie(),
+        )
+        assert response.status_code == 200, response.text
+
+    listed = {
+        item["id"]: item
+        for item in (await client.get(f"{API}/merchants/{mid}/orders")).json()
+    }
+    assert listed[closed["id"]]["archive_eligible"] is True
+    assert listed[active["id"]]["archive_eligible"] is False
+
+    from gammamarkets.db import db
+
+    async with db.connect() as conn:
+        before = dict(
+            await conn.fetchone(
+                "SELECT updated_at FROM gammamarkets.orders WHERE id = :o",
+                {"o": closed["id"]},
+            )
+        )
+        related_before = {
+            table: (
+                await conn.fetchone(
+                    f"SELECT COUNT(*) AS n FROM gammamarkets.{table} "
+                    "WHERE order_id = :o",
+                    {"o": closed["id"]},
+                )
+            )["n"]
+            for table in ("payments", "order_events", "inventory_reservations")
+        }
+
+    bulk_url = f"{API}/merchants/{mid}/orders/bulk"
+    response = await client.post(
+        bulk_url,
+        json={"order_ids": [closed["id"], active["id"]], "action": "archive"},
+        headers=await cookie(),
+    )
+    assert response.status_code == 422
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            "SELECT archived_at FROM gammamarkets.orders WHERE id = :o",
+            {"o": closed["id"]},
+        )
+    assert row["archived_at"] is None
+
+    response = await client.post(
+        bulk_url,
+        json={"order_ids": [closed["id"], "0" * 32], "action": "archive"},
+        headers=await cookie(),
+    )
+    assert response.status_code == 404
+
+    response = await client.post(
+        bulk_url,
+        json={"order_ids": [closed["id"]], "action": "archive"},
+        headers=await cookie(),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["archived"] == 1
+
+    active_orders = (
+        await client.get(f"{API}/merchants/{mid}/orders")
+    ).json()
+    archived_orders = (
+        await client.get(
+            f"{API}/merchants/{mid}/orders", params={"archived": True}
+        )
+    ).json()
+    assert closed["id"] not in {order["id"] for order in active_orders}
+    assert closed["id"] in {order["id"] for order in archived_orders}
+    detail = (await client.get(_admin(runtime_env, closed["id"]))).json()
+    assert detail["archived_at"] is not None
+
+    async with db.connect() as conn:
+        after = dict(
+            await conn.fetchone(
+                "SELECT updated_at FROM gammamarkets.orders WHERE id = :o",
+                {"o": closed["id"]},
+            )
+        )
+        related_after = {
+            table: (
+                await conn.fetchone(
+                    f"SELECT COUNT(*) AS n FROM gammamarkets.{table} "
+                    "WHERE order_id = :o",
+                    {"o": closed["id"]},
+                )
+            )["n"]
+            for table in ("payments", "order_events", "inventory_reservations")
+        }
+    assert after["updated_at"] == before["updated_at"]
+    assert related_after == related_before
+
+    response = await client.post(
+        bulk_url,
+        json={"order_ids": [closed["id"]], "action": "restore"},
+        headers=await cookie(),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["restored"] == 1
+    active_orders = (
+        await client.get(f"{API}/merchants/{mid}/orders")
+    ).json()
+    assert closed["id"] in {order["id"] for order in active_orders}
+
+
+async def test_archived_late_payment_returns_to_active_attention(runtime_env):
+    client = runtime_env["client"]
+    cookie = runtime_env["cookie"]
+    mid = runtime_env["merchant_id"]
+    order = await _order(runtime_env)
+    services = _svcs()
+    result = await services["settlement"].expire_order(order_id=order["id"])
+    assert result["action"] == "expired"
+
+    bulk_url = f"{API}/merchants/{mid}/orders/bulk"
+    response = await client.post(
+        bulk_url,
+        json={"order_ids": [order["id"]], "action": "archive"},
+        headers=await cookie(),
+    )
+    assert response.status_code == 200, response.text
+
+    result = await services["settlement"].confirm_settlement(
+        order_id=order["id"], source="test"
+    )
+    assert result["action"] == "exception"
+    active_orders = (
+        await client.get(f"{API}/merchants/{mid}/orders")
+    ).json()
+    active = next(item for item in active_orders if item["id"] == order["id"])
+    assert active["payment_exception"] is True
+    assert active["archived_at"] is not None
+
+    response = await client.post(
+        f"{_admin(runtime_env, order['id'])}/resolve-exception",
+        json={"action": "accept"},
+        headers=await cookie(),
+    )
+    assert response.status_code == 200, response.text
+    detail = (await client.get(_admin(runtime_env, order["id"]))).json()
+    assert detail["state"] == "confirmed"
+    assert detail["payment_exception"] is False
+    assert detail["archived_at"] is None
+
+
 async def test_transition_matrix(runtime_env):
     """Legal transitions accepted; illegal -> 422 invalid-transition."""
     client = runtime_env["client"]

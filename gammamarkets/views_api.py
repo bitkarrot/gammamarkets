@@ -603,6 +603,11 @@ class ResolveExceptionBody(_Strict):
     refund_reference: str | None = None
 
 
+class BulkOrdersBody(_Strict):
+    order_ids: list[str] = Field(min_items=1, max_items=100)
+    action: Literal["archive", "restore"]
+
+
 @gammamarkets_api_router.get("/merchants/{merchant_id}/orders")
 @problem_boundary
 async def list_orders(
@@ -611,10 +616,29 @@ async def list_orders(
     state: str | None = None,
     protocol: str | None = None,
     q: str | None = None,
+    archived: bool = False,
     user: User = Depends(check_user_exists),
 ):
     return await order_service.list_orders(
-        merchant_id, user, state=state, protocol=protocol, q=q
+        merchant_id,
+        user,
+        state=state,
+        protocol=protocol,
+        q=q,
+        archived=archived,
+    )
+
+
+@gammamarkets_api_router.post("/merchants/{merchant_id}/orders/bulk")
+@problem_boundary
+async def bulk_orders(
+    request: Request,
+    merchant_id: str,
+    body: BulkOrdersBody,
+    user: User = Depends(check_user_exists),
+):
+    return await order_service.admin_bulk_archive(
+        merchant_id, user, body.order_ids, body.action
     )
 
 

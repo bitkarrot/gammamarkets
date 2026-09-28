@@ -79,6 +79,75 @@ test('orders workspace lists the seeded order + detail pane', async ({
   ).toBeVisible()
 })
 
+test('closed orders can be selected, archived, and restored', async ({page, request}) => {
+  await page.goto('/gammamarkets/')
+  await expect(page.locator('[placeholder="Search order or buyer"]')).toBeVisible({
+    timeout: 20_000
+  })
+  const cookies = await page.context().cookies()
+  const csrf = cookies.find(cookie => cookie.name === 'gm_csrf')?.value || ''
+  const headers = {Origin: seed.base_url, 'X-CSRF-Token': csrf}
+  const ordersUrl = `/gammamarkets/api/v1/merchants/${seed.merchant_id}/orders`
+  const before = await page.request.get(ordersUrl)
+  const beforeIds = new Set((await before.json()).map((order: {id: string}) => order.id))
+  const checkout = await page.request.post('/gammamarkets/api/v1/public/checkout', {
+    headers: {
+      'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID(),
+      Origin: seed.base_url
+    },
+    data: {
+      merchant_pubkey: seed.pubkey,
+      items: [{d_tag: seed.digital.d_tag, quantity: 1}]
+    }
+  })
+  expect(checkout.status()).toBe(201)
+  const checkoutBody = await checkout.json()
+  const settled = await request.post(`${seed.base_url}/_e2e/settle`, {
+    headers: {'X-Order-Token': checkoutBody.public_token}
+  })
+  expect((await settled.json()).ok).toBe(true)
+  const after = await page.request.get(ordersUrl)
+  const order = (await after.json()).find(
+    (candidate: {id: string; state: string}) =>
+      !beforeIds.has(candidate.id) && candidate.state === 'confirmed'
+  )
+  expect(order).toBeTruthy()
+  for (const toState of ['processing', 'completed']) {
+    const response = await page.request.post(`${ordersUrl}/${order.id}/status`, {
+      headers,
+      data: {to_state: toState}
+    })
+    expect(response.status()).toBe(200)
+  }
+
+  await page.reload()
+  const row = page.locator('.gm-order-row').filter({hasText: order.id.slice(0, 8)})
+  await expect(row).toBeVisible({timeout: 15_000})
+  await row.getByRole('checkbox', {name: `Select order ${order.id}`}).click()
+  await expect(page.locator('[data-gm="order-bulk-bar"]')).toContainText('1 order selected')
+  await page.setViewportSize({width: 390, height: 844})
+  await page.getByRole('button', {name: 'Archive selected'}).click()
+  const archiveTitle = page.getByText('Archive 1 order', {exact: true})
+  await expect(archiveTitle).toBeVisible()
+  const archiveDialog = page.locator('.q-dialog .q-card').filter({has: archiveTitle})
+  const dialogBox = await archiveDialog.boundingBox()
+  expect(dialogBox).not.toBeNull()
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(390)
+  await page.getByRole('button', {name: 'Archive orders'}).click()
+  await expect(row).toHaveCount(0)
+
+  await page.getByRole('button', {name: 'Archived', exact: true}).click()
+  const archivedRow = page.locator('.gm-order-row').filter({hasText: order.id.slice(0, 8)})
+  await expect(archivedRow).toBeVisible()
+  await archivedRow.getByRole('checkbox', {name: `Select order ${order.id}`}).click()
+  await page.getByRole('button', {name: 'Restore selected'}).click()
+  await expect(archivedRow).toHaveCount(0)
+
+  await page.getByRole('button', {name: 'Active', exact: true}).click()
+  await expect(page.locator('.gm-order-row').filter({hasText: order.id.slice(0, 8)})).toBeVisible()
+})
+
 test('catalog surface lists products with editor CTAs', async ({page}) => {
   await page.goto('/gammamarkets/')
   await page.locator('[data-gm-nav="catalog"]').click()

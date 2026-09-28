@@ -14,6 +14,7 @@ uniformly.
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 
@@ -57,6 +58,9 @@ ORDER_TRANSITIONS: dict[str, frozenset[str]] = {
 }
 
 ORDER_TERMINAL_STATES = ("completed", "rejected")
+ORDER_ARCHIVABLE_STATES = frozenset(
+    {"completed", "rejected", "expired", "cancelled"}
+)
 
 REASON_REQUIRED_TRANSITIONS = frozenset(
     {
@@ -217,7 +221,7 @@ async def transition_order(
             f" (expected {from_state!r}, target {to_state!r})"
         )
     await tx.execute(
-        f"UPDATE {orders} SET updated_at = :n WHERE id = :i",
+        f"UPDATE {orders} SET updated_at = :n, archived_at = NULL WHERE id = :i",
         {"n": now, "i": order_id},
     )
     payload: dict = {}
@@ -517,36 +521,50 @@ async def _notify_ctx(order: dict) -> dict:
 async def list_orders(
     merchant_id: str, user, *, state: str | None = None,
     protocol: str | None = None, q: str | None = None,
+    archived: bool = False,
 ) -> list[dict]:
     from . import merchant as merchant_service
 
     await merchant_service.get_merchant_row(merchant_id, str(user.id))
     from ..db import db, table
 
-    clauses = ["merchant_id = :m"]
+    clauses = ["o.merchant_id = :m"]
+    clauses.append(
+        "o.archived_at IS NOT NULL"
+        if archived
+        else "(o.archived_at IS NULL OR o.payment_exception OR o.oversold)"
+    )
     params: dict = {"m": merchant_id}
     if state:
         # The UI-SPEC filter set adds "needs_attention" (payment exception
         # or oversold) on top of the §7.1 states.
         if state == "needs_attention":
-            clauses.append("(payment_exception OR oversold)")
+            clauses.append("(o.payment_exception OR o.oversold)")
         elif state not in ORDER_STATES:
             raise unprocessable("invalid-transition", "Unknown state")
         else:
-            clauses.append("state = :s")
+            clauses.append("o.state = :s")
             params["s"] = state
     if protocol:
         if protocol not in ("web", "gamma", "nip15"):
             raise unprocessable("invalid-transition", "Unknown protocol")
-        clauses.append("protocol = :p")
+        clauses.append("o.protocol = :p")
         params["p"] = protocol
     async with db.connect() as conn:
         rows = await conn.fetchall(
-            f"SELECT id, protocol, state, shipping_state, total_sat,"
-            " payment_exception, oversold, email_opt_in, created_at,"
-            " updated_at, contact_enc FROM "
-            f"{table('orders')} WHERE {' AND '.join(clauses)}"
-            " ORDER BY created_at DESC LIMIT 200",
+            f"SELECT o.id, o.protocol, o.state, o.shipping_state, o.total_sat,"
+            " o.payment_exception, o.oversold, o.email_opt_in, o.archived_at,"
+            " o.created_at, o.updated_at, o.contact_enc, CASE WHEN"
+            " o.state IN ('completed', 'rejected', 'expired', 'cancelled')"
+            " AND NOT o.payment_exception AND NOT o.oversold"
+            f" AND NOT EXISTS (SELECT 1 FROM {table('inventory_reservations')} r"
+            " WHERE r.order_id = o.id AND r.state = 'held')"
+            f" AND NOT EXISTS (SELECT 1 FROM {table('payments')} p"
+            " WHERE p.order_id = o.id"
+            " AND p.status IN ('creating', 'creation_unknown', 'pending'))"
+            " THEN TRUE ELSE FALSE END AS archive_eligible FROM "
+            f"{table('orders')} o WHERE {' AND '.join(clauses)}"
+            " ORDER BY o.created_at DESC LIMIT 200",
             params,
         )
         order_ids = [r["id"] for r in rows]
@@ -566,6 +584,9 @@ async def list_orders(
         row["item_count"] = len(items)
         row["first_item"] = items[0]["title"] if items else None
         row["first_item_qty"] = items[0]["quantity"] if items else None
+        row["payment_exception"] = bool(row["payment_exception"])
+        row["oversold"] = bool(row["oversold"])
+        row["archive_eligible"] = bool(row["archive_eligible"])
         row["buyer"] = _buyer_handle(row)
         row.pop("contact_enc", None)
         out.append(row)
@@ -685,9 +706,89 @@ async def order_detail(merchant_id: str, user, order_id: str) -> dict:
              "eta": fulfil["eta"], "updated_at": fulfil["updated_at"]}
             if fulfil else None
         ),
+        "archived_at": order["archived_at"],
         "created_at": order["created_at"],
         "updated_at": order["updated_at"],
     }
+
+
+async def admin_bulk_archive(
+    merchant_id: str,
+    user,
+    order_ids: list[str],
+    action: str,
+) -> dict:
+    from . import merchant as merchant_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    ids = list(dict.fromkeys(order_ids))
+    if not 1 <= len(ids) <= 100 or any(
+        not isinstance(order_id, str)
+        or not re.fullmatch(r"[0-9a-f]{32}", order_id)
+        for order_id in ids
+    ):
+        raise unprocessable(
+            "invalid-content", "order_ids must contain 1 to 100 order IDs"
+        )
+    if action not in {"archive", "restore"}:
+        raise unprocessable("invalid-content", "unsupported order bulk action")
+
+    async with DomainTransaction() as tx:
+        placeholders = ", ".join(f":o{i}" for i in range(len(ids)))
+        params = {f"o{i}": order_id for i, order_id in enumerate(ids)}
+        params["m"] = merchant_id
+        rows = await tx.fetch_all(
+            f"SELECT id, state, payment_exception, oversold, archived_at "
+            f"FROM {tx.table('orders')} WHERE merchant_id = :m "
+            f"AND id IN ({placeholders}){tx.for_update}",
+            params,
+        )
+        if len(rows) != len(ids):
+            raise not_found("one or more orders not found")
+
+        if action == "archive":
+            if any(
+                row["state"] not in ORDER_ARCHIVABLE_STATES
+                or bool(row["payment_exception"])
+                or bool(row["oversold"])
+                for row in rows
+            ):
+                raise unprocessable(
+                    "invalid-transition",
+                    "Orders cannot be archived",
+                    "Only closed orders without exceptions can be archived",
+                )
+            held = await tx.fetch_one(
+                f"SELECT COUNT(*) AS n FROM {tx.table('inventory_reservations')} "
+                f"WHERE state = 'held' AND order_id IN ({placeholders})",
+                params,
+            )
+            pending = await tx.fetch_one(
+                f"SELECT COUNT(*) AS n FROM {tx.table('payments')} "
+                f"WHERE status IN ('creating', 'creation_unknown', 'pending') "
+                f"AND order_id IN ({placeholders})",
+                params,
+            )
+            if held["n"] or pending["n"]:
+                raise unprocessable(
+                    "invalid-transition",
+                    "Orders cannot be archived",
+                    "Resolve pending payment or inventory work before archiving",
+                )
+            now = await tx.now()
+            updated = await tx.execute(
+                f"UPDATE {tx.table('orders')} SET archived_at = :n "
+                f"WHERE archived_at IS NULL AND id IN ({placeholders})",
+                {**params, "n": now},
+            )
+            return {"archived": updated, "order_ids": ids}
+
+        updated = await tx.execute(
+            f"UPDATE {tx.table('orders')} SET archived_at = NULL "
+            f"WHERE archived_at IS NOT NULL AND id IN ({placeholders})",
+            params,
+        )
+        return {"restored": updated, "order_ids": ids}
 
 
 async def admin_set_status(

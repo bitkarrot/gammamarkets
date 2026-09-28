@@ -122,10 +122,32 @@
             <q-btn flat label="Retry" @click="gmLoadOrders"></q-btn>
           </template>
         </q-banner>
+        <q-banner v-if="gmOrders.notice" rounded
+                  class="bg-positive text-white q-mb-md">
+          {{ gmOrders.notice }}
+          <template v-slot:action>
+            <q-btn flat label="Dismiss" @click="gmOrders.notice = null"></q-btn>
+          </template>
+        </q-banner>
+        <q-banner v-if="gmOrders.bulkError" rounded
+                  class="bg-negative text-white q-mb-md">
+          {{ gmOrders.bulkError }}
+          <template v-slot:action>
+            <q-btn flat label="Dismiss" @click="gmOrders.bulkError = null"></q-btn>
+          </template>
+        </q-banner>
 
         <div class="gm-workspace">
           <div class="gm-order-list"
                v-show="!gmOrders.mobileDetail || !$q.screen.lt.sm">
+            <q-btn-toggle v-model="gmOrders.archiveView" spread no-caps
+                          class="q-mb-sm gm-order-view-toggle"
+                          toggle-color="primary"
+                          :options="[
+                            { label: 'Active', value: 'active' },
+                            { label: 'Archived', value: 'archived' }
+                          ]"
+                          @update:model-value="gmSwitchOrderView"></q-btn-toggle>
             <div class="row q-gutter-sm q-mb-sm">
               <q-input v-model="gmOrders.q" dense outlined class="col"
                        placeholder="Search order or buyer"
@@ -139,6 +161,24 @@
               </q-select>
             </div>
 
+            <div v-if="gmSelectableOrders.length" class="gm-order-bulk-bar q-mb-sm"
+                 data-gm="order-bulk-bar">
+              <q-checkbox :model-value="gmAllSelectableOrdersSelected"
+                          :label="gmOrders.archiveView === 'archived' ? 'Select visible archived' : 'Select visible closed'"
+                          @update:model-value="gmToggleAllOrders"></q-checkbox>
+              <span v-if="gmOrders.selectedIds.length" class="text-caption">
+                {{ gmOrders.selectedIds.length }}
+                order{{ gmOrders.selectedIds.length === 1 ? '' : 's' }} selected
+              </span>
+              <span class="col"></span>
+              <q-btn v-if="gmOrders.selectedIds.length && gmOrders.archiveView === 'active'"
+                     dense unelevated color="primary" label="Archive selected"
+                     @click="gmAskArchiveOrders"></q-btn>
+              <q-btn v-if="gmOrders.selectedIds.length && gmOrders.archiveView === 'archived'"
+                     dense unelevated color="primary" label="Restore selected"
+                     :loading="gmOrders.bulkBusy" @click="gmRestoreOrders"></q-btn>
+            </div>
+
             <div v-if="gmOrders.loading">
               <q-skeleton v-for="i in 4" :key="i" type="rect"
                           height="56px" class="q-mb-sm"></q-skeleton>
@@ -146,6 +186,12 @@
             <div v-else-if="!gmOrders.list.length" class="q-pa-lg text-center">
               <template v-if="gmOrders.q || gmOrders.stateFilter">
                 <p>No matching orders — adjust search or status filters.</p>
+              </template>
+              <template v-else-if="gmOrders.archiveView === 'archived'">
+                <h2 class="text-subtitle1">No archived orders</h2>
+                <p class="text-caption">
+                  Closed orders you archive will appear here and can be restored.
+                </p>
               </template>
               <template v-else>
                 <h2 class="text-subtitle1">No orders yet</h2>
@@ -159,12 +205,23 @@
                       class="gm-order-row"
                       :class="{ 'gm-order-active': gmOrders.selectedId === o.id }"
                       @click="gmSelectOrder(o.id)">
+                <q-item-section avatar class="gm-order-checkbox" @click.stop>
+                  <q-checkbox :model-value="gmOrders.selectedIds.indexOf(o.id) >= 0"
+                              :disable="!gmOrderCanSelect(o)"
+                              :aria-label="'Select order ' + o.id"
+                              @update:model-value="gmToggleOrderSelection(o.id, $event)"></q-checkbox>
+                  <q-tooltip v-if="!gmOrderCanSelect(o)">
+                    Finish pending payment, inventory, or exception work before archiving.
+                  </q-tooltip>
+                </q-item-section>
                 <q-item-section>
                   <q-item-label>
                     <strong>{{ gmTrunc(o.id, 8, 4) }}</strong>
                     <q-chip dense size="sm" class="q-ml-xs">
                       {{ gmChannelLabel(o.protocol) }}
                     </q-chip>
+                    <q-chip v-if="o.archived_at" dense size="sm" color="grey-7"
+                            text-color="white" icon="archive" label="Archived"></q-chip>
                   </q-item-label>
                   <q-item-label caption>
                     {{ o.buyer || 'no contact' }} ·
@@ -205,6 +262,8 @@
                 <div class="row items-center q-gutter-sm q-mb-sm">
                   <h2 class="text-h6 q-my-none">{{ gmTrunc(gmOrders.detail.id, 10, 6) }}</h2>
                   <q-chip dense>{{ gmChannelLabel(gmOrders.detail.protocol) }}</q-chip>
+                  <q-chip v-if="gmOrders.detail.archived_at" dense color="grey-7"
+                          text-color="white" icon="archive" label="Archived"></q-chip>
                   <span class="text-caption">{{ gmOrders.detail.contact ? (gmOrders.detail.contact.email || '') : (gmOrders.list.find(o => o.id === gmOrders.selectedId) || {}).buyer || 'no contact' }}</span>
                   <q-badge class="gm-state gm-state-lg" rounded
                            :color="gmStateStyle(gmOrders.detail).color"
@@ -1278,6 +1337,32 @@
 
   <!-- ======== dialogs ======== -->
 
+  <q-dialog v-model="gmOrders.archiveDialog.show">
+    <q-card style="width: 520px; max-width: calc(100vw - 32px)">
+      <q-card-section>
+        <div class="text-h6">
+          Archive {{ gmOrders.selectedIds.length }}
+          order{{ gmOrders.selectedIds.length === 1 ? '' : 's' }}
+        </div>
+      </q-card-section>
+      <q-card-section>
+        Archived orders leave the active workspace but keep their payment,
+        inventory, and audit history. You can restore them from the Archived view.
+        <q-banner v-if="gmOrders.archiveDialog.error"
+                  class="bg-negative text-white q-mt-sm">
+          {{ gmOrders.archiveDialog.error }}
+        </q-banner>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Keep active"
+               @click="gmOrders.archiveDialog.show = false"></q-btn>
+        <q-btn unelevated color="primary" label="Archive orders"
+               :loading="gmOrders.archiveDialog.busy"
+               @click="gmArchiveConfirm"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
   <q-dialog v-model="gmOrders.cancelDialog.show">
     <q-card style="min-width: 420px">
       <q-card-section>
@@ -1517,6 +1602,19 @@
   gap: 16px;
 }
 .gm-order-row { border-radius: 10px; padding-top: 10px; padding-bottom: 10px; }
+.gm-order-checkbox { min-width: 40px; padding-right: 4px; }
+.gm-order-view-toggle { border: 1px solid rgba(128, 128, 128, 0.3); }
+.gm-order-bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.08);
+}
 .gm-order-active {
   background: rgba(37, 99, 235, 0.1);
   box-shadow: inset 3px 0 var(--q-primary);

@@ -360,7 +360,12 @@ publishing it MUST fail validation rather than silently charging zero.
 | oversold | BOOLEAN — set when an exception-resolution `accept` exceeds stock |
 | receipt_verified | BOOLEAN — buyer kind-17 receipt's bolt11+preimage checked against the settled payment (cosmetic only) |
 | email_opt_in | BOOLEAN NOT NULL DEFAULT false | customer consented to transactional order emails (§8.8) |
+| archived_at | TIMESTAMP NULL | merchant workspace organization only; does not erase or alter payment, inventory, status, buyer access, or audit records |
 | created_at / updated_at | |
+
+Archiving is reversible and limited to closed orders without unresolved payment,
+inventory, oversold, or exception work. It is not deletion. A late settlement or legal
+state transition makes an archived order visible in the active workspace again.
 
 `order_items` (order_id FK, product_id FK, product_d snapshot, title snapshot,
 quantity, unit_price_minor, currency/currency_decimals snapshot, line_total_sat,
@@ -557,6 +562,7 @@ GET|POST            /catalogs
 GET|PATCH|DELETE    /catalogs/{id}
 GET|POST            /products
 GET|PATCH|DELETE    /products/{id}
+POST                /products/bulk           body: {product_ids, action, value?}
 POST                /products/{id}/images
 GET|POST|PATCH|DELETE /collections[/{id}]
 GET|POST|PATCH|DELETE /shipping[/{id}]
@@ -567,7 +573,8 @@ DELETE is always a soft delete plus ordered reference removal and kind-5 tombsto
 ### 5.3 Admin — orders
 
 ```text
-GET   /orders?state=&protocol=
+GET   /orders?state=&protocol=&archived=
+POST  /orders/bulk                     body: {order_ids, action: "archive"|"restore"}
 GET   /orders/{id}                     full detail incl. decrypted address for owner
 POST  /orders/{id}/status              body: {to_state} — must be a legal transition §7.1
 POST  /orders/{id}/shipping            body: {shipping_state, tracking?, carrier?, eta?}
