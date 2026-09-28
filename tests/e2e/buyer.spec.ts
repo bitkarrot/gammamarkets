@@ -365,9 +365,6 @@ test('NIP-07 sign-in, claim, order history, sign out', async ({
   await expect(page.locator('.nostr-lead')).toContainText(
     'Signed in as npub1'
   )
-  await expect(page.locator('[data-gm="nostr-panel"]')).toContainText(
-    'No orders yet'
-  )
 
   // Claim the private link — the order joins the signed-in history.
   await page.locator('[data-gm="claim-input"]').fill(orderLink)
@@ -376,13 +373,14 @@ test('NIP-07 sign-in, claim, order history, sign out', async ({
     'Order linked'
   )
   const orderRow = page.locator('[data-gm="nostr-order"]')
-  await expect(orderRow).toContainText('e2e digital tour')
-  await expect(orderRow).toContainText('2,500')
-  await expect(orderRow.locator('.status-pill')).toContainText(
+  await expect(orderRow.first()).toBeVisible()
+  await expect(orderRow.first()).toContainText('e2e digital tour')
+  await expect(orderRow.first()).toContainText('2,500')
+  await expect(orderRow.first().locator('.status-pill')).toContainText(
     'Waiting for payment'
   )
   await expect(
-    orderRow.locator('a.nostr-order-link')
+    orderRow.first().locator('a.nostr-order-link')
   ).toHaveAttribute('href', /\/infinitemarkets\/order/)
 
   await page.locator('#gm-nostr-signout').click()

@@ -445,6 +445,16 @@ async def test_messages_workspace(runtime_env):
     assert msgs and msgs[-1]["intent_id"]
     assert set(msgs[-1]["copies"].keys()) >= {"recipient", "sender"}
 
+    # Regression: order_msg intents carry sealed payload_enc bytes — the
+    # B2 outbox listing must not serialize ciphertext into the response
+    # (bytes break JSON encoding → the whole publications surface 400s).
+    resp = await client.get(
+        f"{API}/merchants/{mid}/outbox",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert all("payload_enc" not in i for i in resp.json()["intents"])
+
     # --- compose to a fresh npub -> Unknown conversation ---
     other_hex = fixed_test_keys("msg-other").public_key().to_hex()
     resp = await client.post(

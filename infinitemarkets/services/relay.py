@@ -301,8 +301,14 @@ async def list_outbox(merchant_id: str, limit: int = 100) -> dict:
     markers (spec-delta admin route, owner-scoped, ≤100 rows)."""
     limit = min(max(1, limit), 100)
     async with db.connect() as conn:
+        # payload_enc carries sealed order_msg descriptors — ciphertext is
+        # never an admin-renderable value and bytes break JSON encoding.
         rows = await conn.fetchall(
-            f"SELECT * FROM {table('outbox_events')} "
+            f"SELECT id, merchant_id, aggregate_type, aggregate_id,"
+            " aggregate_revision, event_kind, event_address, payload_json,"
+            " state, attempts, next_attempt_at, claimed_by, claimed_at,"
+            " claimed_until, claim_token, last_error, created_at, updated_at"
+            f" FROM {table('outbox_events')} "
             "WHERE merchant_id = :m ORDER BY created_at DESC LIMIT :l",
             {"m": merchant_id, "l": limit},
         )

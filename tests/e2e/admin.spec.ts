@@ -51,7 +51,14 @@ test('messages workspace: folders, empty state, health strip', async ({
   // D-20 connectivity strip + folder toggle + compose/rejected controls.
   await expect(page.locator('[data-gm="messages-health"]')).toBeVisible()
   await expect(page.locator('[data-gm="folder-toggle"]')).toBeVisible()
-  await expect(page.locator('[data-gm="conv-empty"]')).toBeVisible()
+  /* List renders either the empty state or real conversations — prior
+     runs against the live seed may already have order threads. */
+  const convRows = page.locator('[data-gm="conversation"]')
+  if ((await convRows.count()) === 0) {
+    await expect(page.locator('[data-gm="conv-empty"]')).toBeVisible()
+  } else {
+    await expect(convRows.first()).toBeVisible()
+  }
   await expect(
     page.locator('[data-gm-surface="messages"] button:has-text("Compose")')
   ).toBeVisible()

@@ -284,9 +284,15 @@
       body: JSON.stringify({ token: token })
     }).then(function (res) {
       if (res.status === 200) {
-        msg.textContent = "Order linked — it now appears in your history.";
-        input.value = "";
-        return loadOrders();
+        return loadOrders().then(function () {
+          /* loadOrders() re-renders the panel — write the confirmation
+             into the FRESH claim-msg element, not the discarded one. */
+          var fresh = document.getElementById("gm-claim-msg");
+          if (fresh) {
+            fresh.textContent =
+              "Order linked — it now appears in your history.";
+          }
+        });
       }
       msg.textContent =
         "That link could not be linked. Check the link and try again.";

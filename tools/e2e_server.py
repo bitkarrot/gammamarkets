@@ -29,6 +29,8 @@ import time
 import uuid
 from pathlib import Path
 
+from fastapi import Header, Request  # noqa: F401 — route annotations
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PKG_DIR = REPO_ROOT / "infinitemarkets"
 sys.path.insert(0, str(REPO_ROOT))
@@ -214,7 +216,9 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
                 "amount_minor": 2500,
                 "currency": "SAT",
                 "visibility": "on-sale",
-                "stock_on_hand": 10,
+                # Generous stock — suite reruns reuse the same seed and
+                # held reservations must never flip the product 'sold'.
+                "stock_on_hand": 200,
                 "format": "digital",
                 "images": [{"url": f"{img_base}/demo-digital.svg"}],
                 "delivery_content": (
@@ -250,7 +254,7 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
                 "amount_minor": 7500,
                 "currency": "SAT",
                 "visibility": "on-sale",
-                "stock_on_hand": 5,
+                "stock_on_hand": 100,
                 "format": "physical",
                 "shipping_option_ids": [shipping["id"]],
                 "images": [{"url": f"{img_base}/demo-poster.svg"}],
@@ -443,8 +447,6 @@ async def main() -> None:
     app = create_app()
 
     seed: dict = {}
-
-    from fastapi import Header, Request
 
     async def e2e_seed():
         return seed
