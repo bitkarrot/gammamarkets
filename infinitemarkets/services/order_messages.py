@@ -917,3 +917,365 @@ async def reenqueue_payment_requests(now: int | None = None) -> int:
         except Exception:  # noqa: BLE001 — report-only per row
             continue
     return enqueued
+
+
+# --- GAM-04 merchant Messages surface (plan 03-03, D-12..D-15, D-18..D-20) -------
+#
+# Conversation folders: ``order:<order_id>`` rows render in the Customer
+# folder; ``unknown:<sender_hash>`` rows in Unknown (D-14 — unknown
+# senders are NEVER dropped or hidden). Ownership is verified per
+# conversation: order folders join the orders table; unknown folders
+# prove the stored participant pubkey hashes (PURPOSE_BUYER_PUBKEY,
+# merchant-scoped) to the conversation's hash — order_messages carries
+# no merchant_id column, so the HMAC scope IS the boundary.
+
+_CONVERSATION_FOLDERS = ("customer", "unknown")
+_PREVIEW_LEN = 160
+_CONVERSATION_LIMIT = 200
+
+
+def _folder_filter(folder: str) -> str:
+    if folder == "customer":
+        return "conversation_id LIKE 'order:%'"
+    return "conversation_id LIKE 'unknown:%'"
+
+
+def _decrypt_text(row: dict, column: str, settings) -> str | None:
+    blob = row.get(column)
+    if blob is None:
+        return None
+    try:
+        ver = crypto.envelope_version(blob)
+        return crypto.decrypt(
+            blob, settings.master_keys[ver],
+            record_id=row["id"], table="order_messages",
+            column=column, key_version=ver,
+        ).decode()
+    except Exception:  # noqa: BLE001 — display-only decrypt
+        return None
+
+
+def _npub(pubkey_hex: str | None) -> str | None:
+    if not pubkey_hex:
+        return None
+    try:
+        from nostr_sdk import PublicKey
+
+        return PublicKey.parse(pubkey_hex).to_bech32()
+    except Exception:  # noqa: BLE001 — display-only
+        return None
+
+
+async def _conversation_owned(
+    conn, merchant_id: str, conversation_id: str, settings
+) -> bool:
+    """Verify the conversation belongs to THIS merchant — no cross-tenant
+    reads, even though order_messages carries no merchant_id column."""
+    if conversation_id.startswith("order:"):
+        row = await conn.fetchone(
+            f"SELECT 1 AS x FROM {table('orders')} "
+            "WHERE id = :o AND merchant_id = :m",
+            {"o": conversation_id[6:], "m": merchant_id},
+        )
+        return row is not None
+    if conversation_id.startswith("unknown:"):
+        sender_hash = conversation_id.split(":", 1)[1]
+        row = await conn.fetchone(
+            f"SELECT id, participant_keys_enc FROM {table('order_messages')}"
+            " WHERE conversation_id = :c"
+            " AND participant_keys_enc IS NOT NULL LIMIT 1",
+            {"c": conversation_id},
+        )
+        if row is None:
+            return False
+        pubkey = _decrypt_text(row, "participant_keys_enc", settings)
+        if not pubkey:
+            return False
+        # The stored sender/recipient hash is merchant-scoped — a
+        # foreign merchant's HMAC can never equal it.
+        return hmac.compare_digest(
+            buyer_hash(settings, merchant_id, pubkey), sender_hash
+        )
+    return False
+
+
+async def _owned_conversations(conn, merchant_id: str, folder: str,
+                               settings) -> list[dict]:
+    """Aggregate groups for one folder, ownership-filtered."""
+    rows = await conn.fetchall(
+        f"SELECT conversation_id, MAX(created_at) AS last_at,"
+        " COUNT(*) AS n,"
+        " SUM(CASE WHEN direction = 'in' AND read_at IS NULL"
+        "     THEN 1 ELSE 0 END) AS unread"
+        f" FROM {table('order_messages')}"
+        f" WHERE conversation_id IS NOT NULL AND {_folder_filter(folder)}"
+        " GROUP BY conversation_id ORDER BY last_at DESC LIMIT :l",
+        {"l": _CONVERSATION_LIMIT},
+    )
+    if folder == "customer":
+        order_ids = [r["conversation_id"][6:] for r in rows]
+        owned: set[str] = set()
+        if order_ids:
+            placeholders = ", ".join(f":o{i}" for i in range(len(order_ids)))
+            params = {f"o{i}": oid for i, oid in enumerate(order_ids)}
+            params["m"] = merchant_id
+            owned_rows = await conn.fetchall(
+                f"SELECT id FROM {table('orders')} "
+                f"WHERE id IN ({placeholders}) AND merchant_id = :m",
+                params,
+            )
+            owned = {r["id"] for r in owned_rows}
+        return [r for r in rows if r["conversation_id"][6:] in owned]
+    out = []
+    for row in rows:
+        if await _conversation_owned(
+            conn, merchant_id, row["conversation_id"], settings
+        ):
+            out.append(row)
+    return out
+
+
+async def list_conversations(
+    merchant_id: str, folder: str = "customer"
+) -> dict:
+    """Conversation list for one folder — last message preview,
+    unread flag, counterparty npub, order linkage."""
+    settings = ext_settings()
+    if folder not in _CONVERSATION_FOLDERS:
+        raise unprocessable(
+            "invalid-content", "Unknown folder",
+            "folder must be customer or unknown",
+        )
+    async with db.connect() as conn:
+        groups = await _owned_conversations(
+            conn, merchant_id, folder, settings
+        )
+        conversations = []
+        for group in groups:
+            cid = group["conversation_id"]
+            last = await conn.fetchone(
+                f"SELECT * FROM {table('order_messages')}"
+                " WHERE conversation_id = :c"
+                " ORDER BY created_at DESC, id DESC LIMIT 1",
+                {"c": cid},
+            )
+            preview = (
+                _decrypt_text(last, "content_enc", settings) if last else ""
+            ) or ""
+            counterparty = None
+            if last:
+                counterparty = _npub(
+                    _decrypt_text(last, "participant_keys_enc", settings)
+                )
+            order_id = None
+            order_ref = None
+            if cid.startswith("order:"):
+                order_id = cid[6:]
+                orow = await conn.fetchone(
+                    f"SELECT external_id_enc, state FROM {table('orders')}"
+                    " WHERE id = :o",
+                    {"o": order_id},
+                )
+                if orow and orow["external_id_enc"] is not None:
+                    try:
+                        ver = crypto.envelope_version(
+                            orow["external_id_enc"]
+                        )
+                        order_ref = crypto.decrypt(
+                            orow["external_id_enc"],
+                            settings.master_keys[ver],
+                            record_id=order_id, table="orders",
+                            column="external_id_enc", key_version=ver,
+                        ).decode()
+                    except crypto.CryptoError:
+                        order_ref = None
+            conversations.append(
+                {
+                    "conversation_id": cid,
+                    "folder": folder,
+                    "order_id": order_id,
+                    "order_ref": order_ref,
+                    "unread": int(group["unread"] or 0),
+                    "message_count": int(group["n"]),
+                    "last_at": group["last_at"],
+                    "preview": preview[:_PREVIEW_LEN],
+                    "counterparty_npub": counterparty,
+                }
+            )
+    return {"conversations": conversations}
+
+
+async def get_thread(merchant_id: str, conversation_id: str) -> dict:
+    """One conversation's decrypted thread — owner-side only."""
+    settings = ext_settings()
+    async with db.connect() as conn:
+        if not await _conversation_owned(
+            conn, merchant_id, conversation_id, settings
+        ):
+            from ..security import not_found
+
+            raise not_found("conversation not found")
+        rows = await conn.fetchall(
+            f"SELECT * FROM {table('order_messages')}"
+            " WHERE conversation_id = :c ORDER BY created_at, id",
+            {"c": conversation_id},
+        )
+        messages = [
+            {
+                "id": r["id"],
+                "direction": r["direction"],
+                "semantic_kind": r["semantic_kind"],
+                "content": _decrypt_text(r, "content_enc", settings) or "",
+                "created_at": r["created_at"],
+                "read": r["read_at"] is not None,
+            }
+            for r in rows
+        ]
+    return {
+        "conversation_id": conversation_id,
+        "order_id": (
+            conversation_id[6:]
+            if conversation_id.startswith("order:")
+            else None
+        ),
+        "messages": messages,
+    }
+
+
+async def order_thread(merchant_id: str, order_id: str) -> dict:
+    """The order-detail embedded thread — same shape as get_thread."""
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT id FROM {table('orders')} "
+            "WHERE id = :o AND merchant_id = :m",
+            {"o": order_id, "m": merchant_id},
+        )
+    if row is None:
+        from ..security import not_found
+
+        raise not_found("order not found")
+    return await get_thread(merchant_id, f"order:{order_id}")
+
+
+async def mark_read(merchant_id: str, conversation_id: str) -> dict:
+    """Flip every inbound row in the conversation to read (D-15)."""
+    settings = ext_settings()
+    async with db.connect() as conn:
+        if not await _conversation_owned(
+            conn, merchant_id, conversation_id, settings
+        ):
+            from ..security import not_found
+
+            raise not_found("conversation not found")
+    async with DomainTransaction() as tx:
+        rc = await tx.execute(
+            f"UPDATE {tx.table('order_messages')} SET read_at = :n"
+            " WHERE conversation_id = :c AND direction = 'in'"
+            " AND read_at IS NULL",
+            {"n": _now(), "c": conversation_id},
+        )
+    return {"updated": rc}
+
+
+async def unread_count(merchant_id: str) -> dict:
+    """Conversations with unread inbound rows, split by folder — drives
+    the nav badge."""
+    settings = ext_settings()
+    counts = {"customer": 0, "unknown": 0}
+    async with db.connect() as conn:
+        for folder in _CONVERSATION_FOLDERS:
+            groups = await _owned_conversations(
+                conn, merchant_id, folder, settings
+            )
+            counts[folder] = sum(
+                1 for g in groups if int(g["unread"] or 0) > 0
+            )
+    counts["total"] = counts["customer"] + counts["unknown"]
+    return counts
+
+
+async def delivery_evidence(
+    merchant_id: str, conversation_id: str
+) -> dict:
+    """Per-message per-relay publication evidence for a conversation's
+    outbound rows — BOTH ``delivery_copy`` classes (recipient|sender)
+    with verbatim relay outcomes. Intent->message linkage resolves
+    through the frozen ``rumor_id`` in ``payload_enc`` (D-19)."""
+    settings = ext_settings()
+    async with db.connect() as conn:
+        if not await _conversation_owned(
+            conn, merchant_id, conversation_id, settings
+        ):
+            from ..security import not_found
+
+            raise not_found("conversation not found")
+        out_rows = await conn.fetchall(
+            f"SELECT id, rumor_id, created_at FROM {table('order_messages')}"
+            " WHERE conversation_id = :c AND direction = 'out'"
+            " AND rumor_id IS NOT NULL ORDER BY created_at",
+            {"c": conversation_id},
+        )
+        intents = await conn.fetchall(
+            f"SELECT id, aggregate_id, state, attempts, last_error,"
+            " next_attempt_at, payload_enc"
+            f" FROM {table('outbox_events')}"
+            " WHERE merchant_id = :m AND aggregate_type = 'order_msg'"
+            " ORDER BY created_at DESC LIMIT 500",
+            {"m": merchant_id},
+        )
+        rumor_to_intent: dict[str, dict] = {}
+        for intent in intents:
+            if intent["payload_enc"] is None:
+                continue
+            try:
+                ver = crypto.envelope_version(intent["payload_enc"])
+                descriptor = json.loads(
+                    crypto.decrypt(
+                        intent["payload_enc"], settings.master_keys[ver],
+                        record_id=intent["id"], table="outbox_events",
+                        column="payload_enc", key_version=ver,
+                    ).decode()
+                )
+            except Exception:  # noqa: BLE001 — skip undecryptable intents
+                continue
+            rumor_to_intent.setdefault(descriptor.get("rumor_id"), intent)
+        messages = []
+        for row in out_rows:
+            intent = rumor_to_intent.get(row["rumor_id"])
+            copies = {"recipient": [], "sender": []}
+            state = None
+            intent_id = None
+            last_error = None
+            if intent is not None:
+                intent_id = intent["id"]
+                state = intent["state"]
+                last_error = intent["last_error"]
+                pubs = await conn.fetchall(
+                    f"SELECT delivery_copy, relay_url, result, message,"
+                    " attempted_at, attempt_no"
+                    f" FROM {table('relay_publications')}"
+                    " WHERE outbox_event_id = :i"
+                    " ORDER BY attempted_at",
+                    {"i": intent["id"]},
+                )
+                for p in pubs:
+                    copies.setdefault(p["delivery_copy"], []).append(
+                        {
+                            "relay_url": p["relay_url"],
+                            "result": p["result"],
+                            "message": p["message"],
+                            "attempt_no": p["attempt_no"],
+                            "attempted_at": p["attempted_at"],
+                        }
+                    )
+            messages.append(
+                {
+                    "message_id": row["id"],
+                    "intent_id": intent_id,
+                    "intent_state": state,
+                    "last_error": last_error,
+                    "created_at": row["created_at"],
+                    "copies": copies,
+                }
+            )
+    return {"messages": messages}

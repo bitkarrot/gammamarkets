@@ -79,6 +79,9 @@
           selectedId: null,
           detail: null,
           events: [],
+          thread: { messages: [] },
+          threadReply: "",
+          threadSending: false,
           detailLoading: false,
           detailError: null,
           mobileDetail: false,
@@ -380,6 +383,17 @@
             self.gmApi("GET", "/merchants/" + mid + "/orders/" + id + "/events")
           ]);
           self.gmOrders.detail = pair[0];
+          /* Order-bound NIP-17 thread (D-12) — best-effort, never
+             blocks the detail render. */
+          try {
+            var thread = await self.gmApi(
+              "GET",
+              "/merchants/" + mid + "/orders/" + id + "/messages"
+            );
+            self.gmOrders.thread = thread;
+          } catch (e2) {
+            self.gmOrders.thread = { messages: [] };
+          }
           /* Several transitions share one second; break ties by lifecycle
              order so the history reads top-to-bottom. */
           var rank = ["received", "invoice_pending", "awaiting_payment",
@@ -397,6 +411,34 @@
       gmOrderBack: function () {
         /* ≤560px: detail → list navigation ("← Back to orders"). */
         this.gmOrders.mobileDetail = false;
+      },
+      gmSendOrderReply: async function () {
+        /* Reply threads onto order:<id> (D-13) — the merchant never
+           types a recipient, the conversation resolves the buyer. */
+        var self = this;
+        var content = (self.gmOrders.threadReply || "").trim();
+        var cid = "order:" + self.gmOrders.selectedId;
+        if (!content || !self.gmOrders.selectedId) return;
+        self.gmOrders.threadSending = true;
+        try {
+          await self.gmApi(
+            "POST",
+            "/merchants/" + self.gmMerchantId() +
+              "/messages/conversations/" + encodeURIComponent(cid) +
+              "/reply",
+            { content: content }
+          );
+          self.gmOrders.threadReply = "";
+          var thread = await self.gmApi(
+            "GET",
+            "/merchants/" + self.gmMerchantId() + "/orders/" +
+              self.gmOrders.selectedId + "/messages"
+          );
+          self.gmOrders.thread = thread;
+        } catch (e) {
+          self.gmOrders.actionError = self.gmProblemCopy(e.problem);
+        }
+        self.gmOrders.threadSending = false;
       },
       gmDoAction: async function (action) {
         var self = this;

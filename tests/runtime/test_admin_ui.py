@@ -52,13 +52,15 @@ async def test_admin_shell_document(runtime_env):
     assert resp.headers["cache-control"] == "no-store"
     html = resp.text
     assert 'id="gm-admin-root"' in html
-    # One nav section — exactly the four surfaces.
-    for nav in ("orders", "catalog", "publications", "settings"):
+    # One nav section — the five surfaces.
+    for nav in ("orders", "catalog", "publications", "messages",
+                "settings"):
         assert f'data-gm-nav="{nav}"' in html, nav
+    assert 'data-gm-surface="messages"' in html
     # Every module script loads.
     revisions = set()
     for mod in ("admin_app", "admin_orders", "admin_catalog",
-                "admin_publications", "admin_settings",
+                "admin_publications", "admin_messages", "admin_settings",
                 "admin_notifications"):
         match = re.search(rf"{mod}\.js\?v=([0-9a-f]{{12}})", html)
         assert match, mod
@@ -173,3 +175,396 @@ async def test_admin_theme_editor(runtime_env):
     assert "contrast" in js
     # Preview tokens resolve client-side (preset → brand → advanced).
     assert "gmPreviewTokens" in js
+
+
+# --- GAM-04 Messages workspace (plan 03-03 Task 4) ------------------------------
+
+
+async def _seed_dm(
+    runtime_env, merchant: dict, *, buyer_pubkey: str,
+    subject: str | None, content: str,
+) -> str:
+    """Feed one inbound kind-14 through the real handler — the same
+    threading + sender-hash math the inbox uses."""
+    import time
+    import uuid
+
+    from infinitemarkets.services import order_messages
+    from infinitemarkets.settings import ext_settings
+
+    settings = ext_settings()
+    sender_hash = order_messages.buyer_hash(
+        settings, merchant["id"], buyer_pubkey
+    )
+    rumor = {
+        "content": content,
+        "tags": [["subject", subject]] if subject else [],
+        "created_at": int(time.time()),
+    }
+    result = await order_messages.handle_dm(
+        merchant=merchant, sender_hash=sender_hash,
+        author_pubkey=buyer_pubkey, rumor=rumor,
+        rumor_id=uuid.uuid4().hex, now=int(time.time()),
+    )
+    return result["conversation_id"]
+
+
+async def _sign_in(runtime_env, label: str) -> "tuple":
+    import time
+
+    import httpx
+    from nostr_sdk import (
+        EventBuilder,
+        Kind,
+        NostrSigner,
+        Tag,
+        Timestamp,
+    )
+
+    from harness.sdk import fixed_test_keys
+
+    env = runtime_env
+    keys = fixed_test_keys(label)
+    buyer = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=env["app"]), base_url=ORIGIN
+    )
+    resp = await buyer.get(f"{API}/public/nostr/challenge")
+    challenge = resp.json()["challenge"]
+    event = await (
+        EventBuilder(Kind(22242), challenge)
+        .tags([Tag.parse(["challenge", challenge])])
+        .custom_created_at(Timestamp.from_secs(int(time.time())))
+        .sign(NostrSigner.keys(keys))
+    )
+    resp = await buyer.post(
+        f"{API}/public/nostr/verify",
+        json={"event": event.as_json()},
+        headers={"Origin": ORIGIN},
+    )
+    assert resp.status_code == 200, resp.text
+    return buyer, keys
+
+
+async def test_messages_workspace(runtime_env):
+    """GAM-04 conversations/thread/read/unread/delivery + compose +
+    rejected-intake + cross-tenant isolation."""
+    import time
+    import uuid
+
+    env = runtime_env
+    client = env["client"]
+    mid = env["merchant_id"]
+
+    async def cookie() -> dict:
+        return {
+            "Origin": ORIGIN,
+            "X-CSRF-Token": client.cookies.get("gm_csrf"),
+        }
+
+    from infinitemarkets import crypto
+    from infinitemarkets.db import DomainTransaction
+    from infinitemarkets.services import order_messages
+    from infinitemarkets.settings import ext_settings
+
+    # Merchant row + active inbox (messages surface needs merchant state).
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            "UPDATE merchants SET state = 'active',"
+            " inbox_state = 'active' WHERE id = :m",
+            {"m": mid},
+        )
+    async with env["ext_module"].db.connect() as conn:
+        merchant = dict(
+            await conn.fetchone(
+                "SELECT * FROM infinitemarkets.merchants WHERE id = :m",
+                {"m": mid},
+            )
+        )
+
+    # A product to order.
+    resp = await client.post(
+        f"{API}/catalogs",
+        json={"name": "msgs", "default_currency": "SAT"},
+        headers=await cookie(),
+    )
+    assert resp.status_code == 201, resp.text
+    resp = await client.post(
+        f"{API}/products",
+        json={
+            "catalog_id": resp.json()["id"],
+            "title": "msg widget",
+            "amount_minor": 500,
+            "currency": "SAT",
+            "visibility": "on-sale",
+            "stock_on_hand": 50,
+            "format": "digital",
+        },
+        headers=await cookie(),
+    )
+    assert resp.status_code == 201, resp.text
+    product = resp.json()
+
+    # A web order, claimed by a signed-in buyer -> buyer bound.
+    resp = await client.post(
+        f"{API}/public/checkout",
+        json={
+            "merchant_pubkey": merchant["pubkey"],
+            "items": [{"d_tag": product["d_tag"], "quantity": 1}],
+            "email_opt_in": False,
+        },
+        headers={"Idempotency-Key": uuid.uuid4().hex},
+    )
+    assert resp.status_code == 201, resp.text
+    token = resp.json()["public_token"]
+    digest = crypto.token_lookup_hash(token)
+    async with env["ext_module"].db.connect() as conn:
+        orow0 = await conn.fetchone(
+            "SELECT id FROM infinitemarkets.orders"
+            " WHERE public_token_hash = :h",
+            {"h": digest},
+        )
+    order_id = orow0["id"]
+    buyer, keys = await _sign_in(env, "msg-buyer")
+    resp = await buyer.post(
+        f"{API}/public/nostr/claim",
+        json={"token": token},
+        headers={"Origin": ORIGIN},
+    )
+    assert resp.status_code == 200, resp.text
+    buyer_hex = keys.public_key().to_hex()
+
+    # Order-bound DM threads onto order:<id>; a stranger's DM lands in
+    # Unknown (D-14).
+    async with env["ext_module"].db.connect() as conn:
+        orow = await conn.fetchone(
+            "SELECT external_id_enc FROM infinitemarkets.orders"
+            " WHERE id = :o",
+            {"o": order_id},
+        )
+    settings = ext_settings()
+    ver = crypto.envelope_version(orow["external_id_enc"])
+    ext_id = crypto.decrypt(
+        orow["external_id_enc"], settings.master_keys[ver],
+        record_id=order_id, table="orders",
+        column="external_id_enc", key_version=ver,
+    ).decode()
+    conv_order = await _seed_dm(
+        env, merchant, buyer_pubkey=buyer_hex,
+        subject=ext_id, content="Is my order shipped yet?",
+    )
+    assert conv_order == f"order:{order_id}"
+    from harness.sdk import fixed_test_keys
+
+    stranger_hex = fixed_test_keys("stranger").public_key().to_hex()
+    conv_unknown = await _seed_dm(
+        env, merchant, buyer_pubkey=stranger_hex,
+        subject=None, content="hello, do you ship to Mars?",
+    )
+    assert conv_unknown.startswith("unknown:")
+
+    # --- conversations list, folder-scoped ---
+    resp = await client.get(
+        f"{API}/merchants/{mid}/messages/conversations?folder=customer",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    customer = resp.json()["conversations"]
+    found = [c for c in customer if c["conversation_id"] == conv_order]
+    assert found and found[0]["order_id"] == order_id
+    assert found[0]["unread"] >= 1
+    assert "shipped" in found[0]["preview"]
+    assert found[0]["counterparty_npub"].startswith("npub1")
+
+    resp = await client.get(
+        f"{API}/merchants/{mid}/messages/conversations?folder=unknown",
+        headers=await cookie(),
+    )
+    unknown = resp.json()["conversations"]
+    found_u = [
+        c for c in unknown if c["conversation_id"] == conv_unknown
+    ]
+    assert found_u and "Mars" in found_u[0]["preview"]
+
+    # --- thread + read flag + unread-count ---
+    resp = await client.get(
+        f"{API}/merchants/{mid}/messages/unread-count",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["customer"] >= 1
+    assert resp.json()["unknown"] >= 1
+
+    resp = await client.get(
+        f"{API}/merchants/{mid}/messages/conversations/{conv_order}",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    thread = resp.json()
+    inbound = [m for m in thread["messages"] if m["direction"] == "in"]
+    assert inbound and inbound[0]["read"] is False
+    assert any("shipped" in m["content"] for m in inbound)
+
+    resp = await client.post(
+        f"{API}/merchants/{mid}/messages/conversations/{conv_order}/read",
+        json={},
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200
+    resp = await client.get(
+        f"{API}/merchants/{mid}/messages/unread-count",
+        headers=await cookie(),
+    )
+    assert resp.json()["customer"] == 0
+
+    # --- reply queues a dual-copy intent + 'out' thread row ---
+    resp = await client.post(
+        f"{API}/merchants/{mid}/messages/conversations/{conv_order}/reply",
+        json={"content": "Ships tomorrow."},
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["queued"] is True
+    assert resp.json()["intent_id"]
+
+    resp = await client.get(
+        f"{API}/merchants/{mid}/messages/conversations/{conv_order}",
+        headers=await cookie(),
+    )
+    assert any(
+        m["direction"] == "out" and "tomorrow" in m["content"]
+        for m in resp.json()["messages"]
+    )
+
+    # --- delivery evidence: both copy classes visible ---
+    resp = await client.get(
+        f"{API}/merchants/{mid}/messages/conversations/{conv_order}/delivery",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    msgs = resp.json()["messages"]
+    assert msgs and msgs[-1]["intent_id"]
+    assert set(msgs[-1]["copies"].keys()) >= {"recipient", "sender"}
+
+    # --- compose to a fresh npub -> Unknown conversation ---
+    other_hex = fixed_test_keys("msg-other").public_key().to_hex()
+    resp = await client.post(
+        f"{API}/merchants/{mid}/messages/compose",
+        json={"recipient": other_hex, "content": "welcome"},
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["conversation_id"].startswith("unknown:")
+
+    # --- rejected intake listing + mute (inbox_events rows) ---
+    rejected_id = uuid.uuid4().hex
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            "INSERT INTO inbox_events"
+            " (id, outer_event_id, merchant_id, source_relay_url,"
+            "  received_at, kind, processed_state, reject_reason,"
+            "  author_hash, processed_at)"
+            " VALUES (:i, :e, :m, 'wss://relay.test', :n, 1059,"
+            " 'rejected', 'type-3 missing order tag', 'deadbeef', :n)",
+            {"i": rejected_id, "e": uuid.uuid4().hex, "m": mid,
+             "n": int(time.time())},
+        )
+    resp = await client.get(
+        f"{API}/merchants/{mid}/rejected-intake",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    entries = resp.json()["entries"]
+    rid = next(
+        e["id"] for e in entries
+        if e["reject_reason"] == "type-3 missing order tag"
+    )
+    assert rid == rejected_id
+    resp = await client.post(
+        f"{API}/merchants/{mid}/rejected-intake/{rid}/mute",
+        json={},
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+
+    # --- order-detail sibling thread ---
+    resp = await client.get(
+        f"{API}/merchants/{mid}/orders/{order_id}/messages",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["conversation_id"] == conv_order
+
+    # --- cross-tenant: a second merchant can never open A's
+    # conversations — route-level owner scoping AND the service-level
+    # HMAC ownership proof both hold. (One merchant per user — mint a
+    # sibling merchant row directly for the service-level probe.)
+    other_mid = uuid.uuid4().hex
+    resp = await client.get(
+        f"{API}/merchants/{other_mid}/messages/conversations",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 404, resp.text
+
+    from nostr_sdk import Keys
+
+    other_pk = Keys.generate().public_key().to_hex()
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            "INSERT INTO merchants"
+            " (id, user_id, pubkey, key_ref, wallet_id_enc,"
+            "  wallet_id_hash, display_name, state, created_at,"
+            "  updated_at)"
+            " VALUES (:i, :u, :pk, 'kref', :we, 'wh', 'foreign shop',"
+            " 'active', :n, :n)",
+            {
+                "i": other_mid, "u": "other-user-" + uuid.uuid4().hex[:8],
+                "pk": other_pk, "we": b"\x00", "n": int(time.time()),
+            },
+        )
+    async with env["ext_module"].db.connect() as conn:
+        assert not await order_messages._conversation_owned(
+            conn, other_mid, conv_order, settings
+        )
+        # Even the unknown folder proves ownership via the merchant-
+        # scoped sender HMAC — foreign merchants cannot join.
+        assert not await order_messages._conversation_owned(
+            conn, other_mid, conv_unknown, settings
+        )
+
+
+async def test_messages_health_and_relay_auth(runtime_env):
+    """D-20 health strip + D-26..D-28 relay-auth surface and retry."""
+    env = runtime_env
+    client = env["client"]
+    mid = env["merchant_id"]
+
+    async def cookie() -> dict:
+        return {
+            "Origin": ORIGIN,
+            "X-CSRF-Token": client.cookies.get("gm_csrf"),
+        }
+
+    resp = await client.get(
+        f"{API}/merchants/{mid}/messages/health",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    health = resp.json()
+    assert health["inbox_state"] == "active"
+    assert "outbox_pending" in health
+    assert isinstance(health["relays"], list)
+
+    resp = await client.get(
+        f"{API}/merchants/{mid}/relay-auth",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "relays" in body
+
+    resp = await client.post(
+        f"{API}/merchants/{mid}/relay-auth/retry/wss://relay.invalid",
+        json={},
+        headers=await cookie(),
+    )
+    assert resp.status_code == 404, resp.text

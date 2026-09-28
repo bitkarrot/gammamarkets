@@ -1,0 +1,262 @@
+/* admin_messages.js — GAM-04 merchant Messages workspace (plan 03-03).
+
+   Linear-style split surface: Customer/Unknown folder list on the left,
+   decrypted thread + per-copy delivery evidence on the right. Every row
+   ships its own durable state (unread flag, intent state, relay results)
+   so the UI never invents delivery claims. */
+(function () {
+  "use strict";
+
+  window.app.mixin({
+    data: function () {
+      return {
+        gmMessages: {
+          loading: false,
+          error: null,
+          folder: "customer",
+          folderOptions: [
+            { label: "Customers", value: "customer" },
+            { label: "Unknown", value: "unknown" }
+          ],
+          conversations: [],
+          selected: null,
+          thread: { messages: [], order_id: null },
+          delivery: [],
+          replyText: "",
+          sending: false,
+          health: { inbox_state: "off", outbox_pending: 0, relays: [] },
+          compose: {
+            show: false, recipient: "", orderId: "",
+            content: "", busy: false
+          },
+          rejected: [],
+          showRejected: false
+        }
+      };
+    },
+    watch: {
+      "gmMessages.folder": function () {
+        this.gmLoadConversations();
+      }
+    },
+    methods: {
+      gmLoadMessages: async function () {
+        var self = this;
+        var mid = self.gmMerchantId();
+        if (!mid) return;
+        /* Health + unread badge bind to real APIs; list reloads for the
+           active folder. */
+        try {
+          var res = await Promise.all([
+            self.gmApi("GET", "/merchants/" + mid + "/messages/health"),
+            self.gmApi(
+              "GET", "/merchants/" + mid + "/messages/unread-count"
+            )
+          ]);
+          self.gmMessages.health = res[0] || self.gmMessages.health;
+          self.gm.unreadCount = (res[1] && res[1].total) || 0;
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+        await self.gmLoadConversations();
+      },
+      gmLoadConversations: async function () {
+        var self = this;
+        var mid = self.gmMerchantId();
+        if (!mid) return;
+        self.gmMessages.loading = true;
+        self.gmMessages.error = null;
+        try {
+          var res = await self.gmApi(
+            "GET",
+            "/merchants/" + mid + "/messages/conversations?folder=" +
+              self.gmMessages.folder
+          );
+          self.gmMessages.conversations = res.conversations || [];
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+        self.gmMessages.loading = false;
+      },
+      gmSelectConversation: async function (c) {
+        var self = this;
+        self.gmMessages.selected = c.conversation_id;
+        self.gmMessages.delivery = [];
+        try {
+          var res = await self.gmApi(
+            "GET",
+            "/merchants/" + self.gmMerchantId() +
+              "/messages/conversations/" +
+              encodeURIComponent(c.conversation_id)
+          );
+          self.gmMessages.thread = res;
+          /* Opening a thread marks it read + refreshes the badge. */
+          await self.gmMarkRead();
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+      },
+      gmMarkRead: async function () {
+        var self = this;
+        var cid = self.gmMessages.selected;
+        if (!cid) return;
+        try {
+          await self.gmApi(
+            "POST",
+            "/merchants/" + self.gmMerchantId() +
+              "/messages/conversations/" +
+              encodeURIComponent(cid) + "/read",
+            {}
+          );
+          self.gmMessages.thread.messages.forEach(function (m) {
+            if (m.direction === "in") m.read = true;
+          });
+          var counts = await self.gmApi(
+            "GET",
+            "/merchants/" + self.gmMerchantId() +
+              "/messages/unread-count"
+          );
+          self.gm.unreadCount = counts.total || 0;
+          self.gmMessages.conversations.forEach(function (c) {
+            if (c.conversation_id === cid) c.unread = 0;
+          });
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+      },
+      gmLoadDelivery: async function () {
+        var self = this;
+        var cid = self.gmMessages.selected;
+        if (!cid) return;
+        try {
+          var res = await self.gmApi(
+            "GET",
+            "/merchants/" + self.gmMerchantId() +
+              "/messages/conversations/" +
+              encodeURIComponent(cid) + "/delivery"
+          );
+          self.gmMessages.delivery = res.messages || [];
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+      },
+      gmRetryMessageIntent: async function (d) {
+        var self = this;
+        try {
+          await self.gmApi(
+            "POST",
+            "/merchants/" + self.gmMerchantId() +
+              "/outbox/" + d.intent_id + "/retry",
+            {}
+          );
+          await self.gmLoadDelivery();
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+      },
+      gmSendReply: async function () {
+        var self = this;
+        var cid = self.gmMessages.selected;
+        var content = (self.gmMessages.replyText || "").trim();
+        if (!cid || !content) return;
+        self.gmMessages.sending = true;
+        try {
+          await self.gmApi(
+            "POST",
+            "/merchants/" + self.gmMerchantId() +
+              "/messages/conversations/" +
+              encodeURIComponent(cid) + "/reply",
+            { content: content }
+          );
+          self.gmMessages.replyText = "";
+          await self.gmSelectConversation(
+            { conversation_id: cid }
+          );
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+        self.gmMessages.sending = false;
+      },
+      gmSendCompose: async function () {
+        var self = this;
+        var c = self.gmMessages.compose;
+        if (!c.recipient || !c.content) return;
+        c.busy = true;
+        try {
+          await self.gmApi(
+            "POST",
+            "/merchants/" + self.gmMerchantId() + "/messages/compose",
+            {
+              recipient: c.recipient.trim(),
+              order_id: (c.orderId || "").trim() || null,
+              content: c.content
+            }
+          );
+          self.gmMessages.compose = {
+            show: false, recipient: "", orderId: "",
+            content: "", busy: false
+          };
+          await self.gmLoadConversations();
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+          self.gmMessages.compose.busy = false;
+        }
+      },
+      gmLoadRejected: async function () {
+        var self = this;
+        try {
+          var res = await self.gmApi(
+            "GET",
+            "/merchants/" + self.gmMerchantId() +
+              "/inbox/rejected?limit=100"
+          );
+          self.gmMessages.rejected = res.rejected || [];
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+      },
+      gmMuteSender: async function (row) {
+        var self = this;
+        try {
+          await self.gmApi(
+            "POST",
+            "/merchants/" + self.gmMerchantId() +
+              "/inbox/rejected/" + row.id + "/mute",
+            {}
+          );
+          row.muted_at = Math.floor(Date.now() / 1000);
+        } catch (e) {
+          self.gmMessages.error = self.gmProblemCopy(e.problem);
+        }
+      }
+    },
+    mounted: function () {
+      if (window._gmMessagesWired) return;
+      var vueEl = document.getElementById("vue");
+      var root = vueEl && vueEl._vnode && vueEl._vnode.component;
+      if (!root || !root.isMounted) return;
+      if (!document.getElementById("gm-admin-root")) return;
+      window._gmMessagesWired = true;
+      var self = root.proxy;
+      /* The nav badge binds to unread-count on every merchant load. */
+      self.$watch("gm.merchant", async function (m) {
+        if (!m) return;
+        try {
+          var res = await self.gmApi(
+            "GET",
+            "/merchants/" + self.gmMerchantId() + "/messages/unread-count"
+          );
+          self.gm.unreadCount = res.total || 0;
+        } catch (e) { /* badge is best-effort */ }
+      });
+      if (self.gm && self.gm.merchant) {
+        self.gmApi(
+          "GET",
+          "/merchants/" + self.gmMerchantId() + "/messages/unread-count"
+        ).then(function (res) {
+          self.gm.unreadCount = res.total || 0;
+        }).catch(function () {});
+      }
+    }
+  });
+})();

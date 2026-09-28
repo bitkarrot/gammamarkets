@@ -56,7 +56,8 @@
           wallets: [],
           createForm: { display_name: "", wallet_id: "" },
           newTokenLink: "",
-          settingsTab: "merchant"
+          settingsTab: "merchant",
+          unreadCount: 0
         }
       };
     },
@@ -171,6 +172,9 @@
         if (view === "catalog" && this.gmLoadCatalog) this.gmLoadCatalog();
         if (view === "publications" && this.gmLoadPublications) {
           this.gmLoadPublications();
+        }
+        if (view === "messages" && this.gmLoadMessages) {
+          this.gmLoadMessages();
         }
         if (view === "settings") {
           if (this.gmLoadSettings) this.gmLoadSettings();

@@ -412,6 +412,49 @@
         self.gmSettings.deactivate.busy = false;
       },
 
+      /* --- Relay auth pills (D-26..D-28) ----------------------------------- */
+
+      gmAuthLabel: function (state) {
+        return (
+          {
+            none: "no-auth",
+            authenticated: "authenticated",
+            "auth-required": "auth-required",
+            "auth-failed": "auth-failed",
+            "payment-required": "payment-required"
+          }[state] || "no-auth"
+        );
+      },
+      gmAuthColor: function (state) {
+        return (
+          {
+            authenticated: "positive",
+            "auth-required": "warning",
+            "auth-failed": "negative",
+            "payment-required": "warning"
+          }[state] || "grey"
+        );
+      },
+      gmRetryRelayAuth: async function (relay) {
+        /* "Paid externally — retry" — the paid_invoice blob itself is
+           never rendered; retry re-runs auth against every blocked
+           aggregate. */
+        var self = this;
+        try {
+          await self.gmApi(
+            "POST",
+            "/merchants/" + self.gmMerchantId() +
+              "/relay-auth/retry/" + encodeURIComponent(relay.relay_url),
+            {}
+          );
+          self.gmSettings.notice =
+            "Auth retry queued for " + relay.relay_url + ".";
+          await self.gmLoadSettings();
+        } catch (e) {
+          self.gmSettings.error = self.gmProblemCopy(e.problem);
+        }
+      },
+
       /* --- Storefront mode (D-07..D-11) ------------------------------------ */
 
       gmModeLabel: function (m) {

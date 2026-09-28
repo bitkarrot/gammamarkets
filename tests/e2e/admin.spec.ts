@@ -22,16 +22,65 @@ test.beforeEach(async ({context}) => {
   ])
 })
 
-test('admin shell mounts with all four surfaces', async ({page}) => {
+test('admin shell mounts with all five surfaces', async ({page}) => {
   await page.goto('/infinitemarkets/')
   await expect(page.locator('#gm-admin-root')).toBeVisible()
-  for (const nav of ['orders', 'catalog', 'publications', 'settings']) {
+  for (const nav of [
+    'orders',
+    'catalog',
+    'publications',
+    'messages',
+    'settings'
+  ]) {
     await expect(page.locator(`[data-gm-nav="${nav}"]`)).toBeVisible()
   }
   // Existing merchant → workspace (not the first-run setup card)
   await expect(
     page.locator('[data-gm-surface="orders"]')
   ).toBeVisible({timeout: 20_000})
+})
+
+test('messages workspace: folders, empty state, health strip', async ({
+  page
+}) => {
+  await page.goto('/infinitemarkets/')
+  await page.locator('[data-gm-nav="messages"]').click()
+  await expect(
+    page.locator('[data-gm-surface="messages"]')
+  ).toBeVisible({timeout: 20_000})
+  // D-20 connectivity strip + folder toggle + compose/rejected controls.
+  await expect(page.locator('[data-gm="messages-health"]')).toBeVisible()
+  await expect(page.locator('[data-gm="folder-toggle"]')).toBeVisible()
+  await expect(page.locator('[data-gm="conv-empty"]')).toBeVisible()
+  await expect(
+    page.locator('[data-gm-surface="messages"] button:has-text("Compose")')
+  ).toBeVisible()
+  await expect(
+    page.locator(
+      '[data-gm-surface="messages"] button:has-text("Rejected intake")'
+    )
+  ).toBeVisible()
+  // Compose dialog opens with the npub field.
+  await page
+    .locator('[data-gm-surface="messages"] button:has-text("Compose")')
+    .click()
+  await expect(page.locator('[data-gm="compose-content"]')).toBeVisible()
+  await page.keyboard.press('Escape')
+})
+
+test('storefront mode cards render with the four modes', async ({
+  page
+}) => {
+  await page.goto('/infinitemarkets/')
+  await page.locator('[data-gm-nav="settings"]').click()
+  await expect(
+    page.locator('[data-gm="storefront-mode"]')
+  ).toBeVisible({timeout: 20_000})
+  for (const mode of ['full', 'showcase', 'browse_only', 'nostr_only']) {
+    await expect(
+      page.locator(`[data-gm="storefront-mode"] [data-mode="${mode}"]`)
+    ).toBeVisible()
+  }
 })
 
 test('orders workspace lists the seeded order + detail pane', async ({

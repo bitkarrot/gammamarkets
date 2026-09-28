@@ -924,6 +924,157 @@ async def compose_message(
     )
 
 
+@infinitemarkets_api_router.get(
+    "/merchants/{merchant_id}/messages/conversations"
+)
+@problem_boundary
+async def list_conversations(
+    request: Request,
+    merchant_id: str,
+    folder: str = "customer",
+    user: User = Depends(check_user_exists),
+):
+    """Conversation list for the Customer/Unknown folders (D-14)."""
+    from .services import order_messages as order_message_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await order_message_service.list_conversations(
+        merchant_id, folder
+    )
+
+
+@infinitemarkets_api_router.get(
+    "/merchants/{merchant_id}/messages/conversations/{conversation_id:path}/delivery"
+)
+@problem_boundary
+async def conversation_delivery(
+    request: Request,
+    merchant_id: str,
+    conversation_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """Per-message relay_publications evidence for both delivery_copy
+    classes (D-19) — recipient and sender copies labeled verbatim.
+    Registered BEFORE the bare thread GET so ``:path`` does not
+    swallow the delivery suffix."""
+    from .services import order_messages as order_message_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await order_message_service.delivery_evidence(
+        merchant_id, conversation_id
+    )
+
+
+@infinitemarkets_api_router.post(
+    "/merchants/{merchant_id}/messages/conversations/{conversation_id:path}/read"
+)
+@problem_boundary
+async def mark_conversation_read(
+    request: Request,
+    merchant_id: str,
+    conversation_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """Mark the conversation's inbound rows read (D-15)."""
+    from .services import order_messages as order_message_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await order_message_service.mark_read(
+        merchant_id, conversation_id
+    )
+
+
+@infinitemarkets_api_router.get(
+    "/merchants/{merchant_id}/messages/conversations/{conversation_id:path}"
+)
+@problem_boundary
+async def get_conversation(
+    request: Request,
+    merchant_id: str,
+    conversation_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """One decrypted thread — owner-side decrypt only (T-303)."""
+    from .services import order_messages as order_message_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await order_message_service.get_thread(
+        merchant_id, conversation_id
+    )
+
+
+@infinitemarkets_api_router.get(
+    "/merchants/{merchant_id}/orders/{order_id}/messages"
+)
+@problem_boundary
+async def order_messages_thread(
+    request: Request,
+    merchant_id: str,
+    order_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """The order's embedded message thread for the order detail pane
+    (D-12)."""
+    from .services import order_messages as order_message_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await order_message_service.order_thread(
+        merchant_id, order_id
+    )
+
+
+@infinitemarkets_api_router.get(
+    "/merchants/{merchant_id}/messages/health"
+)
+@problem_boundary
+async def messages_health(
+    request: Request,
+    merchant_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """Connectivity health strip (D-20): inbox listener state, per-relay
+    connectivity + auth state, and the outbox backlog — evidence-based
+    (durable states only, never intent-only claims)."""
+    from .services import metrics
+    from .services import relay as relay_service
+
+    merchant = await merchant_service.get_merchant_row(
+        merchant_id, str(user.id)
+    )
+    health = await relay_service.relay_health(merchant_id)
+    depth = await metrics.outbox_depth()
+    return {
+        "inbox_state": merchant.get("inbox_state") or "off",
+        "outbox_pending": depth.get("pending", 0),
+        "outbox_failed": depth.get("failed_total", 0),
+        "relays": [
+            {
+                "relay_url": r["relay_url"],
+                "direction": r["direction"],
+                "connected": r["connected"],
+                "auth_state": r["auth_state"],
+            }
+            for r in health["relays"]
+        ],
+    }
+
+
+@infinitemarkets_api_router.get(
+    "/merchants/{merchant_id}/messages/unread-count"
+)
+@problem_boundary
+async def messages_unread_count(
+    request: Request,
+    merchant_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """Unread inbound conversations per folder — nav badge source."""
+    from .services import order_messages as order_message_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await order_message_service.unread_count(merchant_id)
+
+
 @infinitemarkets_api_router.post(
     "/merchants/{merchant_id}/messages/conversations/{conversation_id}/reply"
 )

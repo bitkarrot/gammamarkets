@@ -88,6 +88,15 @@
           <q-item-section avatar><q-icon name="rss_feed"></q-icon></q-item-section>
           <q-item-section>Publications</q-item-section>
         </q-item>
+        <q-item clickable :active="gm.view === 'messages'"
+                @click="gmNav('messages')" data-gm-nav="messages">
+          <q-item-section avatar><q-icon name="forum"></q-icon></q-item-section>
+          <q-item-section>Messages</q-item-section>
+          <q-item-section side>
+            <q-badge v-if="gm.unreadCount" color="negative"
+                     :label="gm.unreadCount"></q-badge>
+          </q-item-section>
+        </q-item>
         <q-item clickable :active="gm.view === 'settings'"
                 @click="gmNav('settings')" data-gm-nav="settings">
           <q-item-section avatar><q-icon name="settings"></q-icon></q-item-section>
@@ -385,6 +394,52 @@
                         </div>
                       </q-timeline-entry>
                     </q-timeline>
+                  </q-card-section>
+                </q-card>
+
+                <!-- ⑥b order message thread (D-12 — private Nostr DMs
+                     sit beside the operational timeline) -->
+                <q-card flat bordered class="q-mb-md"
+                        data-gm="order-thread">
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">
+                      Messages
+                      <span class="text-caption">
+                        — encrypted Nostr DMs with the buyer</span>
+                    </div>
+                    <div v-if="!gmOrders.thread.messages.length"
+                         class="text-grey-7 text-caption">
+                      No messages on this order yet.
+                    </div>
+                    <q-list v-else dense separator>
+                      <q-item v-for="m in gmOrders.thread.messages"
+                              :key="m.id">
+                        <q-item-section>
+                          <q-item-label>
+                            <q-badge outline
+                                     :color="m.direction === 'out' ? 'primary' : 'grey'"
+                                     :label="m.direction === 'out' ? 'You' : 'Them'">
+                            </q-badge>
+                            <q-badge outline class="q-ml-xs"
+                                     :label="m.semantic_kind"></q-badge>
+                            <span class="text-caption q-ml-xs">
+                              {{ gmTime(m.created_at) }}</span>
+                          </q-item-label>
+                          <q-item-label caption
+                                        style="white-space: pre-wrap">
+                            {{ m.content }}
+                          </q-item-label>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                    <div class="row q-gutter-sm q-mt-sm items-center">
+                      <q-input v-model="gmOrders.threadReply" dense outlined
+                               class="col" label="Reply to buyer"></q-input>
+                      <q-btn dense unelevated color="primary"
+                             label="Send"
+                             :loading="gmOrders.threadSending"
+                             @click="gmSendOrderReply"></q-btn>
+                    </div>
                   </q-card-section>
                 </q-card>
 
@@ -917,6 +972,205 @@
         </q-card>
       </section>
 
+      <!-- ================= GAM-04: messages workspace ================= -->
+      <section v-show="gm.view === 'messages'" data-gm-surface="messages">
+        <div class="row items-center q-mb-md">
+          <h1 class="text-h6 q-my-none col">Messages</h1>
+          <q-btn flat dense icon="refresh" label="Refresh"
+                 @click="gmLoadMessages"></q-btn>
+        </div>
+        <q-banner v-if="gmMessages.error" class="bg-negative text-white q-mb-md">
+          {{ gmMessages.error }}
+        </q-banner>
+
+        <!-- D-20 connectivity health strip -->
+        <q-card flat bordered class="q-mb-md" data-gm="messages-health">
+          <q-card-section class="row items-center q-gutter-md">
+            <div>
+              <div class="text-caption">Inbox listener</div>
+              <q-badge outline
+                       :color="gmMessages.health.inbox_state === 'active' ? 'positive' : 'grey'"
+                       :label="gmMessages.health.inbox_state || 'off'">
+              </q-badge>
+            </div>
+            <div>
+              <div class="text-caption">Outbox backlog</div>
+              <q-badge outline
+                       :label="gmMessages.health.outbox_pending + ' pending'">
+              </q-badge>
+            </div>
+            <div v-for="r in gmMessages.health.relays" :key="r.relay_url">
+              <div class="text-caption">
+                {{ r.direction }} · {{ gmTrunc(r.relay_url, 14, 6) }}
+              </div>
+              <q-badge outline
+                       :color="r.connected ? 'positive' : 'grey'"
+                       :label="r.connected ? 'connected' : 'disconnected'">
+              </q-badge>
+              <q-badge v-if="r.auth_state && r.auth_state !== 'none'"
+                       outline class="q-ml-xs"
+                       :label="'auth: ' + r.auth_state"></q-badge>
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <div class="row items-center q-mb-sm q-gutter-sm">
+          <q-btn-toggle dense unelevated v-model="gmMessages.folder"
+                        :options="gmMessages.folderOptions"
+                        data-gm="folder-toggle"></q-btn-toggle>
+          <q-btn flat dense icon="add" label="Compose"
+                 @click="gmMessages.compose.show = true"></q-btn>
+          <q-btn flat dense label="Rejected intake"
+                 @click="gmMessages.showRejected = true"></q-btn>
+        </div>
+
+        <div class="gm-workspace" data-gm="messages-workspace">
+          <div>
+            <q-skeleton v-if="gmMessages.loading" type="rect"
+                        height="200px"></q-skeleton>
+            <q-list v-else-if="gmMessages.conversations.length" bordered
+                    separator class="gm-conv-list">
+              <q-item v-for="c in gmMessages.conversations"
+                      :key="c.conversation_id" clickable
+                      :class="{ 'gm-order-active': gmMessages.selected === c.conversation_id }"
+                      data-gm="conversation"
+                      :data-conversation="c.conversation_id"
+                      @click="gmSelectConversation(c)">
+                <q-item-section>
+                  <q-item-label>
+                    <span v-if="c.unread" class="gm-unread-dot"
+                          aria-label="unread"></span>
+                    {{ c.counterparty_npub ? gmTrunc(c.counterparty_npub, 14, 6) : 'Unknown sender' }}
+                    <span v-if="c.order_ref" class="text-caption">
+                      · order {{ gmTrunc(c.order_ref, 10, 4) }}</span>
+                  </q-item-label>
+                  <q-item-label caption lines="1">{{ c.preview }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-badge v-if="c.unread" color="primary"
+                           :label="c.unread + ' new'"></q-badge>
+                </q-item-section>
+              </q-item>
+            </q-list>
+            <div v-else class="text-grey-7 q-pa-md" data-gm="conv-empty">
+              <template v-if="gmMessages.folder === 'customer'">
+                No customer conversations yet — order messages will
+                appear here.
+              </template>
+              <template v-else>
+                No unknown senders — messages from senders not linked to
+                an order land here (never dropped).
+              </template>
+            </div>
+          </div>
+
+          <div>
+            <q-card v-if="!gmMessages.selected" flat bordered>
+              <q-card-section class="text-grey-7">
+                Select a conversation to read the thread.
+              </q-card-section>
+            </q-card>
+            <q-card v-else flat bordered data-gm="thread">
+              <q-card-section>
+                <div class="row items-center q-mb-sm">
+                  <div class="text-subtitle2 col">
+                    {{ gmMessages.selected.startsWith('order:') ? 'Order conversation' : 'Unknown sender' }}
+                    <q-badge v-if="gmMessages.thread.order_id" outline
+                             class="q-ml-xs"
+                             :label="'order ' + gmTrunc(gmMessages.thread.order_id, 8, 4)">
+                    </q-badge>
+                  </div>
+                  <q-btn flat dense label="Mark read"
+                         @click="gmMarkRead"></q-btn>
+                  <q-btn flat dense label="Delivery evidence"
+                         @click="gmLoadDelivery"></q-btn>
+                </div>
+                <q-btn v-if="gmMessages.thread.order_id" flat dense
+                       color="primary" label="Open order"
+                       @click="gmNav('orders'); gmSelectOrder(gmMessages.thread.order_id)">
+                </q-btn>
+                <q-list separator>
+                  <q-item v-for="m in gmMessages.thread.messages"
+                          :key="m.id" data-gm="message">
+                    <q-item-section>
+                      <q-item-label>
+                        <q-badge outline
+                                 :color="m.direction === 'out' ? 'primary' : 'grey'"
+                                 :label="m.direction === 'out' ? 'You' : 'Them'">
+                        </q-badge>
+                        <q-badge v-if="m.semantic_kind" outline
+                                 class="q-ml-xs"
+                                 :label="m.semantic_kind"></q-badge>
+                        <q-badge v-if="m.direction === 'in' && !m.read"
+                                 color="primary" label="new"
+                                 class="q-ml-xs"></q-badge>
+                      </q-item-label>
+                      <q-item-label class="q-mt-xs"
+                                    style="white-space: pre-wrap">
+                        {{ m.content }}
+                      </q-item-label>
+                      <q-item-label caption>{{ gmTime(m.created_at) }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+
+                <!-- per-message per-copy delivery evidence (D-19) -->
+                <div v-if="gmMessages.delivery.length" class="q-mt-md"
+                     data-gm="delivery-panel">
+                  <div class="text-subtitle2 q-mb-sm">Delivery evidence</div>
+                  <q-list dense separator>
+                    <q-item v-for="d in gmMessages.delivery"
+                            :key="d.message_id">
+                      <q-item-section>
+                        <q-item-label caption>
+                          Message {{ gmTrunc(d.message_id, 8, 4) }}
+                          <q-badge outline class="q-ml-xs"
+                                   :label="d.intent_state || 'pending'">
+                          </q-badge>
+                          <span v-if="d.last_error" class="text-negative">
+                            · {{ d.last_error }}</span>
+                        </q-item-label>
+                        <q-item-label caption
+                                      v-for="copy in ['recipient', 'sender']"
+                                      :key="copy">
+                          <strong>{{ copy }}</strong>:
+                          <span v-if="!d.copies[copy] ||
+                                     !d.copies[copy].length">no relays yet</span>
+                          <span v-for="p in d.copies[copy]"
+                                :key="copy + p.relay_url + p.attempt_no"
+                                class="q-mr-xs">
+                            <q-badge outline
+                                     :color="p.result === 'accepted' ? 'positive' : 'negative'"
+                                     :label="p.result + ' ' + gmTrunc(p.relay_url.replace('wss://', ''), 12, 4)">
+                            </q-badge>
+                          </span>
+                        </q-item-label>
+                      </q-item-section>
+                      <q-item-section side>
+                        <q-btn v-if="d.intent_id && ['failed', 'partially_published', 'pending'].includes(d.intent_state)"
+                               flat dense label="Retry now"
+                               @click="gmRetryMessageIntent(d)"></q-btn>
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
+                </div>
+
+                <div class="row q-gutter-sm q-mt-md">
+                  <q-input v-model="gmMessages.replyText" dense outlined
+                           class="col" label="Reply (encrypted Nostr DM)"
+                           data-gm="reply-input" type="textarea"
+                           autogrow></q-input>
+                  <q-btn unelevated color="primary" label="Send reply"
+                         :loading="gmMessages.sending"
+                         data-gm="reply-send"
+                         @click="gmSendReply"></q-btn>
+                </div>
+              </q-card-section>
+            </q-card>
+          </div>
+        </div>
+      </section>
+
       <!-- ================= B4/B5/B6: settings ================= -->
       <section v-show="gm.view === 'settings'" data-gm-surface="settings">
         <h1 class="text-h6 q-mb-md">Settings</h1>
@@ -1014,6 +1268,29 @@
                       <q-item v-for="(r, i) in gmSettings.relays" :key="i">
                         <q-item-section>
                           <code>{{ r.relay_url }}</code>
+                          <div class="q-mt-xs" data-gm="relay-auth-pills">
+                            <q-badge outline
+                                     :color="gmAuthColor(r.auth_state)"
+                                     :label="gmAuthLabel(r.auth_state)">
+                            </q-badge>
+                            <span v-if="r.auth_note"
+                                  class="text-caption q-ml-xs">
+                              {{ r.auth_note }}</span>
+                            <q-badge v-if="r.paid_invoice" outline
+                                     color="warning" text-color="dark"
+                                     label="payment-required"
+                                     class="q-ml-xs">
+                              <q-tooltip>
+                                Invoice issued — the BOLT11 string itself
+                                is never rendered here. Pay it from your
+                                wallet, then retry.
+                              </q-tooltip>
+                            </q-badge>
+                            <q-btn v-if="r.paid_invoice"
+                                   flat dense size="sm" class="q-ml-xs"
+                                   label="Paid externally — retry"
+                                   @click="gmRetryRelayAuth(r)"></q-btn>
+                          </div>
                         </q-item-section>
                         <q-item-section side>
                           <q-select v-model="r.direction" dense outlined
@@ -1618,6 +1895,75 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
+
+  <q-dialog v-model="gmMessages.compose.show">
+    <q-card style="min-width: 460px">
+      <q-card-section>
+        <div class="text-h6">New Nostr message</div>
+      </q-card-section>
+      <q-card-section>
+        <q-input v-model="gmMessages.compose.recipient" dense outlined
+                 label="Recipient npub or hex pubkey"
+                 class="q-mb-sm"></q-input>
+        <q-input v-model="gmMessages.compose.orderId" dense outlined
+                 label="Order id (optional — threads onto the order)"
+                 class="q-mb-sm"></q-input>
+        <q-input v-model="gmMessages.compose.content" outlined
+                 type="textarea" autogrow label="Message"
+                 data-gm="compose-content"></q-input>
+        <div class="text-caption q-mt-sm">
+          Sent as an encrypted NIP-17 message — a copy also lands in your
+          own inbox relays so you keep the thread.
+        </div>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Cancel"
+               @click="gmMessages.compose.show = false"></q-btn>
+        <q-btn unelevated color="primary" label="Send"
+               :loading="gmMessages.compose.busy"
+               @click="gmSendCompose"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmMessages.showRejected">
+    <q-card style="min-width: 560px">
+      <q-card-section class="row items-center">
+        <div class="text-h6 col">Rejected intake</div>
+        <q-btn flat dense icon="refresh" @click="gmLoadRejected"></q-btn>
+      </q-card-section>
+      <q-card-section>
+        <div v-if="!gmMessages.rejected.length" class="text-grey-7">
+          No rejected intake — suspicious or malformed Nostr events will
+          appear here with their rejection reason.
+        </div>
+        <q-list v-else dense separator>
+          <q-item v-for="r in gmMessages.rejected" :key="r.id"
+                  data-gm="rejected-row">
+            <q-item-section>
+              <q-item-label>
+                <q-badge outline label="rejected" class="q-mr-xs"></q-badge>
+                {{ r.reason }}
+              </q-item-label>
+              <q-item-label caption>
+                relay {{ gmTrunc(r.relay_url, 16, 6) }} ·
+                {{ gmTime(r.created_at) }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-btn v-if="!r.muted_at" flat dense label="Mute sender"
+                     @click="gmMuteSender(r)"></q-btn>
+              <q-badge v-else outline label="muted"></q-badge>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Close"
+               @click="gmMessages.showRejected = false"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </div>
 {% endraw %}
 {% endblock %}
@@ -1627,6 +1973,7 @@
 <script src="/infinitemarkets/static/infinitemarkets/js/admin_orders.js?v={{ asset_revision }}"></script>
 <script src="/infinitemarkets/static/infinitemarkets/js/admin_catalog.js?v={{ asset_revision }}"></script>
 <script src="/infinitemarkets/static/infinitemarkets/js/admin_publications.js?v={{ asset_revision }}"></script>
+<script src="/infinitemarkets/static/infinitemarkets/js/admin_messages.js?v={{ asset_revision }}"></script>
 <script src="/infinitemarkets/static/infinitemarkets/js/admin_settings.js?v={{ asset_revision }}"></script>
 <script src="/infinitemarkets/static/infinitemarkets/js/admin_notifications.js?v={{ asset_revision }}"></script>
 <style>
@@ -1828,5 +2175,15 @@
 .gm-mode-card:not(.is-blocked):hover {
   border-color: var(--q-primary);
 }
+/* Messages workspace — unread dot + conversation list density. */
+.gm-unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--q-primary);
+  margin-right: 6px;
+}
+.gm-conv-list .q-item { border-radius: 10px; }
 </style>
 {% endblock %}
