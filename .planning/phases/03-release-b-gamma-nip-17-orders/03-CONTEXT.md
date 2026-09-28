@@ -101,7 +101,7 @@ A Nostr buyer can place and follow a Gamma order through declared inbox relays a
 
 - `PINS.md` — approved pins, platform matrix, known-divergence precedent for D-32.
 - `evidence/manifest.json` + `evidence/REPORT.md` — qualification evidence pattern to extend.
-- `harness/` + `tests/qualification/` — permanent regression suite (D-05); `harness/inbox_outbox.py`, `harness/saga.py`, `harness/relay_fixtures` are the executable reference for cursor/dedup/recovery semantics.
+- `harness/` + `tests/qualification/` — permanent regression suite (D-05); `harness/sdk.py` (full §8.5 unwrap chain + dual-copy construction), `harness/relay.py` (`LocalRelay` — needs REQ/EOSE + NIP-42 extension), `harness/saga.py` (crash drills) are the executable reference. Golden NIP-17 fixtures exist at `tests/fixtures/golden/nip17/`.
 
 ### Project Scope
 
@@ -129,7 +129,7 @@ A Nostr buyer can place and follow a Gamma order through declared inbox relays a
 
 - `infinitemarkets/services/relay.py` — `relay_configs` rows already support `direction=inbox`; starter-default seeding pattern exists and must extend to inbox defaults.
 - `infinitemarkets/keystore.py` — `nip17_wrap`/`nip17_unwrap` interface already defined; merchant identity key custody is the AUTH/order-message signing path.
-- `infinitemarkets/migrations.py` — `inbox_events`, `order_messages`, `peer_relays`, `relay_cursors` schema landed schema-only (m002); Phase 3 fills them + migrations for new fields (buyer session, blocklist, storefront mode, read markers).
+- `infinitemarkets/migrations.py` — `inbox_events` and `order_messages` schema landed (m002); `peer_relays`/`relay_cursors` are explicitly deferred and must be **created** this phase (per 03-PATTERNS.md); plus new fields/tables for buyer sessions, blocklist, storefront mode, read markers.
 - `infinitemarkets/services/outbox.py` — durable publication evidence, per-relay `relay_publications`, fencing — the dual-copy NIP-17 publish path plugs in here.
 - `infinitemarkets/services/orders.py`, `checkout.py`, `settlement.py` — canonical order/inventory/invoice/settlement services the Gamma adapter MUST reuse (GAM-02: same pipeline as web).
 - `infinitemarkets/services/tasks.py` — leased background worker pattern for the inbox worker.
