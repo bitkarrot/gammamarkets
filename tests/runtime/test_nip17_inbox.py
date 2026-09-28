@@ -687,3 +687,460 @@ async def test_disallowed_rumor_kind_rejected(runtime_env, monkeypatch):
         row = await _row_for_wrap(env, mid, wrap)
         assert row["processed_state"] == "rejected"
         assert row["reject_reason"] == "rumor-kind-not-allowed"
+
+
+# --- Task 2: inbound semantics + outbound message chaining ---------------------
+
+
+async def _gamma_order(env: dict, monkeypatch, merchant: dict,
+                       buyer_label: str, *, qty=1):
+    """Drive a type-1 wrap through intake; return (order, rumor)."""
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    product = await env["make_product"](uuid.uuid4().hex[:8], 10)
+    wrap, rumor = await _order_wrap(
+        buyer_label, mpk, order_id=f"t2-{uuid.uuid4().hex[:12]}",
+        items=[(product["d_tag"], qty)], amount=500,
+    )
+    async with _relay_env(env, monkeypatch, mid, buyer_label=buyer_label):
+        await _pipeline(env, merchant, wrap)
+    async with env["ext_module"].db.connect() as conn:
+        order = await conn.fetchone(
+            "SELECT * FROM infinitemarkets.orders"
+            " WHERE merchant_id = :m AND source_event_id = :r",
+            {"m": mid, "r": rumor.id().to_hex()},
+        )
+    assert order is not None
+    return dict(order), rumor
+
+
+def _external_id(env: dict, order: dict) -> str:
+    """Owner-side decrypt of orders.external_id_enc."""
+    from infinitemarkets import crypto
+    from infinitemarkets.settings import ext_settings
+
+    settings = ext_settings()
+    ver = crypto.envelope_version(order["external_id_enc"])
+    return crypto.decrypt(
+        order["external_id_enc"], settings.master_keys[ver],
+        record_id=order["id"], table="orders",
+        column="external_id_enc", key_version=ver,
+    ).decode()
+
+
+async def _payment_row(env: dict, order_id: str) -> dict:
+    async with env["ext_module"].db.connect() as conn:
+        return dict(await conn.fetchone(
+            "SELECT * FROM infinitemarkets.payments WHERE order_id = :o",
+            {"o": order_id},
+        ))
+
+
+def _dec_bolt11(order: dict, payment: dict) -> str:
+    from infinitemarkets import crypto
+    from infinitemarkets.settings import ext_settings
+
+    settings = ext_settings()
+    ver = crypto.envelope_version(payment["bolt11_enc"])
+    return crypto.decrypt(
+        payment["bolt11_enc"], settings.master_keys[ver],
+        record_id=order["id"], table="payments",
+        column="bolt11_enc", key_version=ver,
+    ).decode()
+
+
+async def _fresh_order_row(env: dict, order_id: str) -> dict:
+    async with env["ext_module"].db.connect() as conn:
+        return dict(await conn.fetchone(
+            "SELECT * FROM infinitemarkets.orders WHERE id = :i",
+            {"i": order_id},
+        ))
+
+
+async def _held_units(env: dict, order_id: str) -> int:
+    async with env["ext_module"].db.connect() as conn:
+        row = await conn.fetchone(
+            "SELECT COALESCE(SUM(quantity), 0) AS n"
+            " FROM infinitemarkets.inventory_reservations"
+            " WHERE order_id = :o AND state = 'held'",
+            {"o": order_id},
+        )
+    return int(row["n"])
+
+
+async def _msg_rows(env: dict, order_id: str | None = None) -> list[dict]:
+    async with env["ext_module"].db.connect() as conn:
+        if order_id:
+            rows = await conn.fetchall(
+                "SELECT * FROM infinitemarkets.order_messages"
+                " WHERE order_id = :o",
+                {"o": order_id},
+            )
+        else:
+            rows = await conn.fetchall(
+                "SELECT * FROM infinitemarkets.order_messages"
+            )
+    return [dict(r) for r in rows]
+
+
+async def test_buyer_cancel_on_awaiting_payment(runtime_env, monkeypatch):
+    """Buyer type-3 ``cancelled`` on an awaiting_payment order is
+    actionable: §7.1 legality releases stock once + transitions cancelled,
+    and the transition emits a type-3 'cancelled' order_msg intent."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    buyer = "buyer-cancel-1"
+    order, _rumor = await _gamma_order(env, monkeypatch, merchant, buyer)
+    assert order["state"] == "awaiting_payment"
+    assert await _held_units(env, order["id"]) == 1
+    ext_id = _external_id(env, order)
+
+    async with _relay_env(env, monkeypatch, mid, buyer_label=buyer):
+        wrap, rumor = await _generic_wrap(
+            buyer, mpk, kind=16, content="cancel please",
+            tags=[
+                ["p", mpk], ["subject", "order-info"], ["type", "3"],
+                ["order", ext_id], ["status", "cancelled"],
+            ],
+        )
+        await _pipeline(env, merchant, wrap)
+        row = await _row_for_wrap(env, mid, wrap)
+        assert row["processed_state"] == "processed"
+
+    order = await _fresh_order_row(env, order["id"])
+    assert order["state"] == "cancelled"
+    assert await _held_units(env, order["id"]) == 0
+    # The cancel transition enqueued the outbound type-3 reply.
+    msgs = await _msg_rows(env, order["id"])
+    outbound = [m for m in msgs if m["direction"] == "out"]
+    semantics = {m["semantic_kind"] for m in outbound}
+    assert "payment-request" in semantics
+    assert "status" in semantics
+    intents = [
+        r for r in await _outbox_rows(env, mid)
+        if r["aggregate_type"] == "order_msg"
+        and r["aggregate_id"].startswith(order["id"] + ":")
+    ]
+    assert len(intents) == len(outbound)
+
+
+async def test_buyer_cancel_on_confirmed_illegal(runtime_env, monkeypatch):
+    """Confirmed orders are NOT buyer-cancellable (§7.1) — the wrap is
+    audit-only 'processed', no mutation."""
+    from infinitemarkets.services import settlement
+
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    order, _rumor = await _gamma_order(
+        env, monkeypatch, merchant, "buyer-cancel-2"
+    )
+    await settlement.confirm_settlement(order_id=order["id"])
+    order = await _fresh_order_row(env, order["id"])
+    assert order["state"] == "confirmed"
+    ext_id = _external_id(env, order)
+
+    async with _relay_env(env, monkeypatch, mid, buyer_label="buyer-cancel-2"):
+        wrap, _r = await _generic_wrap(
+            "buyer-cancel-2", mpk, kind=16, content="",
+            tags=[
+                ["p", mpk], ["subject", "order-info"], ["type", "3"],
+                ["order", ext_id], ["status", "cancelled"],
+            ],
+        )
+        await _pipeline(env, merchant, wrap)
+        row = await _row_for_wrap(env, mid, wrap)
+        assert row["processed_state"] == "processed"
+    order = await _fresh_order_row(env, order["id"])
+    assert order["state"] == "confirmed"
+
+
+async def test_buyer_status_confirmed_audit_only(runtime_env, monkeypatch):
+    """Only 'cancelled' is actionable inbound — a buyer type-3
+    'confirmed' is audit-only, never mutates merchant state."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    order, _r = await _gamma_order(
+        env, monkeypatch, merchant, "buyer-status-1"
+    )
+    ext_id = _external_id(env, order)
+    async with _relay_env(env, monkeypatch, mid, buyer_label="buyer-status-1"):
+        wrap, _ = await _generic_wrap(
+            "buyer-status-1", mpk, kind=16, content="",
+            tags=[
+                ["p", mpk], ["subject", "order-info"], ["type", "3"],
+                ["order", ext_id], ["status", "confirmed"],
+            ],
+        )
+        await _pipeline(env, merchant, wrap)
+    order = await _fresh_order_row(env, order["id"])
+    assert order["state"] == "awaiting_payment"
+
+
+async def test_foreign_buyer_cancel_no_oracle(runtime_env, monkeypatch):
+    """A different buyer's cancel naming a real order id is audit-only —
+    sender-hash mismatch means no reveal, no mutation."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    order, _r = await _gamma_order(
+        env, monkeypatch, merchant, "buyer-own-1"
+    )
+    ext_id = _external_id(env, order)
+    async with _relay_env(env, monkeypatch, mid, buyer_label="stranger-1"):
+        wrap, _ = await _generic_wrap(
+            "stranger-1", mpk, kind=16, content="",
+            tags=[
+                ["p", mpk], ["subject", "order-info"], ["type", "3"],
+                ["order", ext_id], ["status", "cancelled"],
+            ],
+        )
+        await _pipeline(env, merchant, wrap)
+        row = await _row_for_wrap(env, mid, wrap)
+        assert row["processed_state"] == "processed"
+    order = await _fresh_order_row(env, order["id"])
+    assert order["state"] == "awaiting_payment"
+
+
+async def test_kind17_receipt_verified(runtime_env, monkeypatch):
+    """A kind-17 receipt with the stored bolt11 + a preimage hashing to
+    payments.payment_hash sets cosmetic receipt_verified — never touches
+    payment state."""
+    from lnbits.wallets import get_funding_source
+
+    from infinitemarkets.services import settlement
+
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    order, _r = await _gamma_order(
+        env, monkeypatch, merchant, "buyer-rcpt-1"
+    )
+    payment = await _payment_row(env, order["id"])
+    bolt11 = _dec_bolt11(order, payment)
+    # FakeWallet's honest preimage — settle the invoice first so the
+    # payment_secrets entry exists.
+    funding = get_funding_source()
+    preimage = funding.payment_secrets.get(payment["payment_hash"])
+    assert preimage is not None, "FakeWallet did not record a preimage"
+    await settlement.confirm_settlement(order_id=order["id"])
+    order = await _fresh_order_row(env, order["id"])
+    assert order["state"] == "confirmed"
+    ext_id = _external_id(env, order)
+
+    async with _relay_env(env, monkeypatch, mid, buyer_label="buyer-rcpt-1"):
+        wrap, _ = await _generic_wrap(
+            "buyer-rcpt-1", mpk, kind=17, content="paid!",
+            tags=[
+                ["p", mpk], ["subject", "order-payment"],
+                ["order", ext_id], ["amount", str(order["total_sat"])],
+                ["payment", "lightning", bolt11, preimage],
+            ],
+        )
+        await _pipeline(env, merchant, wrap)
+        row = await _row_for_wrap(env, mid, wrap)
+        assert row["processed_state"] == "processed"
+    order = await _fresh_order_row(env, order["id"])
+    assert order["receipt_verified"]  # cosmetic flag only
+    assert order["state"] == "confirmed"  # settlement untouched
+    async with env["ext_module"].db.connect() as conn:
+        ev = await conn.fetchone(
+            "SELECT * FROM infinitemarkets.order_events"
+            " WHERE order_id = :o AND detail_json LIKE '%nip17-receipt%'",
+            {"o": order["id"]},
+        )
+    assert ev is not None
+
+
+async def test_kind17_bad_preimage_no_verify(runtime_env, monkeypatch):
+    """Wrong preimage / mismatched bolt11 never verifies — audit row
+    still lands (buyer-claimed amount recorded for dispute display)."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    order, _r = await _gamma_order(
+        env, monkeypatch, merchant, "buyer-rcpt-2"
+    )
+    payment = await _payment_row(env, order["id"])
+    bolt11 = _dec_bolt11(order, payment)
+    ext_id = _external_id(env, order)
+
+    async with _relay_env(env, monkeypatch, mid, buyer_label="buyer-rcpt-2"):
+        wrap, _ = await _generic_wrap(
+            "buyer-rcpt-2", mpk, kind=17, content="",
+            tags=[
+                ["p", mpk], ["subject", "order-payment"],
+                ["order", ext_id], ["amount", "99999"],
+                ["payment", "lightning", bolt11, "ff" * 32],
+            ],
+        )
+        await _pipeline(env, merchant, wrap)
+        row = await _row_for_wrap(env, mid, wrap)
+        assert row["processed_state"] == "processed"
+    order = await _fresh_order_row(env, order["id"])
+    assert not order["receipt_verified"]
+    async with env["ext_module"].db.connect() as conn:
+        ev = await conn.fetchone(
+            "SELECT detail_json FROM infinitemarkets.order_events"
+            " WHERE order_id = :o AND detail_json LIKE '%nip17-receipt%'",
+            {"o": order["id"]},
+        )
+    assert "buyer_claimed_amount_sat" in (ev["detail_json"] or "")
+
+
+async def test_kind14_threads_order_when_sender_matches(
+    runtime_env, monkeypatch
+):
+    """kind-14 subject=<external_id> threads ONLY when the sender hash
+    matches orders.buyer_pubkey_hash; a stranger's same-subject DM lands
+    in Unknown without revealing the order exists."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    order, _r = await _gamma_order(
+        env, monkeypatch, merchant, "buyer-dm-2"
+    )
+    ext_id = _external_id(env, order)
+
+    async with _relay_env(env, monkeypatch, mid, buyer_label="buyer-dm-2"):
+        wrap, rumor = await _generic_wrap(
+            "buyer-dm-2", mpk, kind=14, content="about my order",
+            tags=[["p", mpk], ["subject", ext_id]],
+        )
+        await _pipeline(env, merchant, wrap)
+        wrap2, rumor2 = await _generic_wrap(
+            "stranger-2", mpk, kind=14, content="guessing orders",
+            tags=[["p", mpk], ["subject", ext_id]],
+        )
+        from infinitemarkets.services import inbox
+
+        ref = {"id": mid, "pubkey": mpk}
+        await inbox.admit_event("wss://src.example", wrap2, ref)
+        await inbox.drain_received()
+        await inbox.process_pending()
+
+    async with env["ext_module"].db.connect() as conn:
+        msgs = [
+            dict(r) for r in await conn.fetchall(
+                "SELECT * FROM infinitemarkets.order_messages"
+                " WHERE rumor_id IN (:a, :b)",
+                {"a": rumor.id().to_hex(), "b": rumor2.id().to_hex()},
+            )
+        ]
+    by_rumor = {m["rumor_id"]: m for m in msgs}
+    threaded = by_rumor[rumor.id().to_hex()]
+    stranger = by_rumor[rumor2.id().to_hex()]
+    assert threaded["order_id"] == order["id"]
+    assert threaded["conversation_id"] == f"order:{order['id']}"
+    assert stranger["order_id"] is None
+    assert stranger["conversation_id"].startswith("unknown:")
+
+
+async def test_dm_rate_cap(runtime_env, monkeypatch):
+    """§15: the 21st DM from one inner buyer in an hour rejects."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+
+    async with _relay_env(env, monkeypatch, mid):
+        from infinitemarkets.services import inbox
+
+        ref = {"id": mid, "pubkey": mpk}
+        for i in range(21):
+            wrap, _r = await _generic_wrap(
+                "buyer-flood", mpk, kind=14, content=f"msg{i}",
+                tags=[["p", mpk]],
+            )
+            await inbox.admit_event("wss://src.example", wrap, ref)
+        await inbox.drain_received()
+        await inbox.process_pending()
+        rows = await _inbox_rows(env, mid)
+        dms = [r for r in rows if r["kind"] == 14 and
+               r["processed_state"] in ("processed", "rejected")]
+        rejected = [r for r in dms if r["processed_state"] == "rejected"]
+        assert len(rejected) == 1
+        assert rejected[0]["reject_reason"] == "dm-rate-limited"
+
+
+async def test_admin_compose_dm_dual_copy(runtime_env, monkeypatch):
+    """compose_dm enqueues a kind-14 order_msg + an 'out'
+    order_messages row on the unknown:<counterparty> conversation."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid = merchant["id"]
+    from infinitemarkets.services import order_messages
+
+    recipient = _buyer_keys("buyer-comp").public_key().to_hex()
+    result = await order_messages.compose_dm(
+        mid, recipient_pubkey=recipient, content="hello buyer",
+    )
+    assert result["queued"] is True
+    assert result["conversation_id"].startswith("unknown:")
+    msgs = await _msg_rows(env)
+    out = [m for m in msgs if m["direction"] == "out" and
+           m["conversation_id"] == result["conversation_id"]]
+    assert len(out) == 1
+    assert out[0]["semantic_kind"] == "dm"
+    intents = [
+        r for r in await _outbox_rows(env, mid)
+        if r["aggregate_type"] == "order_msg"
+        and r["event_kind"] == 14
+    ]
+    assert len(intents) == 1
+    assert intents[0]["aggregate_revision"] == 0
+
+
+async def test_reply_dm_resolves_unknown_counterparty(
+    runtime_env, monkeypatch
+):
+    """reply_dm on an unknown: conversation reuses the stored
+    participant pubkey — the merchant only needs the conversation id."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    from infinitemarkets.services import order_messages
+
+    async with _relay_env(env, monkeypatch, mid):
+        wrap, _r = await _generic_wrap(
+            "buyer-reply", mpk, kind=14, content="question?",
+            tags=[["p", mpk]],
+        )
+        await _pipeline(env, merchant, wrap)
+    msgs = await _msg_rows(env)
+    inbound = [m for m in msgs if m["direction"] == "in" and
+               m["conversation_id"].startswith("unknown:")]
+    assert inbound
+    conv = inbound[0]["conversation_id"]
+    result = await order_messages.reply_dm(
+        mid, conversation_id=conv, content="answer!",
+    )
+    assert result["queued"] is True
+    assert result["conversation_id"] == conv
+
+
+async def test_order_msg_revision0_never_supersedes(runtime_env, monkeypatch):
+    """Multiple order_msg intents per order stay live at revision 0 —
+    the supersession UPDATE only touches aggregate_revision < 0."""
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid = merchant["id"]
+    order, _r = await _gamma_order(
+        env, monkeypatch, merchant, "buyer-rev0"
+    )
+    from infinitemarkets.db import DomainTransaction
+    from infinitemarkets.services import order_messages
+
+    async with DomainTransaction() as tx:
+        row = await tx.fetch_one(
+            "SELECT * FROM orders WHERE id = :i", {"i": order["id"]}
+        )
+        await order_messages.enqueue_status(tx, dict(row), "confirmed")
+        await order_messages.enqueue_status(tx, dict(row), "processing")
+    intents = [
+        r for r in await _outbox_rows(env, mid)
+        if r["aggregate_type"] == "order_msg"
+        and r["aggregate_id"].startswith(order["id"] + ":")
+    ]
+    assert all(r["state"] == "pending" for r in intents)
+    assert len(intents) >= 3  # payment-request + two status intents

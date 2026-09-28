@@ -32,6 +32,9 @@ INBOX_INTERVAL_S = 5
 RESERVATION_EXPIRY_INTERVAL_S = 30
 RECONCILE_INTERVAL_S = 60
 RETENTION_INTERVAL_S = 86400
+# §9.3: buyer kind-10050 sets for no-route order_msg intents re-resolve
+# on a 15-min cadence (the outbox parks them at the same interval).
+PEER_RELAY_REFRESH_INTERVAL_S = 15 * 60
 
 LEASE_TTL_S = 120
 
@@ -245,12 +248,14 @@ async def reservation_expiry() -> None:
 
 async def reconciliation() -> None:
     """§8.7 pass — runs once immediately (startup reconciliation gates
-    checkout readiness), then every 60s under the task lease."""
+    checkout readiness), then every 60s under the task lease. The §9.3
+    peer-relay refresh/no-route sweep rides the same lease every 15 min."""
     from ..db import DomainTransaction, db, table
-    from . import readiness, settlement
+    from . import peer_relays, readiness, settlement
 
     first = True
     started_at = None
+    last_peer_refresh = 0.0
     while True:
         try:
             if started_at is None:
@@ -261,6 +266,14 @@ async def reconciliation() -> None:
                 report = await _run_leased("reconciliation", token, settlement.reconcile)
                 if any(report.values()):
                     logger.debug(f"infinitemarkets reconcile: {report}")
+                now_mono = _now()
+                if now_mono - last_peer_refresh >= PEER_RELAY_REFRESH_INTERVAL_S:
+                    last_peer_refresh = now_mono
+                    stats = await peer_relays.refresh_stale_peer_relays()
+                    if any(stats.values()):
+                        logger.debug(
+                            f"infinitemarkets peer-relay refresh: {stats}"
+                        )
                 if first:
                     readiness.mark_reconciled()
                     first = False

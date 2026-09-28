@@ -940,7 +940,7 @@ async def mute_rejected_intake(
 
 
 async def _list_rejected_intake(merchant_id: str, user) -> dict:
-    from .. import crypto
+    from . import crypto
     from .db import db, table
     from .settings import ext_settings
 
@@ -949,7 +949,7 @@ async def _list_rejected_intake(merchant_id: str, user) -> dict:
         rows = await conn.fetchall(
             f"SELECT id, outer_event_id, kind, processed_state,"
             " reject_reason, author_hash, author_enc, received_at,"
-            " processed_at, source_relay"
+            " processed_at, source_relay_url"
             f" FROM {table('inbox_events')}"
             " WHERE merchant_id = :m"
             " AND processed_state IN ('rejected', 'quarantined')"
@@ -982,7 +982,7 @@ async def _list_rejected_intake(merchant_id: str, user) -> dict:
                 "processed_state": row["processed_state"],
                 "reject_reason": row["reject_reason"],
                 "author_npub": author_npub,
-                "source_relay": row["source_relay"],
+                "source_relay": row["source_relay_url"],
                 "received_at": row["received_at"],
                 "processed_at": row["processed_at"],
             }
@@ -994,7 +994,7 @@ async def _mute_inbox_author(merchant_id: str, inbox_event_id: str) -> dict:
     import time as _time
     import uuid as _uuid
 
-    from .. import crypto
+    from . import crypto
     from .db import DomainTransaction, db, table
     from .security import not_found
     from .settings import ext_settings

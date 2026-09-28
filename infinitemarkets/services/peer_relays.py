@@ -167,13 +167,24 @@ async def resolve_buyer_inbox_relays(
 
 
 async def refresh_stale_peer_relays(*, settings=None) -> dict:
-    """The TTL refresh cycle — expired cache rows are dropped and
-    re-resolved once per (merchant, peer). The buyer pubkey lives under
-    AEAD (``pubkey_enc``) and is decrypted inside the refresh operation
-    only."""
+    """The TTL refresh cycle + the §9.3 no-route sweep.
+
+    Expired cache rows are dropped and re-resolved once per (merchant,
+    peer). ``order_msg`` intents stuck ``pending``/``partially_published``
+    on ``no_inbox_relays`` get their recipient's kind-10050 set
+    force-refreshed (cached rows deleted first) so a buyer who advertises
+    routes mid-window is discovered on this 15-min cadence rather than at
+    TTL expiry; intents older than the 48h no-route deadline fail
+    terminally. Buyer pubkeys live under AEAD (``pubkey_enc``/
+    ``payload_enc``) and are decrypted inside this operation only."""
+    import json as _json
+
+    from .outbox import ORDER_MSG_NO_ROUTE_DEADLINE_S
+
     settings = settings or ext_settings()
     now = _now()
-    stats = {"refreshed": 0, "failed": 0}
+    stats = {"refreshed": 0, "failed": 0,
+             "no_route_refreshed": 0, "no_route_failed": 0}
     async with db.connect() as conn:
         stale = await conn.fetchall(
             f"SELECT DISTINCT merchant_id, pubkey_hash"
@@ -212,4 +223,66 @@ async def refresh_stale_peer_relays(*, settings=None) -> dict:
             stats["refreshed"] += 1
         except Exception:  # noqa: BLE001 — report-only per peer
             stats["failed"] += 1
+
+    # §9.3 no-route sweep: pending order_msg intents whose recipient had
+    # no declared inbox set at the last attempt get a fresh kind-10050
+    # fetch (cache rows deleted first — a stale-but-unexpired set must not
+    # pin the old routes for the whole TTL). Past the 48h deadline from
+    # first enqueue the intent fails terminally.
+    async with db.connect() as conn:
+        stuck = await conn.fetchall(
+            f"SELECT id, merchant_id, created_at, payload_enc"
+            f" FROM {table('outbox_events')}"
+            " WHERE aggregate_type = 'order_msg'"
+            " AND state IN ('pending', 'partially_published')"
+            " AND last_error = 'no_inbox_relays'",
+        )
+    for intent in stuck:
+        intent = dict(intent)
+        try:
+            if now - int(intent["created_at"]) >= (
+                ORDER_MSG_NO_ROUTE_DEADLINE_S
+            ):
+                async with DomainTransaction() as tx:
+                    await tx.execute(
+                        f"UPDATE {tx.table('outbox_events')} SET"
+                        " state = 'failed', next_attempt_at = 0,"
+                        " claimed_by = NULL, claimed_until = NULL,"
+                        " updated_at = :n"
+                        " WHERE id = :i AND last_error = 'no_inbox_relays'"
+                        " AND state IN ('pending', 'partially_published')",
+                        {"n": now, "i": intent["id"]},
+                    )
+                stats["no_route_failed"] += 1
+                continue
+            if intent["payload_enc"] is None:
+                continue
+            ver = crypto.envelope_version(intent["payload_enc"])
+            descriptor = _json.loads(
+                crypto.decrypt(
+                    intent["payload_enc"],
+                    settings.master_keys[ver],
+                    record_id=intent["id"], table="outbox_events",
+                    column="payload_enc", key_version=ver,
+                ).decode()
+            )
+            recipient = descriptor.get("recipient_pubkey")
+            if not recipient:
+                continue
+            pubkey_hash = _pubkey_hash(
+                settings, intent["merchant_id"], recipient
+            )
+            async with DomainTransaction() as tx:
+                await tx.execute(
+                    f"DELETE FROM {tx.table('peer_relays')} "
+                    "WHERE merchant_id = :m AND pubkey_hash = :h",
+                    {"m": intent["merchant_id"], "h": pubkey_hash},
+                )
+            await resolve_buyer_inbox_relays(
+                intent["merchant_id"], recipient, settings=settings
+            )
+            stats["no_route_refreshed"] += 1
+        except Exception as exc:  # noqa: BLE001 — report-only per intent
+            stats["failed"] += 1
+            stats["last_error"] = type(exc).__name__
     return stats

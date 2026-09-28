@@ -225,6 +225,7 @@ async def _process_received(row: dict, ks, settings) -> str:
     merchant_id = row["merchant_id"]
     row_id = row["id"]
     now = _now()
+    metrics.incr("inbox.drain.unwrap")
     try:
         out = await ks.nip17_unwrap(merchant_id, row["raw_json"])
     except Exception as exc:  # WrapRejection carries the bounded reason
@@ -268,8 +269,10 @@ async def _process_received(row: dict, ks, settings) -> str:
                 f"UPDATE {tx.table('inbox_events')} SET"
                 " processed_state = 'rejected',"
                 " reject_reason = 'author-rate-limited',"
+                " author_hash = :ah, author_enc = :ae,"
                 " processed_at = :t WHERE id = :i",
-                {"t": now, "i": row_id},
+                {"t": now, "i": row_id,
+                 "ah": author_hash, "ae": author_enc},
             )
             metrics.incr("inbox.drain.author_over_cap")
             return "rejected"
@@ -301,9 +304,11 @@ async def _process_received(row: dict, ks, settings) -> str:
                 await tx.execute(
                     f"UPDATE {tx.table('inbox_events')} SET"
                     " processed_state = 'rejected',"
-                    " reject_reason = 'author-blocked', processed_at = :t"
-                    " WHERE id = :i",
-                    {"t": now, "i": row_id},
+                    " reject_reason = 'author-blocked',"
+                    " author_hash = :ah, author_enc = :ae,"
+                    " processed_at = :t WHERE id = :i",
+                    {"t": now, "i": row_id,
+                     "ah": author_hash, "ae": author_enc},
                 )
             metrics.incr("inbox.drain.author_blocked")
             return "rejected"
