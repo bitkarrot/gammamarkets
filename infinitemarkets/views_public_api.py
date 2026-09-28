@@ -202,8 +202,19 @@ async def public_checkout(request: Request, response: Response, body: dict):
     key = checkout_service.validate_idempotency_key(
         request.headers.get("idempotency-key")
     )
+    # D-04: a valid session attributes the order to the buyer pubkey —
+    # a stale/missing cookie keeps anonymous web-checkout semantics.
+    # When a session cookie is PRESENT the mutation is attributed, so
+    # exact-Origin applies (cookie-mutation rule); stale cookies resolve
+    # to no session rather than bypassing checkout.
+    if request.cookies.get(nostr_auth.SESSION_COOKIE) is not None:
+        nostr_auth.require_origin(request)
+    buyer_session = await nostr_auth.session_from_cookie(
+        request.cookies.get(nostr_auth.SESSION_COOKIE)
+    )
     return await checkout_service.checkout(
         payload=body, idempotency_key=key, client_scope=scope,
+        buyer_session=buyer_session,
     )
 
 
@@ -267,39 +278,9 @@ async def public_order_status(request: Request, response: Response):
         from .services.orders import digital_delivery
 
         delivery = await digital_delivery(conn, order)
-    bolt11 = None
-    if (
-        order["state"] == "awaiting_payment"
-        and payment
-        and payment["bolt11_enc"] is not None
-    ):
-        settings = ext_settings()
-        ver = crypto.envelope_version(payment["bolt11_enc"])
-        bolt11 = crypto.decrypt(
-            payment["bolt11_enc"], settings.master_keys[ver],
-            record_id=order["id"], table="payments", column="bolt11_enc",
-            key_version=ver,
-        ).decode()
-    return {
-        "state": order["state"],
-        "shipping_state": order["shipping_state"],
-        "total_sat": order["total_sat"],
-        "bolt11": bolt11,
-        "payment_status": payment["status"] if payment else None,
-        "items": [
-            {"title": i["title"], "quantity": i["quantity"],
-             "line_total_sat": i["line_total_sat"]}
-            for i in items
-        ],
-        "expires_at": order["invoice_expiry"],
-        "email_opt_in": bool(order["email_opt_in"]),
-        # Buyer-safe hold flag — drives the "On hold — the merchant is
-        # reviewing a payment issue." label (never the reason detail).
-        "payment_exception": bool(order["payment_exception"]),
-        # Merchant digital delivery content — [] until LNbits-confirmed
-        # payment with no exception/oversell under review.
-        "digital_delivery": delivery,
-    }
+    body = _order_status_projection(order, items, payment, delivery)
+    body["bolt11"] = await _order_payment_bolt11(order, payment)
+    return body
 
 
 @infinitemarkets_public_api_router.post("/order-email-opt-out")
@@ -561,3 +542,26 @@ async def nostr_orders(request: Request, response: Response):
             entry["status_url"] = status_url
             out.append(entry)
     return {"orders": out}
+
+
+@infinitemarkets_public_api_router.post("/nostr/claim")
+@public_boundary
+async def nostr_claim(
+    request: Request, response: Response, body: NostrClaimBody
+):
+    """Bind the session's buyer pubkey to a token-resolved order (D-05).
+
+    Every token failure is the identical ``_TOKEN_INVALID`` outcome —
+    claim never distinguishes dead/malformed/expired/foreign-bound.
+    """
+    await _guard(request, response)
+    await nip89.check_public_rate_limit(
+        request, bucket="nostr-claim", limit=30, window_s=60
+    )
+    nostr_auth.require_origin(request)
+    session = await _buyer_session(request)
+    order = await _order_for_token(body.token)
+    if order["merchant_id"] != session["merchant_id"]:
+        # Cross-merchant token resolution is an identical invalid outcome.
+        raise _TOKEN_INVALID
+    return await nostr_auth.claim_order(session, order)

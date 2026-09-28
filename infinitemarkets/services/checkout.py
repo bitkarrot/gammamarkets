@@ -619,9 +619,15 @@ async def checkout(
     payload: dict,
     idempotency_key: str,
     client_scope: str,
+    buyer_session: dict | None = None,
     now: int | None = None,
 ) -> dict:
-    """Run the §8.1/§8.2 checkout pipeline; returns the §5.4 201 body."""
+    """Run the §8.1/§8.2 checkout pipeline; returns the §5.4 201 body.
+
+    ``buyer_session`` (D-04): a resolved NIP-07 session — the order is
+    attributed to its buyer pubkey only when the session's merchant is
+    THIS merchant (sessions are merchant-scoped).
+    """
     from .readiness import assert_database_compatible
 
     await assert_database_compatible()
@@ -639,6 +645,12 @@ async def checkout(
             return body
         raise not_found("checkout response expired")
     claim_token = record["claim_token"]
+    buyer_pubkey = (
+        buyer_session["buyer_pubkey"]
+        if buyer_session
+        and buyer_session.get("merchant_id") == merchant["id"]
+        else None
+    )
     try:
         if "_resume_order_id" in record:
             response = await _resume_order(record, now=now)
@@ -647,6 +659,7 @@ async def checkout(
             body = await _run_checkout(
                 merchant=merchant, payload=payload, client_scope=client_scope,
                 settings=settings, now=now, scope=scope, claim_token=claim_token,
+                buyer_pubkey=buyer_pubkey,
             )
             response, order_id = body["response"], body["_order_id"]
     except Exception:
@@ -668,6 +681,7 @@ async def _run_checkout(
     claim_token: int,
     settings: ExtSettings,
     now: int,
+    buyer_pubkey: str | None = None,
 ) -> dict:
     """Intake -> totals -> tx1 order -> saga -> response."""
     # Open-order cap (§15): ≤10 unpaid web orders per IP scope.
@@ -727,12 +741,35 @@ async def _run_checkout(
             max(0, int(payload["buyer_amount"]))
             if payload.get("buyer_amount") is not None else None
         ),
+        buyer_pubkey=buyer_pubkey,
         client_scope=client_scope, settings=settings, now=now, scope=scope,
         claim_token=claim_token,
     )
 
     result = await begin_saga(order_id=order_id, settings=settings, now=now)
     state = result.get("state", "awaiting_payment")
+    if (
+        buyer_pubkey
+        and state == "awaiting_payment"
+        and result.get("bolt11")
+    ):
+        # D-04: attributed web orders receive the same kind-16 type-2
+        # payment request gamma orders do — routed to the buyer's
+        # declared inbox relays via the order_msg dual-copy path
+        # (no_inbox_relays parked state applies when none are declared).
+        from . import order_messages
+
+        async with DomainTransaction() as tx:
+            live = await tx.fetch_one(
+                f"SELECT * FROM {tx.table('orders')} WHERE id = :i"
+                + tx.for_update,
+                {"i": order_id},
+            )
+            if live and live["state"] == "awaiting_payment":
+                await order_messages.enqueue_payment_request(
+                    tx, dict(live), bolt11=result["bolt11"],
+                    expiration=result.get("expires_at"),
+                )
     response = {
         "public_token": token,
         "order": {
@@ -767,6 +804,7 @@ async def _insert_order_intake(
     claim_token: int,
     settings: ExtSettings,
     now: int,
+    buyer_pubkey: str | None = None,
 ) -> None:
     """§8.1 step 8: orders(received) + items + fx + audit + token, one tx."""
     key = settings.master_keys[settings.active_key_version]
@@ -843,6 +881,21 @@ async def _insert_order_intake(
                 "n": now,
             },
         )
+        if buyer_pubkey:
+            # D-04: signed-in web buyers persist buyer_pubkey_enc/hash —
+            # identical custody to gamma intake (PURPOSE_BUYER_PUBKEY).
+            await tx.execute(
+                f"UPDATE {tx.table('orders')} SET buyer_pubkey_enc = :be,"
+                " buyer_pubkey_hash = :bh WHERE id = :o",
+                {
+                    "be": _enc(buyer_pubkey.encode(), "buyer_pubkey_enc"),
+                    "bh": crypto.hmac_index(
+                        settings.privacy_key, crypto.PURPOSE_BUYER_PUBKEY,
+                        merchant["id"], crypto.normalize(buyer_pubkey),
+                    ),
+                    "o": order_id,
+                },
+            )
         linked = await tx.execute(
             f"UPDATE {tx.table('idempotency_records')} SET order_id = :o"
             " WHERE scope_hash = :s AND order_id IS NULL AND state = 'in_progress'"

@@ -455,3 +455,80 @@ def require_origin(request) -> None:
     canonical = ext_settings().public_base_url
     if not origin or origin.lower() == "null" or origin != canonical:
         raise forbidden("cross-origin session mutation rejected")
+
+
+#: Identical-401 outcome shared with ``_order_for_token`` — claim must
+#: never distinguish dead/malformed/foreign-bound tokens (D-05 no-oracle).
+CLAIM_INVALID = ProblemError(
+    401, "unauthorized", "Token invalid",
+    "this order link is no longer valid",
+)
+
+
+async def claim_order(
+    session: dict, order: dict, *, settings=None, now: int | None = None
+) -> dict:
+    """Bind the session's buyer pubkey to a token-resolved order (D-05).
+
+    Idempotent: a repeat claim against the same pubkey is a success
+    no-op. An order already bound to a DIFFERENT pubkey rejects with the
+    identical no-oracle outcome — claim never reveals ownership state.
+    Binds and audits inside one ``DomainTransaction``; the CAS guard on
+    ``buyer_pubkey_hash IS NULL`` keeps racing claims single-writer.
+    """
+    from ..settings import ext_settings
+
+    settings = settings or ext_settings()
+    now = _now() if now is None else now
+    buyer_hash = session["buyer_pubkey_hash"]
+    existing = order.get("buyer_pubkey_hash")
+    if existing:
+        if hmac.compare_digest(existing, buyer_hash):
+            return {
+                "claimed": True,
+                "order_id": order["id"],
+                "already_linked": True,
+            }
+        raise CLAIM_INVALID
+    ver = settings.active_key_version
+    key = settings.master_keys[ver]
+    enc = crypto.encrypt(
+        session["buyer_pubkey"].encode(), key, record_id=order["id"],
+        table="orders", column="buyer_pubkey_enc", key_version=ver,
+    )
+    async with DomainTransaction() as tx:
+        rc = await tx.execute(
+            f"UPDATE {tx.table('orders')} SET buyer_pubkey_enc = :e,"
+            " buyer_pubkey_hash = :h, updated_at = :n"
+            " WHERE id = :i AND buyer_pubkey_hash IS NULL",
+            {"e": enc, "h": buyer_hash, "n": now, "i": order["id"]},
+        )
+        if rc != 1:
+            row = await tx.fetch_one(
+                f"SELECT buyer_pubkey_hash FROM {tx.table('orders')}"
+                " WHERE id = :i",
+                {"i": order["id"]},
+            )
+            if row and row["buyer_pubkey_hash"] and hmac.compare_digest(
+                row["buyer_pubkey_hash"], buyer_hash
+            ):
+                return {
+                    "claimed": True,
+                    "order_id": order["id"],
+                    "already_linked": True,
+                }
+            raise CLAIM_INVALID
+        await tx.execute(
+            f"INSERT INTO {tx.table('order_events')} "
+            "(id, order_id, from_state, to_state, actor, detail_json,"
+            " created_at) "
+            f"SELECT :i, :o, state, state, 'buyer', :d, :n"
+            f" FROM {tx.table('orders')} WHERE id = :o",
+            {
+                "i": __import__("uuid").uuid4().hex,
+                "o": order["id"],
+                "d": '{"type":"buyer-claimed"}',
+                "n": now,
+            },
+        )
+    return {"claimed": True, "order_id": order["id"], "already_linked": False}

@@ -198,18 +198,30 @@ async def _bind_buyer(env: dict, order_id: str, buyer_hex: str) -> None:
 
 
 async def _web_order(env: dict, product_d: str) -> tuple[dict, str]:
-    """A real anonymous web checkout -> (order row, private token)."""
-    client = env["client"]
+    """A real anonymous web checkout -> (order row, private token).
+
+    A fresh cookie-free client is used so no buyer session (possibly
+    left on the shared client) attributes the order.
+    """
+    import httpx
+
     merchant = await _merchant(env)
-    resp = await client.post(
-        f"{PUB}/checkout",
-        json={
-            "merchant_pubkey": merchant["pubkey"],
-            "items": [{"d_tag": product_d, "quantity": 1}],
-            "email_opt_in": False,
-        },
-        headers={"Idempotency-Key": uuid.uuid4().hex},
-    )
+    transport = httpx.ASGITransport(app=env["app"])
+    async with httpx.AsyncClient(
+        transport=transport, base_url=ORIGIN
+    ) as anon:
+        resp = await anon.post(
+            f"{PUB}/checkout",
+            json={
+                "merchant_pubkey": merchant["pubkey"],
+                "items": [{"d_tag": product_d, "quantity": 1}],
+                "email_opt_in": False,
+            },
+            headers={
+                "Idempotency-Key": uuid.uuid4().hex,
+                "Origin": ORIGIN,
+            },
+        )
     assert resp.status_code == 201, resp.text
     token = resp.json()["public_token"]
     digest = env["ext_module"].crypto.token_lookup_hash(token)
@@ -484,3 +496,370 @@ async def test_public_nostr_js_safety(runtime_env):
     assert "NIP-07" in src
     assert ".innerHTML" not in src
     assert "kind: KIND_SIGNIN" in src or "kind: 22242" in src
+
+
+# --- claim flow + attributed web checkout (03-03 Task 2, D-04/D-05) ----------
+
+
+async def test_claim_binds_buyer_and_audits(runtime_env):
+    """Token + session -> buyer_pubkey bound, order_events audit row,
+    order appears in the buyer's history."""
+    import httpx
+
+    env = runtime_env
+    product = await env["make_product"](f"claim-{uuid.uuid4().hex[:6]}", 5)
+    order, token = await _web_order(env, product["d_tag"])
+    assert order["buyer_pubkey_hash"] is None
+
+    transport = httpx.ASGITransport(app=env["app"])
+    async with httpx.AsyncClient(
+        transport=transport, base_url=ORIGIN
+    ) as fresh:
+        await _signin(fresh, "claimer-1")
+        resp = await fresh.post(
+            f"{PUB}/nostr/claim",
+            json={"token": token},
+            headers={"Origin": ORIGIN},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["claimed"] is True
+        assert resp.json()["order_id"] == order["id"]
+
+        resp = await fresh.get(f"{PUB}/nostr/orders")
+        ids = {o["order_id"] for o in resp.json()["orders"]}
+        assert order["id"] in ids
+
+    async with env["ext_module"].db.connect() as conn:
+        row = await conn.fetchone(
+            "SELECT buyer_pubkey_hash, buyer_pubkey_enc"
+            " FROM infinitemarkets.orders WHERE id = :o",
+            {"o": order["id"]},
+        )
+        assert row["buyer_pubkey_hash"] is not None
+        assert row["buyer_pubkey_enc"] is not None
+        event = await conn.fetchone(
+            "SELECT detail_json, actor FROM infinitemarkets.order_events"
+            " WHERE order_id = :o AND detail_json LIKE '%buyer-claimed%'",
+            {"o": order["id"]},
+        )
+    assert event is not None
+    assert event["actor"] == "buyer"
+
+
+async def test_claim_failures_share_identical_outcome(runtime_env):
+    """Bad-format, unknown and foreign-bound tokens produce the SAME
+    401 problem body — no order-existence or ownership oracle."""
+    import httpx
+
+    env = runtime_env
+    product = await env["make_product"](f"claim2-{uuid.uuid4().hex[:6]}", 5)
+    order_own, token_own = await _web_order(env, product["d_tag"])
+    order_other, token_other = await _web_order(env, product["d_tag"])
+    await _bind_buyer(env, order_other["id"], _buyer_hex("someone-else"))
+
+    transport = httpx.ASGITransport(app=env["app"])
+    async with httpx.AsyncClient(
+        transport=transport, base_url=ORIGIN
+    ) as fresh:
+        await _signin(fresh, "claimer-2")
+        outcomes = []
+        for token in (
+            "garbage",
+            "A" * 43,  # well-formed, unknown
+            token_other,  # bound to a different buyer
+        ):
+            resp = await fresh.post(
+                f"{PUB}/nostr/claim",
+                json={"token": token},
+                headers={"Origin": ORIGIN},
+            )
+            assert resp.status_code == 401, (token[:10], resp.text)
+            outcomes.append(resp.json())
+        assert all(o == outcomes[0] for o in outcomes)
+
+        # Idempotent repeat claim.
+        resp = await fresh.post(
+            f"{PUB}/nostr/claim",
+            json={"token": token_own},
+            headers={"Origin": ORIGIN},
+        )
+        assert resp.status_code == 200, resp.text
+        resp = await fresh.post(
+            f"{PUB}/nostr/claim",
+            json={"token": token_own},
+            headers={"Origin": ORIGIN},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["already_linked"] is True
+
+    # The foreign-bound order was NOT mutated.
+    async with env["ext_module"].db.connect() as conn:
+        row = await conn.fetchone(
+            "SELECT buyer_pubkey_hash FROM infinitemarkets.orders"
+            " WHERE id = :o",
+            {"o": order_other["id"]},
+        )
+    from infinitemarkets import crypto
+    from infinitemarkets.settings import ext_settings
+
+    assert row["buyer_pubkey_hash"] == crypto.hmac_index(
+        ext_settings().privacy_key, crypto.PURPOSE_BUYER_PUBKEY,
+        env["merchant_id"], crypto.normalize(_buyer_hex("someone-else")),
+    )
+
+
+async def test_claim_requires_session(runtime_env):
+    import httpx
+
+    env = runtime_env
+    product = await env["make_product"](f"claim3-{uuid.uuid4().hex[:6]}", 5)
+    _, token = await _web_order(env, product["d_tag"])
+    transport = httpx.ASGITransport(app=env["app"])
+    async with httpx.AsyncClient(
+        transport=transport, base_url=ORIGIN
+    ) as fresh:
+        resp = await fresh.post(
+            f"{PUB}/nostr/claim",
+            json={"token": token},
+            headers={"Origin": ORIGIN},
+        )
+    assert resp.status_code == 401, resp.text
+
+
+async def test_attributed_web_checkout(runtime_env):
+    """Signed-in checkout writes buyer_pubkey_* on the web order AND
+    enqueues the type-2 payment request intent; anonymous checkout
+    remains unbound."""
+    import httpx
+
+    env = runtime_env
+    product = await env["make_product"](f"attr-{uuid.uuid4().hex[:6]}", 5)
+    merchant = await _merchant(env)
+
+    transport = httpx.ASGITransport(app=env["app"])
+    async with httpx.AsyncClient(
+        transport=transport, base_url=ORIGIN
+    ) as fresh:
+        await _signin(fresh, "shopper-1")
+        resp = await fresh.post(
+            f"{PUB}/checkout",
+            json={
+                "merchant_pubkey": merchant["pubkey"],
+                "items": [{"d_tag": product["d_tag"], "quantity": 1}],
+                "email_opt_in": False,
+            },
+            headers={
+                "Idempotency-Key": uuid.uuid4().hex,
+                "Origin": ORIGIN,
+            },
+        )
+    assert resp.status_code == 201, resp.text
+    token = resp.json()["public_token"]
+    assert token  # private-link contract unchanged
+
+    # Session-cookie mutations require exact-Origin — a signed-in
+    # checkout WITHOUT Origin is refused before any attribution.
+    async with httpx.AsyncClient(
+        transport=transport, base_url=ORIGIN
+    ) as no_origin:
+        await _signin(no_origin, "shopper-no-origin")
+        resp2 = await no_origin.post(
+            f"{PUB}/checkout",
+            json={
+                "merchant_pubkey": merchant["pubkey"],
+                "items": [{"d_tag": product["d_tag"], "quantity": 1}],
+                "email_opt_in": False,
+            },
+            headers={"Idempotency-Key": uuid.uuid4().hex},
+        )
+        assert resp2.status_code == 403, resp2.text
+
+    from infinitemarkets import crypto
+    from infinitemarkets.settings import ext_settings
+
+    digest = env["ext_module"].crypto.token_lookup_hash(token)
+    async with env["ext_module"].db.connect() as conn:
+        order = await conn.fetchone(
+            "SELECT * FROM infinitemarkets.orders"
+            " WHERE public_token_hash = :h",
+            {"h": digest},
+        )
+    order = dict(order)
+    expected_hash = crypto.hmac_index(
+        ext_settings().privacy_key, crypto.PURPOSE_BUYER_PUBKEY,
+        env["merchant_id"], crypto.normalize(_buyer_hex("shopper-1")),
+    )
+    assert order["buyer_pubkey_hash"] == expected_hash
+    assert order["buyer_pubkey_enc"] is not None
+
+    # The type-2 payment request is queued on the order_msg path.
+    async with env["ext_module"].db.connect() as conn:
+        intents = await conn.fetchall(
+            "SELECT * FROM infinitemarkets.outbox_events"
+            " WHERE merchant_id = :m AND aggregate_type = 'order_msg'"
+            " AND aggregate_id LIKE :p",
+            {"m": env["merchant_id"], "p": f"{order['id']}:%"},
+        )
+        msgs = await conn.fetchall(
+            "SELECT * FROM infinitemarkets.order_messages"
+            " WHERE order_id = :o AND direction = 'out'",
+            {"o": order["id"]},
+        )
+    assert intents, "expected an order_msg intent for the payment request"
+    assert msgs, "expected an 'out' order_messages row"
+
+    # Anonymous checkout stays unbound.
+    product2 = await env["make_product"](f"anon-{uuid.uuid4().hex[:6]}", 5)
+    _, token2 = await _web_order(env, product2["d_tag"])
+    async with env["ext_module"].db.connect() as conn:
+        anon = await conn.fetchone(
+            "SELECT buyer_pubkey_hash FROM infinitemarkets.orders"
+            " WHERE public_token_hash = :h",
+            {"h": env["ext_module"].crypto.token_lookup_hash(token2)},
+        )
+    assert anon["buyer_pubkey_hash"] is None
+
+
+async def test_attributed_web_order_wraps_to_buyer_relays(
+    runtime_env, monkeypatch
+):
+    """The attributed web order's payment request reaches the BUYER's
+    declared inbox relay (recipient copy) and the merchant's inbox
+    relay (sender copy) — identical routing to gamma orders."""
+    import json as _json
+
+    import httpx
+
+    from harness import relay as relay_module
+    from infinitemarkets.services import outbox
+
+    env = runtime_env
+    merchant = await _merchant(env)
+    mid, mpk = merchant["id"], merchant["pubkey"]
+    label = "web-attr-buyer"
+    buyer_hex = _buyer_hex(label)
+
+    buyer_relay = relay_module.LocalRelay(mode=relay_module.RelayMode.ACCEPTING)
+    await buyer_relay.start()
+    try:
+        from nostr_sdk import EventBuilder, Kind, NostrSigner, Tag
+
+        profile = await (
+            EventBuilder(Kind(10050), "")
+            .tags([Tag.parse(["relay", buyer_relay.url])])
+            .sign(NostrSigner.keys(_buyer_keys(label)))
+        )
+        public = relay_module.LocalRelay(
+            mode=relay_module.RelayMode.ACCEPTING,
+            canned_events=[_json.loads(profile.as_json())],
+        )
+        merchant_relay = relay_module.LocalRelay(
+            mode=relay_module.RelayMode.ACCEPTING
+        )
+        await public.start()
+        await merchant_relay.start()
+        try:
+            monkeypatch.setenv("INFINITEMARKETS_RELAY_IO", "on")
+            monkeypatch.setenv(
+                "INFINITEMARKETS_ALLOW_INSECURE_RELAYS", "1"
+            )
+            await _set_relays(env, mid, [
+                {"relay_url": public.url, "direction": "public"},
+                {"relay_url": merchant_relay.url, "direction": "inbox"},
+            ])
+            from infinitemarkets.services.transport import transport
+
+            await transport().start([])
+
+            product = await env["make_product"](
+                f"wrap-{uuid.uuid4().hex[:6]}", 5
+            )
+            # Earlier tests consumed the per-minute checkout window for
+            # the shared testclient scope — reset so this checkout is
+            # judged on behavior, not quota.
+            from infinitemarkets.db import DomainTransaction
+
+            async with DomainTransaction() as tx:
+                await tx.execute(
+                    "DELETE FROM rate_limit_buckets"
+                    " WHERE bucket LIKE 'checkout%'"
+                )
+            t = httpx.ASGITransport(app=env["app"])
+            async with httpx.AsyncClient(
+                transport=t, base_url=ORIGIN
+            ) as fresh:
+                await _signin(fresh, label)
+                resp = await fresh.post(
+                    f"{PUB}/checkout",
+                    json={
+                        "merchant_pubkey": mpk,
+                        "items": [
+                            {"d_tag": product["d_tag"], "quantity": 1}
+                        ],
+                        "email_opt_in": False,
+                    },
+                    headers={
+                        "Idempotency-Key": uuid.uuid4().hex,
+                        "Origin": ORIGIN,
+                    },
+                )
+            assert resp.status_code == 201, resp.text
+            digest = env["ext_module"].crypto.token_lookup_hash(
+                resp.json()["public_token"]
+            )
+            async with env["ext_module"].db.connect() as conn:
+                order = await conn.fetchone(
+                    "SELECT id FROM infinitemarkets.orders"
+                    " WHERE public_token_hash = :h",
+                    {"h": digest},
+                )
+            async with env["ext_module"].db.connect() as conn:
+                intents = await conn.fetchall(
+                    "SELECT * FROM infinitemarkets.outbox_events"
+                    " WHERE merchant_id = :m AND aggregate_type = 'order_msg'"
+                    " AND aggregate_id LIKE :p",
+                    {"m": mid, "p": f"{order['id']}:%"},
+                )
+            assert intents
+
+            outcome = await outbox.worker_tick("test-worker")
+            assert outcome["claimed"] >= 1
+
+            rec_wraps = [
+                e["event"]
+                for e in buyer_relay.received_events
+                if isinstance(e.get("event"), dict)
+                and e["event"].get("kind") == 1059
+            ]
+            sen_wraps = [
+                e["event"]
+                for e in merchant_relay.received_events
+                if isinstance(e.get("event"), dict)
+                and e["event"].get("kind") == 1059
+            ]
+            assert rec_wraps, "no recipient wrap on the buyer relay"
+            assert sen_wraps, "no sender wrap on the merchant relay"
+            p_tags = [
+                t[1]
+                for t in rec_wraps[0]["tags"]
+                if t[0] == "p"
+            ]
+            assert p_tags == [buyer_hex]
+        finally:
+            await public.stop()
+            await merchant_relay.stop()
+    finally:
+        await buyer_relay.stop()
+
+
+async def _set_relays(env: dict, mid: str, configs: list[dict]):
+    client = env["client"]
+    resp = await client.patch(
+        f"{API}/merchants/{mid}",
+        json={"relay_configs": configs},
+        headers={
+            "Origin": ORIGIN,
+            "X-CSRF-Token": client.cookies.get("gm_csrf") or "",
+        },
+    )
+    assert resp.status_code == 200, resp.text
