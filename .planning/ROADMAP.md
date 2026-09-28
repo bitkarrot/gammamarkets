@@ -91,15 +91,28 @@ Plans:
 4. Inbox/outbox cursors, deduplication, overload handling, retry, sender recovery, and encrypted retention recover across crashes without duplicate domain commands.
 5. Deployed egress controls, recipient-gated relay behavior, NIP-42, and an independent Gamma client conformance run pass before the Release-B claim.
 
-**Plans:** 3 plans
+**Plans:** 4 plans
 
 **Carried from Phase 2 UAT (2026-09-27):** Nostr buyers retrieve order status and history from their NIP-17 message history (order keyed by buyer pubkey + order id); an optional NIP-07 "Sign in with Nostr" for the web storefront; and a merchant `web_checkout_enabled` setting so a shop can run Nostr-only once Gamma ordering exists. Web buyers keep per-order private links — no buyer accounts.
 
-Plans:
+*Plan count revised 3→4 during plan-checker revision: buyer/merchant surfaces (sign-in, storefront modes, Messages) split from the conformance gate to keep each executor under the context budget — matching the research's recommended 4-part structure.*
 
-- [ ] 03-01: Merchant/peer inbox discovery, transport pools, NIP-42, and egress controls
-- [ ] 03-02: NIP-17 inbox, order-message adapters, sender/recipient outbox copies, and recovery
-- [ ] 03-03: External Gamma client interoperability, security drills, and Release-B verification
+Plans:
+**Wave 1**
+
+- [ ] 03-01: m006 schema, keystore NIP-17, kind-10050 activation, inbox transport/cursors, NIP-42, egress
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02: Rumor⇄domain adapters, dual-copy outbox, inbound matrix, intake abuse and recovery
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03: NIP-07 sign-in/sessions/claiming, attributed checkout, storefront modes, Messages/Rejected surfaces
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 03-04: nostrrelay gated-inbox env, security drills, Plebeian conformance matrix, §21 spec amendment
 
 ### Phase 4: Release C — Legacy Interop and Cutover
 
@@ -131,5 +144,5 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Conformance Profile | 3/3 | Complete    | 2026-09-20 |
 | 2. Release A — Safe Web Commerce | 4/4 | Complete    | 2026-09-27 |
-| 3. Release B — Gamma NIP-17 Orders | 0/3 | Not started | - |
+| 3. Release B — Gamma NIP-17 Orders | 0/4 | Not started | - |
 | 4. Release C — Legacy Interop and Cutover | 0/3 | Not started | - |
