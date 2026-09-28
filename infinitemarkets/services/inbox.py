@@ -40,6 +40,7 @@ import uuid
 from loguru import logger
 
 from ..db import DomainTransaction, db, table
+from . import metrics
 
 INBOX_PROTOCOL = "gamma-inbox"
 FIRST_SESSION_BACKTRACK_S = 30 * 86400
@@ -52,6 +53,10 @@ RUMOR_TAGS_MAX = 128
 RUMOR_TAG_ELEMENT_MAX_BYTES = 2 * 1024
 RATE_WRAP_RELAY_PER_MINUTE = 300
 DRAIN_BATCH = 64
+
+#: Muted-author audit window: the first dropped wrap per burst leaves a
+#: 'rejected' row; later drops in the window are metric-only deletes.
+MUTED_BURST_WINDOW_S = 3600
 
 
 def _now() -> int:
@@ -252,19 +257,55 @@ async def _process_received(row: dict, ks, settings) -> str:
         key_version=settings.active_key_version,
     )
     async with DomainTransaction() as tx:
+        # D-24 per-inner-author cap: excess drops before any domain
+        # work — the drop still counts against the same window's bucket.
+        cap_ok = await _minute_bucket_ok(
+            tx, scope=author_hash, bucket="inbox-author",
+            cap=settings.inbox_author_cap, now=now,
+        )
+        if not cap_ok:
+            await tx.execute(
+                f"UPDATE {tx.table('inbox_events')} SET"
+                " processed_state = 'rejected',"
+                " reject_reason = 'author-rate-limited',"
+                " processed_at = :t WHERE id = :i",
+                {"t": now, "i": row_id},
+            )
+            metrics.incr("inbox.drain.author_over_cap")
+            return "rejected"
         blocked = await tx.fetch_one(
             f"SELECT 1 AS x FROM {tx.table('inbox_blocklist')} "
             "WHERE merchant_id = :m AND author_hash = :h",
             {"m": merchant_id, "h": author_hash},
         )
         if blocked is not None:
-            await tx.execute(
-                f"UPDATE {tx.table('inbox_events')} SET"
-                " processed_state = 'rejected',"
-                " reject_reason = 'author-blocked', processed_at = :t"
-                " WHERE id = :i",
-                {"t": now, "i": row_id},
+            # Muted authors: ONE 'rejected' drop row per burst window
+            # stays auditable (D-21); subsequent wraps delete the row —
+            # no inbox_events growth, each drop still a metric +
+            # rate-limit-bucket count.
+            prior = await tx.fetch_one(
+                f"SELECT 1 AS x FROM {tx.table('inbox_events')} "
+                "WHERE merchant_id = :m AND author_hash = :h"
+                " AND processed_state = 'rejected'"
+                " AND reject_reason = 'author-blocked'"
+                " AND processed_at >= :w LIMIT 1",
+                {"m": merchant_id, "h": author_hash,
+                 "w": now - MUTED_BURST_WINDOW_S},
             )
+            if prior is not None:
+                await tx.execute(
+                    f"DELETE FROM {tx.table('inbox_events')} WHERE id = :i",
+                    {"i": row_id},
+                )
+            else:
+                await tx.execute(
+                    f"UPDATE {tx.table('inbox_events')} SET"
+                    " processed_state = 'rejected',"
+                    " reject_reason = 'author-blocked', processed_at = :t"
+                    " WHERE id = :i",
+                    {"t": now, "i": row_id},
+                )
+            metrics.incr("inbox.drain.author_blocked")
             return "rejected"
         # Rumor-level dedupe (§8.5): a retry under a fresh outer id is the
         # SAME message — the guarded update + the (merchant, rumor_id)
@@ -326,6 +367,237 @@ async def drain_received(*, batch: int = DRAIN_BATCH, keystore=None,
                 row["id"], type(exc).__name__,
             )
     return stats
+
+
+# --- stage 3: domain dispatch (03-02) -------------------------------------------
+#
+# ``validated`` rows carry a decrypted, deduped, author-bounded rumor.
+# Dispatch re-unwraps the stored ciphertext (deterministic — the row is
+# already deduped by rumor id, so re-unwrap cannot double-dispatch) and
+# routes by (kind, type) tag. Every state transition is one
+# DomainTransaction; ``processed_at`` always sets. Bounded ProblemError
+# codes become ``rejected`` rows; parseable rejections also enqueue the
+# D-22 ``status=rejected`` type-3 reply.
+
+
+async def _merchant_for_dispatch(merchant_id: str) -> dict | None:
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT * FROM {table('merchants')} WHERE id = :m",
+            {"m": merchant_id},
+        )
+    return dict(row) if row else None
+
+
+async def _enqueue_rejected_reply(
+    merchant: dict, recipient_pubkey: str | None,
+    order_external_id: str | None, inbox_row_id: str,
+) -> None:
+    """D-22: ``status=rejected`` type-3 reply inside its own domain tx;
+    unintelligible payloads (no recipient/order id) log only."""
+    from . import order_messages
+
+    try:
+        async with DomainTransaction() as tx:
+            await order_messages.enqueue_rejected_reply(
+                tx, merchant, recipient_pubkey=recipient_pubkey,
+                order_external_id=order_external_id,
+                inbox_row_id=inbox_row_id,
+            )
+    except Exception as exc:  # noqa: BLE001 — reply is best-effort
+        logger.warning(
+            "event=infinitemarkets.inbox.rejected_reply_failed"
+            " inbox_event={} err={}",
+            inbox_row_id, type(exc).__name__,
+        )
+
+
+async def _dispatch_validated(row: dict, ks, settings) -> str:
+    """One 'validated' row through §8.5 steps 7-10 -> processed |
+    rejected | quarantined (+ 'errors' for retryable exceptions)."""
+    from ..security import ProblemError
+    from . import order_messages
+
+    merchant_id = row["merchant_id"]
+    row_id = row["id"]
+    now = _now()
+    try:
+        out = await ks.nip17_unwrap(merchant_id, row["raw_json"])
+    except Exception as exc:  # WrapRejection carries the bounded reason
+        reason = getattr(exc, "reason", type(exc).__name__)
+        await _mark(row_id, "quarantined", reason, now)
+        return "quarantined"
+
+    merchant = await _merchant_for_dispatch(merchant_id)
+    if merchant is None:
+        await _mark(row_id, "quarantined", "merchant-gone", now)
+        return "quarantined"
+    rumor = json.loads(out["rumor_json"])
+    tags = rumor.get("tags") or []
+    author = out["author_pubkey"]
+    sender_hash = row["author_hash"] or order_messages.buyer_hash(
+        settings, merchant_id, author
+    )
+
+    # Merchant-authored sender copies: recover evidence only when the
+    # rumor id matches an outbound order_messages row — never dispatch
+    # as an inbound command.
+    if author == merchant["pubkey"]:
+        async with db.connect() as conn:
+            match = await conn.fetchone(
+                f"SELECT id FROM {table('order_messages')} "
+                "WHERE rumor_id = :r AND direction = 'out'",
+                {"r": out["rumor_id"]},
+            )
+        if match is None:
+            await _mark(row_id, "rejected",
+                        "merchant-authored-unknown", now)
+            return "rejected"
+        async with DomainTransaction() as tx:
+            await tx.execute(
+                f"UPDATE {tx.table('order_messages')} SET"
+                " event_id = :e WHERE id = :i",
+                {"e": row["outer_event_id"], "i": match["id"]},
+            )
+            await tx.execute(
+                f"UPDATE {tx.table('inbox_events')} SET"
+                " processed_state = 'processed',"
+                " reject_reason = 'sender-copy-recovered',"
+                " processed_at = :t WHERE id = :i",
+                {"t": now, "i": row_id},
+            )
+        metrics.incr("inbox.dispatch.sender_copy")
+        return "processed"
+
+    kind = out["kind"]
+    if kind == 16:
+        type_tags = [
+            t[1] for t in tags
+            if isinstance(t, list) and len(t) >= 2 and t[0] == "type"
+        ]
+        mtype = type_tags[0] if len(type_tags) == 1 else None
+        ext_ids = [
+            t[1] for t in tags
+            if isinstance(t, list) and len(t) >= 2 and t[0] == "order"
+        ]
+        ext_id = ext_ids[0] if len(ext_ids) == 1 else None
+        if mtype == "1":
+            try:
+                payload = order_messages.build_checkout_payload(
+                    out["rumor_json"], merchant
+                )
+            except ProblemError as exc:
+                await _mark(row_id, "rejected", exc.code, now)
+                # The reply carries the buyer's own order id verbatim —
+                # never a server-assigned id (D-22 no-oracle).
+                await _enqueue_rejected_reply(
+                    merchant, author, ext_id, row_id,
+                )
+                return "rejected"
+            try:
+                from . import checkout as checkout_service
+
+                await checkout_service.gamma_order_intake(
+                    merchant=merchant, payload=payload,
+                    buyer_pubkey=author,
+                    rumor_id=out["rumor_id"], now=now,
+                )
+            except ProblemError as exc:
+                await _mark(row_id, "rejected", exc.code, now)
+                await _enqueue_rejected_reply(
+                    merchant, author, payload.get("external_id"), row_id
+                )
+                return "rejected"
+            await _mark(row_id, "processed", None, now)
+            metrics.incr("inbox.dispatch.order_created")
+            return "processed"
+        if mtype == "2":
+            # Merchant-only type — a buyer-side payment request can
+            # never mint invoices (§6.9).
+            await _mark(row_id, "rejected",
+                        "inbound-type2-unsupported", now)
+            return "rejected"
+        if mtype == "3":
+            result = await order_messages.handle_inbound_status(
+                merchant=merchant, sender_hash=sender_hash,
+                rumor=rumor, now=now,
+            )
+            await _mark(row_id, "processed", None, now)
+            metrics.incr("inbox.dispatch.status")
+            return "processed"
+        await _mark(row_id, "rejected", "unknown-order-type", now)
+        return "rejected"
+    if kind == 17:
+        await order_messages.handle_receipt(
+            merchant=merchant, sender_hash=sender_hash,
+            rumor=rumor, now=now,
+        )
+        await _mark(row_id, "processed", None, now)
+        metrics.incr("inbox.dispatch.receipt")
+        return "processed"
+    if kind == 14:
+        result = await order_messages.handle_dm(
+            merchant=merchant, sender_hash=sender_hash,
+            author_pubkey=author, rumor=rumor,
+            rumor_id=out["rumor_id"], now=now,
+        )
+        if result["outcome"] == "rate-limited":
+            await _mark(row_id, "rejected", "dm-rate-limited", now)
+            return "rejected"
+        await _mark(row_id, "processed", None, now)
+        metrics.incr("inbox.dispatch.dm")
+        return "processed"
+    await _mark(row_id, "quarantined", "rumor-kind-not-allowed", now)
+    return "quarantined"
+
+
+async def process_pending(*, batch: int = DRAIN_BATCH, keystore=None,
+                          settings=None) -> dict:
+    """Leased worker pass over ``processed_state='validated'`` rows.
+
+    Report-only per row — a thrown dispatch (retryable exception) leaves
+    the row 'validated' for the next pass/reconcile; only ProblemError /
+    explicit outcomes mark terminal states.
+    """
+    from .. import keystore as keystore_mod
+    from ..settings import ext_settings
+
+    settings = settings or ext_settings()
+    ks = keystore or keystore_mod.key_store(settings)
+    stats = {"processed": 0, "rejected": 0, "quarantined": 0,
+             "duplicate": 0, "errors": 0}
+    async with db.connect() as conn:
+        rows = await conn.fetchall(
+            f"SELECT * FROM {table('inbox_events')} "
+            "WHERE processed_state = 'validated' "
+            "ORDER BY received_at LIMIT :b",
+            {"b": batch},
+        )
+    for row in rows:
+        try:
+            stats[await _dispatch_validated(dict(row), ks, settings)] += 1
+        except Exception as exc:  # noqa: BLE001 — retry on the next pass
+            stats["errors"] += 1
+            logger.warning(
+                "event=infinitemarkets.inbox.dispatch_failed"
+                " inbox_event={} err={}",
+                row["id"], type(exc).__name__,
+            )
+    return stats
+
+
+async def drain_and_process(*, batch: int = DRAIN_BATCH, keystore=None,
+                            settings=None) -> dict:
+    """The worker entry point: received -> validated -> domain dispatch
+    in one leased pass."""
+    first = await drain_received(batch=batch, keystore=keystore,
+                                 settings=settings)
+    second = await process_pending(batch=batch, keystore=keystore,
+                                   settings=settings)
+    merged = dict(first)
+    for key, value in second.items():
+        merged[key] = merged.get(key, 0) + value
+    return merged
 
 
 # --- session runtime ----------------------------------------------------------

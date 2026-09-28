@@ -1285,3 +1285,323 @@ async def _resume_order(record: dict, *, now: int) -> dict:
             "expires_at": order["invoice_expiry"],
         },
     }
+
+
+# --- Gamma (NIP-17) intake ------------------------------------------------------
+#
+# The wrapped kind-16 type-1 path feeds the SAME _resolve_cart/_price_cart/
+# begin_saga pipeline as web checkout (GAM-02, §8.1 Gamma profile):
+# server-recalculated totals, identical reservation/invoice/settlement
+# services. The differences are intake-shaped only: buyer keying replaces
+# the IP scope, the buyer's kind-10050 set resolves BEFORE any order row or
+# stock reservation (§8.1 step 3), dedupe rides ix_orders_nostr_external_id,
+# no public token is minted (gamma orders get NIP-17 replies, not links),
+# and ``awaiting_payment`` enqueues a type-2 order_msg payment request
+# instead of returning a bolt11 to a caller.
+
+
+async def _open_order_count_buyer(merchant_id: str, buyer_hash: str) -> int:
+    """§15: ≤10 concurrent open orders per buyer_pubkey per merchant."""
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT COUNT(*) AS n FROM {table('orders')} "
+            "WHERE merchant_id = :m AND buyer_pubkey_hash = :h"
+            " AND state IN ('received', 'invoice_pending',"
+            " 'awaiting_payment')",
+            {"m": merchant_id, "h": buyer_hash},
+        )
+    return int(row["n"]) if row else 0
+
+
+def _gamma_request_hash(payload: dict) -> str:
+    """Immutable request hash over items+qty — the dedupe compare key."""
+    items = [
+        {"d_tag": i.get("d_tag"), "quantity": i.get("quantity")}
+        for i in (payload.get("items") or [])
+        if isinstance(i, dict)
+    ]
+    canonical = json.dumps(
+        {
+            "items": sorted(items, key=lambda i: str(i["d_tag"])),
+            "shipping_option_d": payload.get("shipping_option_d"),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+async def gamma_order_intake(
+    *,
+    merchant: dict,
+    payload: dict,
+    buyer_pubkey: str,
+    rumor_id: str,
+    now: int | None = None,
+) -> dict:
+    """§8.1 Gamma intake — returns ``{action, order_id, state}``.
+
+    Bounded ``ProblemError`` codes drive the rejected-intake path; a
+    ``duplicate-order-conflict`` re-uses the web vocabulary. On
+    ``awaiting_payment`` the type-2 payment request is enqueued as an
+    ``order_msg`` intent (the buyer never sees a public token or a bolt11
+    response body).
+    """
+    from .readiness import assert_database_compatible
+
+    await assert_database_compatible()
+    settings = ext_settings()
+    now = _now() if now is None else now
+    if merchant["state"] != "active":
+        raise unprocessable(
+            "merchant-inactive", "Merchant unavailable",
+            "merchant is not accepting orders",
+        )
+    merchant_id = merchant["id"]
+    buyer_pubkey_hash = crypto.hmac_index(
+        settings.privacy_key, crypto.PURPOSE_BUYER_PUBKEY,
+        merchant_id, crypto.normalize(buyer_pubkey),
+    )
+
+    # §8.1 step 3 — the buyer's kind-10050 set must resolve BEFORE any
+    # order row, reservation, or invoice exists; no source-relay fallback.
+    from . import peer_relays
+
+    routes = await peer_relays.resolve_buyer_inbox_relays(
+        merchant_id, buyer_pubkey, settings=settings,
+    )
+    if routes == peer_relays.NO_INBOX_RELAYS:
+        raise unprocessable(
+            "no-inbox-relays", "Buyer inbox unavailable",
+            "buyer has no reachable declared inbox relays",
+        )
+
+    if await _open_order_count_buyer(merchant_id, buyer_pubkey_hash) >= (
+        MAX_OPEN_ORDERS_PER_SCOPE
+    ):
+        raise ProblemError(
+            429, "rate-limited", "Rate Limited",
+            "too many open orders — complete or wait for expiry",
+        )
+
+    resolved, address, shipping_option = await _resolve_cart(merchant_id, payload)
+    for entry in resolved:
+        if await _held_reservation_count(
+            entry["product"]["id"]
+        ) >= MAX_HELD_PER_PRODUCT:
+            raise unprocessable(
+                "insufficient-stock", "Insufficient stock",
+                "product is fully reserved",
+            )
+    line_rows, quotes, subtotal_sat, shipping_sat, total_sat, now = (
+        await _price_cart(resolved, shipping_option, now)
+    )
+
+    order_id = uuid.uuid4().hex
+    request_hash = _gamma_request_hash(payload)
+    existing = await _insert_gamma_order_intake(
+        merchant=merchant, resolved=line_rows,
+        shipping_option=shipping_option, address=address,
+        quotes=quotes, subtotal_sat=subtotal_sat,
+        shipping_sat=shipping_sat, total_sat=total_sat,
+        order_id=order_id,
+        external_id=payload["external_id"],
+        buyer_pubkey=buyer_pubkey, buyer_pubkey_hash=buyer_pubkey_hash,
+        request_hash=request_hash, rumor_id=rumor_id,
+        buyer_amount_sat=payload.get("buyer_amount_sat"),
+        email=payload.get("email"), phone=payload.get("phone"),
+        settings=settings, now=now,
+    )
+    if existing is not None:
+        return {
+            "action": "existing", "order_id": existing["id"],
+            "state": existing["state"],
+        }
+
+    result = await begin_saga(order_id=order_id, settings=settings, now=now)
+    state = result.get("state", "awaiting_payment")
+    if state == "awaiting_payment" and result.get("bolt11"):
+        # §8.2 step 3 (Gamma profile): the payment request rides the
+        # NIP-17 order_msg channel instead of a token-gated HTTP body.
+        from . import order_messages
+
+        async with DomainTransaction() as tx:
+            order = await tx.fetch_one(
+                f"SELECT * FROM {tx.table('orders')} WHERE id = :i",
+                {"i": order_id},
+            )
+            await order_messages.enqueue_payment_request(
+                tx, dict(order), bolt11=result["bolt11"],
+                expiration=result.get("expires_at"),
+            )
+    return {"action": "created", "order_id": order_id, "state": state}
+
+
+async def _insert_gamma_order_intake(
+    *,
+    merchant: dict,
+    resolved: list[dict],
+    shipping_option: dict | None,
+    address: dict | None,
+    quotes: dict[str, fx.FxQuote],
+    subtotal_sat: int,
+    shipping_sat: int,
+    total_sat: int,
+    order_id: str,
+    external_id: str,
+    buyer_pubkey: str,
+    buyer_pubkey_hash: str,
+    request_hash: str,
+    rumor_id: str,
+    buyer_amount_sat: int | None,
+    email: str | None,
+    phone: str | None,
+    settings: ExtSettings,
+    now: int,
+) -> dict | None:
+    """§8.1 step 8 (Gamma): orders(received) + items + fx + audit in one
+    tx; ``ix_orders_nostr_external_id`` dedupes — ON CONFLICT returns the
+    existing order only on a matching request_hash else
+    ``duplicate-order-conflict``. Returns the conflicting/existing row or
+    None when a fresh order was inserted."""
+    key = settings.master_keys[settings.active_key_version]
+    ver = settings.active_key_version
+    merchant_id = merchant["id"]
+
+    def _enc(plaintext: bytes, column: str) -> bytes:
+        return crypto.encrypt(
+            plaintext, key, record_id=order_id, table="orders",
+            column=column, key_version=ver,
+        )
+
+    try:
+        from nostr_sdk import PublicKey
+
+        npub = PublicKey.parse(buyer_pubkey).to_bech32()
+    except Exception:  # noqa: BLE001 — display-only fallback
+        npub = buyer_pubkey
+    contact = json.dumps(
+        {"email": email, "phone": phone, "npub": npub},
+        separators=(",", ":"),
+    )
+    shipping_state = (
+        "pending" if shipping_option is not None else "not_required"
+    )
+    async with DomainTransaction() as tx:
+        await tx.fetch_one(
+            f"SELECT id FROM {tx.table('merchants')} WHERE id = :m" + tx.for_update,
+            {"m": merchant_id},
+        )
+        count = await tx.fetch_one(
+            f"SELECT COUNT(*) AS n FROM {tx.table('orders')}"
+            " WHERE merchant_id = :m AND buyer_pubkey_hash = :h"
+            " AND state IN ('received', 'invoice_pending', 'awaiting_payment')",
+            {"m": merchant_id, "h": buyer_pubkey_hash},
+        )
+        if count["n"] >= MAX_OPEN_ORDERS_PER_SCOPE:
+            raise ProblemError(
+                429, "rate-limited", "Rate Limited", "too many open orders"
+            )
+        inserted = await tx.execute(
+            f"INSERT INTO {tx.table('orders')} "
+            "(id, merchant_id, protocol, buyer_pubkey_enc, buyer_pubkey_hash,"
+            " external_id_enc, external_id_hash, request_hash,"
+            " source_event_id, currency, subtotal_sat, shipping_sat,"
+            " total_sat, buyer_amount_sat, state, shipping_state,"
+            " contact_enc, address_enc, shipping_option_id,"
+            " email_opt_in, created_at, updated_at) "
+            "VALUES (:i, :m, 'gamma', :bpe, :bph, :eie, :eih, :rh, :sei,"
+            " 'SAT', :ss, :shs, :ts, :ba, 'received', :shst, :ce, :ae,"
+            " :so, FALSE, :n, :n) ON CONFLICT DO NOTHING",
+            {
+                "i": order_id,
+                "m": merchant_id,
+                "bpe": _enc(buyer_pubkey.encode(), "buyer_pubkey_enc"),
+                "bph": buyer_pubkey_hash,
+                "eie": _enc(external_id.encode(), "external_id_enc"),
+                "eih": crypto.hmac_index(
+                    settings.privacy_key, crypto.PURPOSE_ORDER_ID,
+                    merchant_id, crypto.normalize(external_id),
+                ),
+                "rh": request_hash,
+                "sei": rumor_id,
+                "ss": subtotal_sat,
+                "shs": shipping_sat,
+                "ts": total_sat,
+                "ba": buyer_amount_sat,
+                "shst": shipping_state,
+                "ce": _enc(contact.encode(), "contact_enc"),
+                "ae": (
+                    _enc(json.dumps(address).encode(), "address_enc")
+                    if address is not None else None
+                ),
+                "so": shipping_option["id"] if shipping_option else None,
+                "n": now,
+            },
+        )
+        if inserted != 1:
+            row = await tx.fetch_one(
+                f"SELECT id, state, request_hash FROM {tx.table('orders')} "
+                "WHERE merchant_id = :m AND buyer_pubkey_hash = :bh"
+                " AND external_id_hash = :eh",
+                {"m": merchant_id, "bh": buyer_pubkey_hash,
+                 "eh": crypto.hmac_index(
+                     settings.privacy_key, crypto.PURPOSE_ORDER_ID,
+                     merchant_id, crypto.normalize(external_id),
+                 )},
+            )
+            if row and row["request_hash"] == request_hash:
+                return dict(row)
+            raise conflict(
+                "duplicate-order-conflict", "Duplicate order",
+                "external_id already used with different items",
+            )
+        for line in resolved:
+            p = line["product"]
+            await tx.execute(
+                f"INSERT INTO {tx.table('order_items')} "
+                "(id, order_id, product_id, product_d, title, quantity,"
+                " unit_price_minor, currency, currency_decimals,"
+                " line_total_sat) "
+                "VALUES (:i, :o, :p, :pd, :t, :q, :up, :c, :cd, :ls)",
+                {
+                    "i": uuid.uuid4().hex,
+                    "o": order_id,
+                    "p": p["id"],
+                    "pd": p["d_tag"],
+                    "t": p["title"],
+                    "q": line["qty"],
+                    "up": line["unit_minor"],
+                    "c": line["currency"],
+                    "cd": line["decimals"],
+                    "ls": line["line_sat"],
+                },
+            )
+        for quote in quotes.values():
+            if quote.source == "identity":
+                continue
+            await fx.persist_quote(tx, order_id, quote)
+        await tx.execute(
+            f"INSERT INTO {tx.table('order_events')} "
+            "(id, order_id, from_state, to_state, actor, detail_json,"
+            " created_at) "
+            "VALUES (:i, :o, NULL, 'received', 'buyer', NULL, :n)",
+            {"i": uuid.uuid4().hex, "o": order_id, "n": now},
+        )
+        notify_emails = json.loads(merchant["notify_emails"]) if (
+            merchant["notify_emails"]
+        ) else []
+        notify_events = json.loads(merchant["notify_events"]) if (
+            merchant["notify_events"]
+        ) else {}
+        order_stub = {
+            "id": order_id, "merchant_id": merchant_id,
+            "email_opt_in": False,
+        }
+        await order_service.enqueue_email_intents(
+            tx, order=order_stub, event_type="order_received",
+            merchant_notify_emails=notify_emails,
+            merchant_notify_events=notify_events,
+            customer_email=None, now=now,
+        )
+    return None

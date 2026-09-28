@@ -127,6 +127,11 @@ BACKOFF_BASE_S = 5
 BACKOFF_CAP_S = 30 * 60
 CLOCK_SKEW_TOLERANCE_S = 300
 
+# §9.3 no-route policy for order_msg: refresh the buyer kind-10050
+# discovery every 15 min and give up 48h after first enqueue.
+ORDER_MSG_NO_ROUTE_REFRESH_S = 15 * 60
+ORDER_MSG_NO_ROUTE_DEADLINE_S = 48 * 3600
+
 # OQ6-pinned transient failure vocabulary — these are transport states,
 # not relay verdicts, so they classify as retryable 'timeout'.
 TRANSIENT_REASONS = frozenset(
@@ -222,12 +227,25 @@ async def _newer_live_exists(tx, row: dict) -> bool:
     return bool(newer)
 
 
-async def _accepted_targets(tx, intent_id: str) -> set[str]:
-    rows = await tx.fetch_all(
-        f"SELECT DISTINCT relay_url AS u FROM {tx.table('relay_publications')} "
-        "WHERE outbox_event_id = :i AND result = 'accepted'",
-        {"i": intent_id},
-    )
+async def _accepted_targets(tx, intent_id: str,
+                            delivery_copy: str | None = None) -> set[str]:
+    """Durable ``accepted`` evidence — ``delivery_copy`` scopes the query
+    for dual-copy ``order_msg`` intents (recipient|sender)."""
+    if delivery_copy is None:
+        rows = await tx.fetch_all(
+            f"SELECT DISTINCT relay_url AS u"
+            f" FROM {tx.table('relay_publications')} "
+            "WHERE outbox_event_id = :i AND result = 'accepted'",
+            {"i": intent_id},
+        )
+    else:
+        rows = await tx.fetch_all(
+            f"SELECT DISTINCT relay_url AS u"
+            f" FROM {tx.table('relay_publications')} "
+            "WHERE outbox_event_id = :i AND result = 'accepted'"
+            " AND delivery_copy = :c",
+            {"i": intent_id, "c": delivery_copy},
+        )
     return {r["u"] for r in rows}
 
 
@@ -549,6 +567,12 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
     settings = ext_settings()
     intent_id = row["id"]
 
+    if row["aggregate_type"] == "order_msg":
+        return await _publish_order_msg(
+            row, transport=transport, keystore=keystore,
+            worker_id=worker_id, database=database,
+        )
+
     async with _publication_transaction(row, worker_id, database) as claimed:
         if not claimed:
             return "lost_claim"
@@ -692,6 +716,234 @@ async def publish_intent(row: dict, *, transport, keystore, relay_targets,
         return state
 
 
+async def _publish_order_msg(row: dict, *, transport, keystore,
+                             worker_id: str, database=None) -> str:
+    """§8.6 order_msg branch — TWO independent wraps per attempt (GAM-03).
+
+    - ``recipient`` copy: buyer-declared kind-10050 peer relays ONLY —
+      never public relays, never the source relay;
+    - ``sender`` copy: the merchant's own inbox relays only;
+    - durable evidence rows carry ``delivery_copy`` ``recipient``/
+      ``sender``; retries subtract accepted targets per class so one
+      class never re-sends to accepted relays;
+    - ``published`` requires ≥1 positive relay OK in EACH copy class —
+      one accepted class lands ``partially_published`` and retries the
+      missing class; zero lands ``pending`` backoff -> ``failed``;
+    - no valid buyer routes -> ``pending`` + ``no_inbox_relays``; the
+      buyer's kind-10050 set re-resolves every 15 min for 48h, then the
+      intent goes ``failed`` (§9.3 no-route policy).
+    """
+    import json as _json
+
+    from .. import crypto as crypto_mod
+    from ..db import db as default_db
+    from ..db import table as default_table
+    from ..settings import ext_settings
+    from . import metrics, order_messages, peer_relays
+    from . import relay as relay_service
+
+    settings = ext_settings()
+    intent_id = row["id"]
+
+    # Phase 0 — OUTSIDE the claim transaction: decrypt the descriptor,
+    # resolve declared copy routes, subtract durable accepted evidence,
+    # rebuild the frozen rumor and wrap BOTH copies. Peer-relay
+    # discovery writes its cache in its own domain tx — nesting it under
+    # the claim would deadlock the SQLite writer serialisation.
+    descriptor = None
+    if row["payload_enc"] is not None:
+        ver = crypto_mod.envelope_version(row["payload_enc"])
+        descriptor = _json.loads(
+            crypto_mod.decrypt(
+                row["payload_enc"], settings.master_keys[ver],
+                record_id=intent_id, table="outbox_events",
+                column="payload_enc", key_version=ver,
+            ).decode()
+        )
+    recipient_pubkey = descriptor["recipient_pubkey"] if descriptor else None
+    merchant_pubkey = descriptor["author_pubkey"] if descriptor else None
+
+    async def _accepted(copy: str) -> set[str]:
+        async with (database or default_db).connect() as conn:
+            rows = await conn.fetchall(
+                f"SELECT DISTINCT relay_url AS u"
+                f" FROM {default_table('relay_publications')} "
+                "WHERE outbox_event_id = :i AND result = 'accepted'"
+                " AND delivery_copy = :c",
+                {"i": intent_id, "c": copy},
+            )
+        return {r["u"] for r in rows}
+
+    buyer_routes: list[str] | str = peer_relays.NO_INBOX_RELAYS
+    sender_all: list[str] = []
+    if descriptor is not None:
+        buyer_routes = await peer_relays.resolve_buyer_inbox_relays(
+            row["merchant_id"], recipient_pubkey, settings=settings,
+        )
+        sender_all = await relay_service.relay_targets(
+            row["merchant_id"], "inbox",
+        )
+    recipient_accepted = await _accepted("recipient")
+    sender_accepted = await _accepted("sender")
+    no_route = buyer_routes == peer_relays.NO_INBOX_RELAYS
+    recipient_targets = (
+        []
+        if no_route
+        else [u for u in buyer_routes if u not in recipient_accepted]
+    )
+    sender_targets = [u for u in sender_all if u not in sender_accepted]
+
+    # Exactly TWO nip17_wrap calls — recipient copy + sender copy. The
+    # frozen descriptor created_at reproduces the canonical rumor id;
+    # each wrap carries a fresh seal/ephemeral outer per attempt.
+    rumor = (
+        order_messages.rebuild_rumor(descriptor)
+        if descriptor is not None
+        else None
+    )
+    recipient_wrap = None
+    if recipient_targets:
+        recipient_wrap = await keystore.nip17_wrap(
+            row["merchant_id"], rumor, recipient_pubkey
+        )
+    sender_wrap = None
+    if sender_targets:
+        sender_wrap = await keystore.nip17_wrap(
+            row["merchant_id"], rumor, merchant_pubkey
+        )
+
+    async with _publication_transaction(row, worker_id, database) as claimed:
+        if not claimed:
+            return "lost_claim"
+        tx, row = claimed
+        now = await tx.now()
+        if not await _deps_published(tx, intent_id):
+            await _cas_state(tx, row, "pending", now, next_attempt_at=now)
+            return "blocked"
+        if descriptor is None:
+            await _cas_state(tx, row, "failed", now,
+                             last_error="missing-payload")
+            return "failed"
+
+        if not recipient_accepted and no_route:
+            # §9.3: re-resolve on the 15-min cadence; the 48h deadline
+            # runs from first enqueue (created_at), not last attempt.
+            if now - row["created_at"] >= ORDER_MSG_NO_ROUTE_DEADLINE_S:
+                await _cas_state(
+                    tx, row, "failed", now, last_error="no_inbox_relays"
+                )
+                return "failed"
+            await _cas_state(
+                tx, row, "pending", now,
+                next_attempt_at=now + ORDER_MSG_NO_ROUTE_REFRESH_S,
+                last_error="no_inbox_relays",
+            )
+            return "pending"
+
+        if not recipient_targets and not sender_targets:
+            # Nothing left to send — publish iff BOTH classes carry
+            # durable accepted evidence.
+            if recipient_accepted and sender_accepted:
+                await _cas_state(tx, row, "published", now)
+                return "published"
+            state = (
+                "partially_published"
+                if recipient_accepted or sender_accepted
+                else "pending"
+            )
+            if row["attempts"] + 1 >= OUTBOX_MAX_ATTEMPTS:
+                state = "failed"
+            await _cas_state(
+                tx, row, state, now,
+                next_attempt_at=now + _backoff(row["attempts"] + 1),
+                last_error="no_inbox_relays"
+                if not recipient_accepted else "no-relay-targets",
+            )
+            return state
+        send_timeout = min(
+            30, max(0.1, row["claimed_until"] - await tx.now())
+        )
+
+    sends: list[tuple[str, object | None, list[str]]] = []
+    if recipient_wrap is not None:
+        sends.append(("recipient", recipient_wrap, recipient_targets))
+    if sender_wrap is not None:
+        sends.append(("sender", sender_wrap, sender_targets))
+    per_class_results: dict[str, list[tuple[str, str, str]]] = {}
+    for copy, wrap, targets in sends:
+        try:
+            output = await asyncio.wait_for(
+                transport.send_to(targets, wrap), send_timeout
+            )
+        except Exception as exc:  # one relay must never crash the batch
+            output = None
+            send_error = type(exc).__name__
+        else:
+            send_error = None
+        results: list[tuple[str, str, str]] = []
+        if output is not None:
+            ok_urls = {str(u) for u in output.success}
+            failed = {str(u): str(m) for u, m in output.failed.items()}
+            for u in targets:
+                if u in ok_urls:
+                    results.append((u, "accepted", ""))
+                elif u in failed:
+                    reason = failed[u]
+                    results.append(
+                        (
+                            u,
+                            "timeout" if reason in TRANSIENT_REASONS
+                            else "rejected",
+                            reason,
+                        )
+                    )
+                else:
+                    results.append((u, "timeout", "absent from send output"))
+        else:
+            for u in targets:
+                results.append((u, "timeout", send_error or "send failed"))
+        per_class_results[copy] = results
+
+    async with _publication_transaction(row, worker_id, database) as claimed:
+        if not claimed:
+            return "lost_claim"
+        tx, row = claimed
+        now = await tx.now()
+        attempt_no = row["attempts"] + 1
+        for copy, results in per_class_results.items():
+            await _record_publications(
+                tx, intent_id, copy,
+                (
+                    recipient_wrap if copy == "recipient" else sender_wrap
+                ).id().to_hex(),
+                attempt_no, results, now,
+            )
+        rec_ok = bool(recipient_accepted) or any(
+            r == "accepted" for _, r, _
+            in per_class_results.get("recipient", [])
+        )
+        sen_ok = bool(sender_accepted) or any(
+            r == "accepted" for _, r, _
+            in per_class_results.get("sender", [])
+        )
+        if rec_ok and sen_ok:
+            await _cas_state(tx, row, "published", now)
+            metrics.incr("publication.published")
+            return "published"
+        if rec_ok or sen_ok:
+            # One class proven — the missing class retries alone; the
+            # accepted class is never resent (accepted-targets subtract).
+            state = "partially_published"
+        else:
+            state = "pending"
+        next_at = now + _backoff(attempt_no)
+        if attempt_no >= OUTBOX_MAX_ATTEMPTS:
+            state = "failed"
+            next_at = 0
+        await _cas_state(tx, row, state, now, next_attempt_at=next_at)
+        return state
+
+
 async def _maybe_activate_merchant(tx, row) -> None:
     """§3.5 activation: a published merchant_profile intent flips
     ``publication_pending -> active`` — checkout/public surfaces gate on
@@ -794,9 +1046,13 @@ def _targets_inbox_set(row: dict) -> bool:
 
 async def publish_targets(row: dict, database=None) -> list[str]:
     """Relay targets for one intent: the public set for catalog/profile
-    events; public ∪ inbox for the kind-10050 publish set."""
+    events; public ∪ inbox for the kind-10050 publish set. ``order_msg``
+    intents return [] — _publish_order_msg resolves recipient/sender
+    copy sets from peer_relays + merchant inbox relays internally."""
     from . import relay as relay_service
 
+    if row["aggregate_type"] == "order_msg":
+        return []
     if _targets_inbox_set(row):
         public = await relay_service.relay_targets(
             row["merchant_id"], "public", database=database

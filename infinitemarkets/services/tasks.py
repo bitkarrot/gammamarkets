@@ -181,7 +181,8 @@ async def inbox_processor() -> None:
             token = await _acquire_lease("inbox_processor")
             if token is not None:
                 report = await _run_leased(
-                    "inbox_processor", token, inbox_service.drain_received
+                    "inbox_processor", token,
+                    inbox_service.drain_and_process,
                 )
                 if any(report.values()):
                     logger.debug(

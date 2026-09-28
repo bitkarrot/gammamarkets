@@ -243,6 +243,19 @@ async def transition_order(
             "n": now,
         },
     )
+    # GAM-03 §6.9: buyer-keyed (gamma) orders emit the matching type-3
+    # order_msg inside the SAME transaction — a crash before the intent
+    # lands makes the transition atomically absent too. Web orders have
+    # buyer_pubkey_hash NULL -> no-op.
+    order_row = await tx.fetch_one(
+        f"SELECT * FROM {orders} WHERE id = :i", {"i": order_id}
+    )
+    if order_row and order_row["buyer_pubkey_hash"]:
+        from . import order_messages
+
+        await order_messages.enqueue_status(
+            tx, dict(order_row), to_state, reason=reason,
+        )
     return from_state
 
 
@@ -891,6 +904,15 @@ async def admin_set_shipping(
                 merchant_notify_emails=ctx["notify_emails"],
                 merchant_notify_events=ctx["notify_events"],
                 customer_email=ctx["customer_email"], now=now,
+            )
+        # GAM-03 §6.9: gamma shipping transitions emit type-4
+        # (processing|shipped|delivered|exception) in the same tx.
+        if order["buyer_pubkey_hash"]:
+            from . import order_messages
+
+            await order_messages.enqueue_shipping(
+                tx, dict(order), shipping_state,
+                tracking=tracking, carrier=carrier, eta=eta,
             )
         return {"id": order_id, "shipping_state": shipping_state}
 

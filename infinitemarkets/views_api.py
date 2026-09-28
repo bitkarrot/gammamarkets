@@ -826,3 +826,213 @@ async def get_order_events(
     user: User = Depends(check_user_exists),
 ):
     return await order_service.order_events(merchant_id, user, order_id)
+
+
+# --- GAM-04 message surface + rejected-intake controls -------------------------
+
+
+class ComposeDmBody(_Strict):
+    recipient: str  # hex or npub nostr pubkey
+    content: str
+    order_id: str | None = None
+
+
+class ReplyDmBody(_Strict):
+    content: str
+
+
+@infinitemarkets_api_router.post(
+    "/merchants/{merchant_id}/messages/compose"
+)
+@problem_boundary
+async def compose_message(
+    request: Request,
+    merchant_id: str,
+    body: ComposeDmBody,
+    user: User = Depends(check_user_exists),
+):
+    """Merchant-authored kind-14 — dual-copy order_msg intent (D-13)."""
+    from .services import order_messages as order_message_service
+
+    order = None
+    if body.order_id:
+        order = await _order_row_for_user(merchant_id, user, body.order_id)
+    else:
+        # Ownership proof — the merchant id must belong to this user.
+        await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await order_message_service.compose_dm(
+        merchant_id,
+        recipient_pubkey=body.recipient,
+        content=body.content,
+        order=order,
+    )
+
+
+@infinitemarkets_api_router.post(
+    "/merchants/{merchant_id}/messages/conversations/{conversation_id}/reply"
+)
+@problem_boundary
+async def reply_message(
+    request: Request,
+    merchant_id: str,
+    conversation_id: str,
+    body: ReplyDmBody,
+    user: User = Depends(check_user_exists),
+):
+    """Reply inside an order:/unknown: conversation (D-13/D-14)."""
+    from .services import order_messages as order_message_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await order_message_service.reply_dm(
+        merchant_id,
+        conversation_id=conversation_id,
+        content=body.content,
+    )
+
+
+async def _order_row_for_user(merchant_id: str, user, order_id: str) -> dict:
+    """The raw orders row for an owner-verified order (order_detail
+    proves ownership but returns the public projection)."""
+    from .db import db, table
+    from .security import not_found
+
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT o.* FROM {table('orders')} o"
+            f" JOIN {table('merchants')} m ON m.id = o.merchant_id"
+            " WHERE o.id = :o AND o.merchant_id = :m AND m.user_id = :u",
+            {"o": order_id, "m": merchant_id, "u": str(user.id)},
+        )
+    if row is None:
+        raise not_found("order not found")
+    return dict(row)
+
+
+@infinitemarkets_api_router.get(
+    "/merchants/{merchant_id}/rejected-intake"
+)
+@problem_boundary
+async def rejected_intake(
+    request: Request,
+    merchant_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """Merchant-visible rejected/quarantined intake with reasons + the
+    author npub for mute decisions (D-21)."""
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await _list_rejected_intake(merchant_id, user)
+
+
+@infinitemarkets_api_router.post(
+    "/merchants/{merchant_id}/rejected-intake/{inbox_event_id}/mute"
+)
+@problem_boundary
+async def mute_rejected_intake(
+    request: Request,
+    merchant_id: str,
+    inbox_event_id: str,
+    user: User = Depends(check_user_exists),
+):
+    """Mute the rumor author behind a rejected intake row — subsequent
+    wraps drop before domain dispatch (D-23)."""
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await _mute_inbox_author(merchant_id, inbox_event_id)
+
+
+async def _list_rejected_intake(merchant_id: str, user) -> dict:
+    from .. import crypto
+    from .db import db, table
+    from .settings import ext_settings
+
+    settings = ext_settings()
+    async with db.connect() as conn:
+        rows = await conn.fetchall(
+            f"SELECT id, outer_event_id, kind, processed_state,"
+            " reject_reason, author_hash, author_enc, received_at,"
+            " processed_at, source_relay"
+            f" FROM {table('inbox_events')}"
+            " WHERE merchant_id = :m"
+            " AND processed_state IN ('rejected', 'quarantined')"
+            " ORDER BY processed_at DESC LIMIT 100",
+            {"m": merchant_id},
+        )
+    entries = []
+    for row in rows:
+        author_npub = None
+        if row["author_enc"] is not None:
+            try:
+                ver = crypto.envelope_version(row["author_enc"])
+                author_hex = crypto.decrypt(
+                    row["author_enc"], settings.master_keys[ver],
+                    record_id=row["id"], table="inbox_events",
+                    column="author_enc", key_version=ver,
+                ).decode()
+                from nostr_sdk import PublicKey
+
+                author_npub = (
+                    PublicKey.parse(author_hex).to_bech32()
+                )
+            except Exception:  # noqa: BLE001 — display-only decrypt
+                author_npub = None
+        entries.append(
+            {
+                "id": row["id"],
+                "outer_event_id": row["outer_event_id"],
+                "kind": row["kind"],
+                "processed_state": row["processed_state"],
+                "reject_reason": row["reject_reason"],
+                "author_npub": author_npub,
+                "source_relay": row["source_relay"],
+                "received_at": row["received_at"],
+                "processed_at": row["processed_at"],
+            }
+        )
+    return {"entries": entries}
+
+
+async def _mute_inbox_author(merchant_id: str, inbox_event_id: str) -> dict:
+    import time as _time
+    import uuid as _uuid
+
+    from .. import crypto
+    from .db import DomainTransaction, db, table
+    from .security import not_found
+    from .settings import ext_settings
+
+    settings = ext_settings()
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT id, author_hash, author_enc, processed_state"
+            f" FROM {table('inbox_events')}"
+            " WHERE merchant_id = :m AND id = :i",
+            {"m": merchant_id, "i": inbox_event_id},
+        )
+    if row is None or row["author_hash"] is None:
+        raise not_found("no mutable author on that intake row")
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"INSERT INTO {tx.table('inbox_blocklist')} "
+            "(id, merchant_id, author_hash, created_at) "
+            "VALUES (:i, :m, :h, :t) ON CONFLICT DO NOTHING",
+            {
+                "i": _uuid.uuid4().hex,
+                "m": merchant_id,
+                "h": row["author_hash"],
+                "t": int(_time.time()),
+            },
+        )
+    author_npub = None
+    if row["author_enc"] is not None:
+        try:
+            ver = crypto.envelope_version(row["author_enc"])
+            author_hex = crypto.decrypt(
+                row["author_enc"], settings.master_keys[ver],
+                record_id=row["id"], table="inbox_events",
+                column="author_enc", key_version=ver,
+            ).decode()
+            from nostr_sdk import PublicKey
+
+            author_npub = PublicKey.parse(author_hex).to_bech32()
+        except Exception:  # noqa: BLE001
+            author_npub = None
+    return {"muted": True, "author_npub": author_npub}

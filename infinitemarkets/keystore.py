@@ -571,7 +571,16 @@ def _unwrap_gift_wrap(keys, wrap_input,
         for t in raw_tags
         if isinstance(t, list) and len(t) >= 2 and t[0] == "p"
     ]
-    if len(raw_p) != 1 or raw_p[0] != expected_hex:
+    # Sender copies: the wrap is addressed to the merchant but the
+    # merchant authored the rumor — the rumor's p tag names the message's
+    # real recipient (the buyer), not the wrap recipient (section 8.5
+    # sender-copy recovery). Inbound buyer wraps still require
+    # p == merchant.
+    sender_copy = (
+        expected_rumor_recipient is None
+        and rumor.author().to_hex() == merchant_pubkey
+    )
+    if len(raw_p) != 1 or (not sender_copy and raw_p[0] != expected_hex):
         _reject("rumor-p-tag-invalid")
 
     from loguru import logger

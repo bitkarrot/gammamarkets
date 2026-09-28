@@ -620,20 +620,35 @@ async def reconcile(now: int | None = None) -> dict:
                 f" {projection['core_external_id']}: {type(exc).__name__}"
             )
 
-    # §8.7 inbox admission tail: re-drive 'received' rows the leased
-    # inbox_processor hasn't drained yet (crash between admission insert
-    # and drain); 'validated' rows stay parked — domain dispatch is the
-    # 03-02 seam (TODO: dispatch, deliberately not a hidden gap).
+    # §8.7 inbox resume: 'received' rows re-run the drain and 'validated'
+    # rows resume domain dispatch — every route is idempotent
+    # (outer/rumor dedupe, the orders unique partial index, aggregate-id
+    # intent dedupe), so replaying a killed dispatch never re-creates a
+    # domain command.
     from . import inbox as inbox_service
+    from . import order_messages as order_msg_service
 
     try:
-        drain = await inbox_service.drain_received()
+        drain = await inbox_service.drain_and_process()
         if any(drain.values()):
             report["resumed"].append({"inbox_drain": drain})
     except Exception as exc:  # noqa: BLE001 — report-only
         logger.debug(
             f"infinitemarkets reconcile: inbox drain failed:"
             f" {type(exc).__name__}"
+        )
+    try:
+        # Type-2 re-enqueue: awaiting_payment gamma orders whose invoice
+        # attached before the payment-request enqueue was killed.
+        requeued = await order_msg_service.reenqueue_payment_requests()
+        if requeued:
+            report["resumed"].append(
+                {"payment_requests_requeued": requeued}
+            )
+    except Exception as exc:  # noqa: BLE001 — report-only
+        logger.debug(
+            f"infinitemarkets reconcile: payment-request reenqueue"
+            f" failed: {type(exc).__name__}"
         )
     return report
 
@@ -906,6 +921,22 @@ async def retention_prune(now: int | None = None) -> dict:
             {"t": now - INBOX_CIPHERTEXT_RETENTION_S},
         )
         report["inbox_erased"] = rc
+        # Rejected/quarantined intake ciphertext beyond 30d — the bounded
+        # reason + hash columns stay for dispute display.
+        rc = await tx.execute(
+            f"UPDATE {tx.table('inbox_events')} SET raw_json = NULL,"
+            " author_enc = NULL WHERE processed_state IN"
+            " ('rejected', 'quarantined')"
+            " AND processed_at IS NOT NULL AND processed_at <= :t",
+            {"t": now - INBOX_QUARANTINE_RETENTION_S},
+        )
+        report["inbox_erased"] += rc
+        # Expired peer-relay cache rows purge outright.
+        rc = await tx.execute(
+            f"DELETE FROM {tx.table('peer_relays')} WHERE expires_at <= :n",
+            {"n": now},
+        )
+        report["peer_relays_purged"] = rc
         # Terminal orders older than 90d: erase PII ciphertexts, keep the
         # financial/audit columns (hashes, totals, states, events).
         terminal = (
