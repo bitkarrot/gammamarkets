@@ -122,7 +122,10 @@ async def _nav_collections(merchant_id: str) -> list[dict]:
 
 async def _store_ctx(merchant: dict, theme: dict | None) -> dict:
     """Everything the shared store chrome (header nav + footer) needs."""
+    from .services import storefront_mode as mode_service
+
     collections = await _nav_collections(merchant["id"])
+    nostr = await _nostr_ctx(merchant)
     return {
         **_brand_ctx(merchant, theme),
         "nav_collections": collections[:NAV_COLLECTIONS_MAX],
@@ -130,7 +133,52 @@ async def _store_ctx(merchant: dict, theme: dict | None) -> dict:
         # D-06: the NIP-07 sign-in affordance renders only while the
         # merchant's inbox profile is live (kind-10050 published).
         "nostr_signin": merchant.get("inbox_state") == "active",
+        # D-07: the four-state storefront mode drives buy controls and
+        # browse depth server-side.
+        "storefront_mode": await mode_service.get_mode(merchant["id"]),
+        **nostr,
     }
+
+
+async def _nostr_ctx(merchant: dict) -> dict:
+    """npub + enabled inbox relays for Nostr guidance surfaces."""
+    try:
+        from nostr_sdk import PublicKey
+
+        npub = PublicKey.parse(merchant["pubkey"]).to_bech32()
+    except Exception:  # noqa: BLE001 — display-only fallback
+        npub = merchant.get("pubkey") or ""
+    from .db import db, table
+
+    async with db.connect() as conn:
+        rows = await conn.fetchall(
+            f"SELECT relay_url FROM {table('relay_configs')} "
+            "WHERE merchant_id = :m AND enabled"
+            " AND direction IN ('inbox', 'both') ORDER BY relay_url",
+            {"m": merchant["id"]},
+        )
+    return {
+        "merchant_npub": npub,
+        "inbox_relays": [r["relay_url"] for r in rows],
+    }
+
+
+def _nostr_only_response(request: Request, merchant: dict,
+                       ctx: dict) -> HTMLResponse:
+    """The Nostr-only notice page for browse surfaces (D-07/D-08):
+    browse depth is gated, but the store chrome and Track-order link
+    still render so existing buyers keep working."""
+    return _public_response(
+        request,
+        "public_nostr_only.html",
+        {
+            "merchant_name": merchant.get("display_name") or "",
+            "merchant_npub": ctx.get("merchant_npub", ""),
+            "inbox_relays": ctx.get("inbox_relays", []),
+            "nav_active": "shop",
+            **ctx,
+        },
+    )
 
 
 def _public_response(request: Request, template: str, ctx: dict,
@@ -231,6 +279,11 @@ async def product_page(request: Request, pubkey: str, d_tag: str):
             request, "public_unavailable.html",
             {"state": state}, status=404 if state == "unavailable" else 200,
         )
+    store = await _store_ctx(product["_merchant"], theme)
+    if store["storefront_mode"] == "nostr_only":
+        # D-08: browse depth gated; the notice page keeps the Track-order
+        # link so existing private order links keep working.
+        return _nostr_only_response(request, product["_merchant"], store)
     return _public_response(
         request,
         "public_product.html",
@@ -248,7 +301,7 @@ async def product_page(request: Request, pubkey: str, d_tag: str):
                 product["format"] == "digital"
                 and product.get("delivery_enc") is not None
             ),
-            **await _store_ctx(product["_merchant"], theme),
+            **store,
         },
     )
 
@@ -291,6 +344,9 @@ async def collection_page(request: Request, pubkey: str, d_tag: str):
         prod["image"] = images.get(member["id"])
         prod["format"] = member["format"]
     theme = await theme_service.get_theme(merchant["id"])
+    store = await _store_ctx(merchant, theme)
+    if store["storefront_mode"] == "nostr_only":
+        return _nostr_only_response(request, merchant, store)
     return _public_response(
         request,
         "public_collection.html",
@@ -301,7 +357,7 @@ async def collection_page(request: Request, pubkey: str, d_tag: str):
             "theme_css": theme_service.emit_css(theme),
             "layout": theme_service.theme_layout(theme),
             "nav_active": d_tag,
-            **await _store_ctx(merchant, theme),
+            **store,
         },
     )
 
@@ -350,6 +406,8 @@ async def merchant_page(request: Request, pubkey: str):
 
     theme = await theme_service.get_theme(merchant["id"])
     store = await _store_ctx(merchant, theme)
+    if store["storefront_mode"] == "nostr_only":
+        return _nostr_only_response(request, merchant, store)
     return _public_response(
         request,
         "public_merchant.html",

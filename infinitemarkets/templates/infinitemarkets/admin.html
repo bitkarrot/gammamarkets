@@ -1081,7 +1081,45 @@
                     <q-btn outline color="negative" label="Begin deactivation"
                            @click="gmSettings.deactivate.show = true"></q-btn>
                     <div class="text-caption q-mt-md">
-                      Gamma orders (NIP-17): Not available in this release
+                      Gamma orders (NIP-17): managed from the Messages
+                      workspace and the inbox controls above.
+                    </div>
+                  </q-card-section>
+                </q-card>
+
+                <q-card flat bordered class="q-mt-md"
+                        data-gm="storefront-mode">
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">
+                      Storefront mode
+                      <q-badge outline class="q-ml-sm"
+                               :label="gmModeLabel(gmSettings.mode.current)">
+                      </q-badge>
+                    </div>
+                    <div class="gm-mode-grid">
+                      <div v-for="m in gmSettings.mode.modes" :key="m"
+                           class="gm-mode-card"
+                           :class="{
+                             'is-active': gmSettings.mode.current === m,
+                             'is-blocked': gmSettings.mode.blocked[m]
+                           }"
+                           :data-mode="m" role="button" tabindex="0"
+                           :aria-disabled="gmSettings.mode.blocked[m]"
+                           @click="gmSelectMode(m)"
+                           @keydown.enter="gmSelectMode(m)">
+                        <div class="text-subtitle2">
+                          {{ gmModeLabel(m) }}
+                        </div>
+                        <div class="text-caption">{{ gmModeBlurb(m) }}</div>
+                        <div v-if="gmSettings.mode.blocked[m]"
+                             class="text-caption text-negative">
+                          Blocked — {{ gmSettings.mode.blockedReason }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="text-caption q-mt-sm">
+                      Existing order links, in-flight payments, and order
+                      tracking keep working in every mode.
                     </div>
                   </q-card-section>
                 </q-card>
@@ -1551,6 +1589,35 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
+
+  <q-dialog v-model="gmSettings.mode.confirmShow">
+    <q-card style="min-width: 460px">
+      <q-card-section>
+        <div class="text-h6">
+          Switch to {{ gmModeLabel(gmSettings.mode.pending) }}?
+        </div>
+      </q-card-section>
+      <q-card-section>
+        <p>This takes effect immediately for visitors:</p>
+        <q-list dense>
+          <q-item v-for="(impact, i) in gmSettings.mode.pendingImpact"
+                  :key="i">
+            <q-item-section>{{ impact }}</q-item-section>
+          </q-item>
+        </q-list>
+        <p class="text-caption q-mt-sm">
+          Existing order links and in-flight payments are never touched.
+        </p>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Back"
+               @click="gmSettings.mode.confirmShow = false"></q-btn>
+        <q-btn unelevated color="primary" label="Apply mode"
+               :loading="gmSettings.mode.applying"
+               @click="gmApplyMode"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </div>
 {% endraw %}
 {% endblock %}
@@ -1738,6 +1805,28 @@
   .gm-editor-grid { grid-template-columns: 1fr; }
   .gm-editor-wide { grid-column: auto; }
   .gm-catalog-head h1 { flex-basis: 100%; }
+}
+/* Storefront mode cards (03-03) — dense, state-labeled, clickable. */
+.gm-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.gm-mode-card {
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.gm-mode-card.is-active {
+  border-color: var(--q-primary);
+  box-shadow: inset 0 0 0 1px var(--q-primary);
+  background: rgba(37, 99, 235, 0.08);
+}
+.gm-mode-card.is-blocked { opacity: 0.6; cursor: not-allowed; }
+.gm-mode-card:not(.is-blocked):hover {
+  border-color: var(--q-primary);
 }
 </style>
 {% endblock %}

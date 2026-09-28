@@ -279,6 +279,62 @@ async def get_inbox_state(
     return await merchant_service.get_inbox_state(merchant_id, user)
 
 
+class StorefrontModeBody(_Strict):
+    mode: str
+    confirm: bool = False
+
+
+@infinitemarkets_api_router.get("/merchants/{merchant_id}/storefront-mode")
+@problem_boundary
+async def get_storefront_mode(
+    request: Request,
+    merchant_id: str, user: User = Depends(check_user_exists)
+):
+    """Current mode + which modes are blocked and why (D-10)."""
+    from .services import storefront_mode as mode_service
+
+    merchant = await merchant_service.get_merchant_row(
+        merchant_id, str(user.id)
+    )
+    inbox_active = merchant.get("inbox_state") == "active"
+    return {
+        "mode": await mode_service.get_mode(merchant_id),
+        "inbox_state": merchant.get("inbox_state"),
+        "modes": list(mode_service.MODES),
+        "blocked": {
+            m: m in mode_service.INBOX_GATED_MODES and not inbox_active
+            for m in mode_service.MODES
+        },
+        "blocked_reason": (
+            None
+            if inbox_active
+            else "requires an active Nostr inbox (kind-10050 published)"
+        ),
+        "impact": mode_service.MODE_IMPACT,
+    }
+
+
+@infinitemarkets_api_router.put("/merchants/{merchant_id}/storefront-mode")
+@problem_boundary
+async def put_storefront_mode(
+    request: Request,
+    merchant_id: str,
+    body: StorefrontModeBody,
+    user: User = Depends(check_user_exists),
+):
+    """Two-step mode change: ``{mode}`` returns the impact list;
+    ``{mode, confirm: true}`` applies. D-10 gates showcase/nostr_only
+    on an active inbox; D-11 keeps in-flight orders untouched."""
+    from .services import storefront_mode as mode_service
+
+    merchant = await merchant_service.get_merchant_row(
+        merchant_id, str(user.id)
+    )
+    return await mode_service.set_mode(
+        merchant, body.mode, confirm=body.confirm
+    )
+
+
 @infinitemarkets_api_router.get("/merchants/{merchant_id}/relay-auth")
 @problem_boundary
 async def get_relay_auth(

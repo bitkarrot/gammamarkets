@@ -134,6 +134,9 @@ ORDER_MSG_NO_ROUTE_DEADLINE_S = 48 * 3600
 
 # OQ6-pinned transient failure vocabulary — these are transport states,
 # not relay verdicts, so they classify as retryable 'timeout'.
+_CATALOG_AGGREGATES = frozenset(
+    {"products", "collections", "shipping_options", "catalogs"}
+)
 TRANSIENT_REASONS = frozenset(
     {
         "timeout",
@@ -321,6 +324,19 @@ async def render_intent(row: dict, database=None) -> dict | None:
     from ..db import table
 
     async with (database or default_db).connect() as conn:
+        if agg in _CATALOG_AGGREGATES:
+            # D-09: browse_only pauses catalog publication — intents are
+            # superseded by the same "no longer publishable" posture the
+            # publish_nip15 gate uses; order_msg/merchant_profile are
+            # unaffected.
+            from . import storefront_mode
+
+            if not storefront_mode.publish_allowed(
+                await storefront_mode.get_mode(
+                    row["merchant_id"], conn=conn
+                )
+            ):
+                return None
         if agg == "products":
             p = await conn.fetchone(
                 f"SELECT * FROM {table('products')} WHERE id = :i",

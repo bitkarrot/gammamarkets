@@ -1,0 +1,31 @@
+{% extends "templates/infinitemarkets/public_base.html" %}
+{% block title %}Order via Nostr{% endblock %}
+{% block content %}
+<div class="nostr-only" data-gm="nostr-only">
+  <h1>{{ merchant_name or 'This shop' }} sells through Nostr.</h1>
+  <p class="nostr-only-lead">
+    This shop takes orders through private Nostr messages — no account,
+    no checkout form. Everything is encrypted end to end.
+  </p>
+  <ol class="nostr-only-steps">
+    <li>Get a Nostr client or signing extension (for example Alby or nos2x).</li>
+    <li>Follow the shop's npub and send your order as an encrypted direct message.</li>
+    <li>The shop replies in your Nostr inbox with a payment request.</li>
+  </ol>
+  {% if merchant_npub %}
+  <p class="nostr-only-key">
+    Shop npub: <code>{{ merchant_npub }}</code>
+  </p>
+  {% endif %}
+  {% if inbox_relays %}
+  <p class="nostr-only-relays">
+    Shop inbox relays:
+    {% for r in inbox_relays %}<code>{{ r }}</code>{% if not loop.last %} {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+  <p class="nostr-only-track">
+    Already ordered? <a href="/infinitemarkets/order{{ '?shop=' + shop_pubkey if shop_pubkey }}">Track your order</a> —
+    your private order links keep working.
+  </p>
+</div>
+{% endblock %}

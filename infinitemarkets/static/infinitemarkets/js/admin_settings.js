@@ -147,6 +147,17 @@
             retireKeys: false
           },
           specRevision: "",
+          /* Storefront mode (03-03, D-07..D-11) */
+          mode: {
+            current: "full",
+            modes: ["full", "showcase", "browse_only", "nostr_only"],
+            blocked: {},
+            blockedReason: "",
+            pending: null,
+            pendingImpact: [],
+            confirmShow: false,
+            applying: false
+          },
           /* B6 */
           layouts: LAYOUTS,
           layoutNote: LAYOUT_NOTE,
@@ -229,10 +240,18 @@
         self.gmSettings.error = null;
         try {
           var res = await Promise.all([
-            self.gmApi("GET", "/merchants/" + mid + "/relay-health")
+            self.gmApi("GET", "/merchants/" + mid + "/relay-health"),
+            self.gmApi("GET", "/merchants/" + mid + "/storefront-mode")
           ]);
           self.gmSettings.relays = res[0].relays || [];
           self.gmSettings.blossom = res[0].blossom_servers || [];
+          var modeRes = res[1] || {};
+          self.gmSettings.mode.current = modeRes.mode || "full";
+          self.gmSettings.mode.modes =
+            modeRes.modes || self.gmSettings.mode.modes;
+          self.gmSettings.mode.blocked = modeRes.blocked || {};
+          self.gmSettings.mode.blockedReason =
+            modeRes.blocked_reason || "";
           self.gmSettings.wallets = self.gm.wallets || [];
           var m = self.gm.merchant;
           self.gmSettings.displayName = m.display_name || "";
@@ -391,6 +410,74 @@
           }
         }
         self.gmSettings.deactivate.busy = false;
+      },
+
+      /* --- Storefront mode (D-07..D-11) ------------------------------------ */
+
+      gmModeLabel: function (m) {
+        return (
+          {
+            full: "Full",
+            showcase: "Showcase",
+            browse_only: "Browse-only",
+            nostr_only: "Nostr-only"
+          }[m] || m
+        );
+      },
+      gmModeBlurb: function (m) {
+        return (
+          {
+            full: "Browse + web checkout — the normal store.",
+            showcase:
+              "Catalog browses; buy controls become 'Order via Nostr' guidance.",
+            browse_only:
+              "No new purchases; catalog stops publishing changes to Nostr.",
+            nostr_only:
+              "Storefront shows a Nostr-only notice; ordering happens over Nostr DMs."
+          }[m] || ""
+        );
+      },
+      gmSelectMode: async function (mode) {
+        /* Step 1 of the two-step apply — fetch the impact preview. */
+        var self = this;
+        if (self.gmSettings.mode.blocked[mode]) return;
+        if (mode === self.gmSettings.mode.current) return;
+        try {
+          var res = await self.gmApi(
+            "PUT",
+            "/merchants/" + self.gmMerchantId() + "/storefront-mode",
+            { mode: mode, confirm: false }
+          );
+          self.gmSettings.mode.pending = mode;
+          self.gmSettings.mode.pendingImpact = res.impact || [];
+          self.gmSettings.mode.confirmShow = true;
+        } catch (e) {
+          self.gmSettings.error = self.gmProblemCopy(e.problem);
+        }
+      },
+      gmApplyMode: async function () {
+        /* Step 2 — confirm the impact list and apply. */
+        var self = this;
+        var mode = self.gmSettings.mode.pending;
+        if (!mode) return;
+        self.gmSettings.mode.applying = true;
+        try {
+          await self.gmApi(
+            "PUT",
+            "/merchants/" + self.gmMerchantId() + "/storefront-mode",
+            { mode: mode, confirm: true }
+          );
+          self.gmSettings.mode.current = mode;
+          self.gmSettings.mode.confirmShow = false;
+          self.gmSettings.mode.pending = null;
+          self.gmSettings.mode.pendingImpact = [];
+          self.gmSettings.notice =
+            "Storefront mode is now " + self.gmModeLabel(mode) + ".";
+        } catch (e) {
+          self.gmSettings.mode.confirmShow = false;
+          self.gmSettings.error = self.gmProblemCopy(e.problem);
+        }
+        self.gmSettings.mode.applying = false;
       },
 
       /* --- B6 appearance -------------------------------------------------- */

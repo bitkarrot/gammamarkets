@@ -83,7 +83,7 @@
     </ul>
     {% endif %}
 
-    {% if state == 'available' %}
+    {% if state == 'available' and storefront_mode == 'full' %}
     {#- A2 adaptive checkout card — the field set, summary, validation,
         payment states, and security copy are invariant across presets
         and themes (UI-SPEC §A2). -#}
@@ -272,6 +272,42 @@
         <p class="privacy">Your private order link uses a URL fragment. The token is never sent in a request path or query; keep the link private.</p>
       </form>
       <div id="gm-invoice-panel" hidden aria-live="polite"></div>
+    </aside>
+    {% elif state == 'available' and storefront_mode == 'showcase' %}
+    {#- Showcase (D-07): honest "Order via Nostr" guidance replaces the
+        checkout form — name the step, never a dead button. -#}
+    <aside class="checkout-card showcase-card" data-gm="showcase-guidance"
+           aria-labelledby="gm-showcase-title">
+      <div class="checkout-head">
+        <h2 class="checkout-title" id="gm-showcase-title">Order via Nostr</h2>
+      </div>
+      <p>This shop takes orders over Nostr — private, encrypted messages,
+        no account or email needed.</p>
+      <ol class="showcase-steps">
+        <li>Open your Nostr client or signer (for example Alby or nos2x).</li>
+        <li>Message the shop's npub with what you'd like — include this item's
+            name or reference <code>{{ product.d_tag }}</code>.</li>
+        <li>The shop replies in your Nostr inbox with a Lightning payment
+            request — pay it there to place your order.</li>
+      </ol>
+      {% if merchant_npub %}
+      <p class="showcase-key">Shop npub: <code>{{ merchant_npub }}</code></p>
+      {% endif %}
+      {% if inbox_relays %}
+      <p class="showcase-relays">Shop inbox relays:
+        {% for r in inbox_relays %}<code>{{ r }}</code>{% if not loop.last %} {% endif %}{% endfor %}</p>
+      {% endif %}
+    </aside>
+    {% elif state == 'available' and storefront_mode == 'browse_only' %}
+    {#- Browse-only (D-07): every buy affordance is removed honestly. -#}
+    <aside class="checkout-card browse-only-card" data-gm="browse-only"
+           aria-labelledby="gm-browse-title">
+      <div class="checkout-head">
+        <h2 class="checkout-title" id="gm-browse-title">Browse only</h2>
+      </div>
+      <p>This shop is not accepting online orders right now — you can
+        still browse and track an existing order.</p>
+      <p><a href="/infinitemarkets/order{{ '?shop=' + shop_pubkey if shop_pubkey }}">Track an existing order</a></p>
     </aside>
     {% endif %}
     <p class="merchant-line">Sold by

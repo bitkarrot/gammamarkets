@@ -603,10 +603,18 @@ async def _price_cart(resolved: list[dict], shipping_option: dict | None, now: i
 
 
 async def quote_preview(payload: dict) -> dict:
+    from . import storefront_mode
     from .readiness import assert_database_compatible
 
     await assert_database_compatible()
     merchant = await _merchant_for_checkout(payload.get("merchant_pubkey") or "")
+    mode = await storefront_mode.get_mode(merchant["id"])
+    if not storefront_mode.checkout_allowed(mode):
+        raise unprocessable(
+            "storefront-mode-unavailable",
+            "Online checkout unavailable",
+            storefront_mode.checkout_blocked_detail(mode),
+        )
     resolved, _, shipping_option = await _resolve_cart(merchant["id"], payload)
     _, _, subtotal_sat, shipping_sat, total_sat, _ = await _price_cart(
         resolved, shipping_option, _now(),
@@ -636,6 +644,15 @@ async def checkout(
     route = "/api/v1/public/checkout"
 
     merchant = await _merchant_for_checkout(payload.get("merchant_pubkey") or "")
+    from . import storefront_mode
+
+    mode = await storefront_mode.get_mode(merchant["id"])
+    if not storefront_mode.checkout_allowed(mode):
+        raise unprocessable(
+            "storefront-mode-unavailable",
+            "Online checkout unavailable",
+            storefront_mode.checkout_blocked_detail(mode),
+        )
     scope = _scope_hash(merchant["id"], route, idempotency_key)
     request_hash = _request_hash(payload)
     record = await _claim_idempotency(scope, request_hash, now=now)
