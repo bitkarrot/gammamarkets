@@ -408,14 +408,12 @@ async def test_imported_nsec_never_stored_plaintext(keystore_env):
 
 
 async def test_keystore_release_gated_methods(keystore_env):
+    """NIP-17 wrap/unwrap are now live (Release B — plan 03-01; see
+    test_keystore_nip17.py). NIP-04 remains Release C scope."""
     keystore = keystore_env["keystore"]
     s = _ext_settings()
     ks = keystore.MerchantKeyStore(s)
 
-    with pytest.raises(keystore.ReleaseNotAvailable):
-        await ks.nip17_wrap("m1", None, "pk")
-    with pytest.raises(keystore.ReleaseNotAvailable):
-        await ks.nip17_unwrap("m1", None)
     with pytest.raises(keystore.ReleaseNotAvailable):
         await ks.nip04_decrypt("m1", "pk", "ct")
     with pytest.raises(keystore.ReleaseNotAvailable):

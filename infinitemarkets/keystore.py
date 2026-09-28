@@ -6,8 +6,9 @@ operation, used for the single signing/unwrap call, and never cached,
 logged, or attached to a long-lived SDK client. Python cannot guarantee
 physical memory zeroization — residual risk documented in section 11.2.
 
-NIP-17/NIP-04 methods exist on the interface per section 11.1 but raise
-``ReleaseNotAvailable`` — they are Release B/C scope.
+NIP-04 methods exist on the interface per section 11.1 but raise
+``ReleaseNotAvailable`` — they are Release C scope. NIP-17 wrap/unwrap
+run the explicit section 8.5 verification chain inside the operation.
 """
 
 from __future__ import annotations
@@ -31,6 +32,26 @@ class KeystoreError(RuntimeError):
 
 class ReleaseNotAvailable(KeystoreError):
     """Interface member exists per section 11.1 but belongs to Release B/C."""
+
+
+class WrapRejection(KeystoreError):
+    """A gift-wrap chain failed section 8.5 verification.
+
+    ``reason`` is a BOUNDED code from the same vocabulary as
+    ``harness/sdk.py``'s reject reasons — it never carries plaintext,
+    ciphertext, key material, or untrusted string content.
+    """
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
+#: Rumor kinds the inbox may dispatch (section 8.5 step 8).
+ALLOWED_RUMOR_KINDS = frozenset({14, 16, 17})
+
+_KIND_SEAL = 13
+_KIND_GIFT_WRAP = 1059
 
 
 class MerchantKeyStore:
@@ -318,16 +339,254 @@ class MerchantKeyStore:
     # --- Release B/C interface members (section 11.1) -------------------------
 
     async def nip17_wrap(self, merchant_id, unsigned_rumor, recipient_pubkey):
-        raise ReleaseNotAvailable("NIP-17 gift wrap is Release B scope")
+        """Seal + gift-wrap ``unsigned_rumor`` for ``recipient_pubkey``.
 
-    async def nip17_unwrap(self, merchant_id, signed_gift_wrap):
-        raise ReleaseNotAvailable("NIP-17 unwrap is Release B scope")
+        The merchant nsec is decrypted inside this operation and released
+        in ``finally`` — identical custody discipline to ``sign_event``.
+        Each call emits a fresh seal and a fresh ephemeral wrapper key with
+        NIP-59-randomized past timestamps (the SDK owns both), so retries
+        of the same rumor produce different outer ids/ciphertexts while
+        the canonical rumor id stays stable (section 8.6 step 3).
+        """
+        from nostr_sdk import (
+            EventBuilder,
+            NostrSigner,
+            PublicKey,
+            gift_wrap_from_seal,
+        )
+
+        keys = await self._keys(merchant_id)
+        try:
+            recipient = (
+                recipient_pubkey
+                if isinstance(recipient_pubkey, PublicKey)
+                else PublicKey.parse(recipient_pubkey)
+            )
+            signer = NostrSigner.keys(keys)
+            builder = await EventBuilder.seal(
+                signer, recipient, unsigned_rumor
+            )
+            seal = await builder.sign(signer)
+            # gift_wrap_from_seal is SYNCHRONOUS in nostr-sdk 0.44.8 —
+            # it generates the one-time outer key + randomized timestamp.
+            return gift_wrap_from_seal(recipient, seal)
+        finally:
+            del keys
+
+    async def nip17_unwrap(self, merchant_id, signed_gift_wrap,
+                           expected_rumor_recipient=None):
+        """The explicit section 8.5 verification chain for one wrap.
+
+        ``signed_gift_wrap`` is a signed kind-1059 ``Event`` or its raw JSON
+        string. ``expected_rumor_recipient`` defaults to the merchant's own
+        pubkey (buyer -> merchant intake); pass the BUYER pubkey when
+        validating a recovered sender copy (the wrap is addressed to the
+        merchant but the rumor's ``p`` still names the buyer).
+
+        Returns ``{rumor_json, rumor_id, kind, author_pubkey}`` — no SDK
+        event objects leak out (the caller adapts to domain). Rejections
+        raise :class:`WrapRejection` with a bounded reason.
+        """
+        keys = await self._keys(merchant_id)
+        try:
+            return _unwrap_gift_wrap(
+                keys, signed_gift_wrap, expected_rumor_recipient
+            )
+        finally:
+            del keys
 
     async def nip04_decrypt(self, merchant_id, peer_pubkey, ciphertext):
         raise ReleaseNotAvailable("NIP-04 compat is Release C scope")
 
     async def nip04_encrypt(self, merchant_id, peer_pubkey, plaintext):
         raise ReleaseNotAvailable("NIP-04 compat is Release C scope")
+
+
+def _reject(reason: str) -> None:
+    """Bounded rejection — ids/reasons only, never content (section 8.5)."""
+    from loguru import logger
+
+    logger.info(
+        "event=infinitemarkets.keystore.wrap_rejected reason={}", reason
+    )
+    raise WrapRejection(reason)
+
+
+def _single_tag_values(event_tags, name: str) -> list[str]:
+    return [
+        tag.as_vec()[1]
+        for tag in event_tags.to_vec()
+        if tag.as_vec() and tag.as_vec()[0] == name and len(tag.as_vec()) >= 2
+    ]
+
+
+def _canonical_rumor_id(rumor) -> str:
+    """Canonical NIP-01 id of a rumor, recomputed through the SDK.
+
+    ``UnsignedEvent.id()`` returns the STORED field — it does not recompute
+    the hash — so the canonical id is derived by rebuilding the event with
+    the same (pubkey, created_at, kind, tags, content) through the SDK
+    builder. Never hand-rolled sha256 (unicode escaping edge cases).
+    """
+    from nostr_sdk import EventBuilder, Tag
+
+    rebuilt = (
+        EventBuilder(rumor.kind(), rumor.content())
+        .custom_created_at(rumor.created_at())
+        .tags([Tag.parse(tag.as_vec()) for tag in rumor.tags().to_vec()])
+        .build(rumor.author())
+    )
+    return rebuilt.id().to_hex()
+
+
+def _unwrap_gift_wrap(keys, wrap_input,
+                      expected_rumor_recipient) -> dict:
+    """Section 8.5 verification chain, stage-for-stage identical to
+    ``harness/sdk.py`` ``unwrap_gift_wrap`` (the qualified reference).
+
+    ``UnwrappedGift.from_gift_wrap`` is deliberately NOT used: the SDK
+    composite skips the p-tag count/recipient, seal-empty-tags, canonical
+    rumor-id, and raw-JSON duplicate-tag checks this chain enforces.
+    """
+    import json
+
+    from nostr_sdk import (
+        Event,
+        UnsignedEvent,
+        nip44_decrypt,
+    )
+
+    wrap_raw: dict | None = None
+    if isinstance(wrap_input, str):
+        try:
+            wrap_raw = json.loads(wrap_input)
+        except (TypeError, ValueError):
+            _reject("outer-unparseable")
+        if not isinstance(wrap_raw, dict):
+            _reject("outer-unparseable")
+        try:
+            wrap = Event.from_json(wrap_input)
+        except Exception:  # noqa: BLE001 — bounded vocabulary
+            _reject("outer-unparseable")
+    else:
+        wrap = wrap_input
+
+    merchant_pubkey = keys.public_key().to_hex()
+    expected_hex = (
+        expected_rumor_recipient.to_hex()
+        if hasattr(expected_rumor_recipient, "to_hex")
+        else expected_rumor_recipient
+    ) or merchant_pubkey
+
+    # Stage 1 — outer kind + outer id/signature.
+    if wrap.kind().as_u16() != _KIND_GIFT_WRAP:
+        _reject("outer-kind-not-1059")
+    if not wrap.verify():
+        _reject("outer-id-or-signature-invalid")
+
+    # Stage 2 — exactly one p tag equal to the wrap recipient. When the
+    # raw JSON is available the count runs on it directly: the SDK parser
+    # dedupes duplicate tags, hiding [p,X][p,X] from parsed-level checks.
+    if wrap_raw is not None:
+        raw_tags = wrap_raw.get("tags") or []
+        raw_p = [
+            t[1] for t in raw_tags
+            if isinstance(t, list) and len(t) >= 2 and t[0] == "p"
+        ]
+        if len(raw_p) != 1:
+            _reject("outer-p-tag-count")
+    p_values = _single_tag_values(wrap.tags(), "p")
+    if len(p_values) != 1:
+        _reject("outer-p-tag-count")
+    if p_values[0] != merchant_pubkey:
+        _reject("outer-p-tag-not-recipient")
+
+    # Stage 3 — NIP-44-decrypt outer content -> seal JSON.
+    try:
+        seal_json = nip44_decrypt(
+            keys.secret_key(), wrap.author(), wrap.content()
+        )
+    except Exception:  # noqa: BLE001 — any decrypt failure is a clean reject
+        _reject("outer-decrypt-failed")
+    try:
+        seal = Event.from_json(seal_json)
+    except Exception:  # noqa: BLE001
+        _reject("seal-unparseable")
+
+    # Stage 4 — seal kind 13, empty tags, id+signature verify.
+    if seal.kind().as_u16() != _KIND_SEAL:
+        _reject("seal-kind-not-13")
+    if not seal.tags().is_empty():
+        _reject("seal-tags-not-empty")
+    if not seal.verify():
+        _reject("seal-id-or-signature-invalid")
+
+    # Stage 5 — NIP-44-decrypt seal content -> rumor.
+    try:
+        rumor_json = nip44_decrypt(
+            keys.secret_key(), seal.author(), seal.content()
+        )
+    except Exception:  # noqa: BLE001
+        _reject("seal-decrypt-failed")
+
+    rumor_data: dict
+    try:
+        rumor_data = json.loads(rumor_json)
+    except (TypeError, ValueError):
+        _reject("rumor-unparseable")
+    if not isinstance(rumor_data, dict):
+        _reject("rumor-unparseable")
+    if rumor_data.get("sig"):
+        _reject("rumor-signed")
+    try:
+        rumor = UnsignedEvent.from_json(rumor_json)
+    except Exception:  # noqa: BLE001
+        _reject("rumor-unparseable")
+
+    # Stage 6 — unsigned rumor, canonical id, author == seal author.
+    if rumor.id().to_hex() != _canonical_rumor_id(rumor):
+        _reject("rumor-id-not-canonical")
+    if rumor.author().to_hex() != seal.author().to_hex():
+        _reject("rumor-seal-pubkey-mismatch")
+
+    # Stage 7 — rumor kind allowlist.
+    if rumor.kind().as_u16() not in ALLOWED_RUMOR_KINDS:
+        _reject("rumor-kind-not-allowed")
+
+    # Stage 8 — duplicate common tags + exactly one rumor p tag equal to
+    # the message recipient, counted on the RAW JSON tag list (the SDK
+    # parser dedupes duplicate tags, so a parsed-level check could never
+    # see them — section 6.9 rejects duplicated common tags).
+    raw_tags = rumor_data.get("tags")
+    if not isinstance(raw_tags, list):
+        _reject("rumor-unparseable")
+    raw_names = [
+        t[0] for t in raw_tags if isinstance(t, list) and t
+    ]
+    for name in ("subject", "type", "order"):
+        if raw_names.count(name) > 1:
+            _reject("rumor-duplicate-common-tag")
+    raw_p = [
+        t[1]
+        for t in raw_tags
+        if isinstance(t, list) and len(t) >= 2 and t[0] == "p"
+    ]
+    if len(raw_p) != 1 or raw_p[0] != expected_hex:
+        _reject("rumor-p-tag-invalid")
+
+    from loguru import logger
+
+    logger.info(
+        "event=infinitemarkets.keystore.wrap_accepted rumor_id={} kind={}",
+        rumor.id().to_hex(),
+        rumor.kind().as_u16(),
+    )
+    return {
+        "rumor_json": rumor_json,
+        "rumor_id": rumor.id().to_hex(),
+        "kind": rumor.kind().as_u16(),
+        "author_pubkey": rumor.author().to_hex(),
+    }
 
 
 def key_store(settings: ExtSettings | None = None) -> MerchantKeyStore:
