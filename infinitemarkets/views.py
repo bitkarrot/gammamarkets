@@ -127,6 +127,9 @@ async def _store_ctx(merchant: dict, theme: dict | None) -> dict:
         **_brand_ctx(merchant, theme),
         "nav_collections": collections[:NAV_COLLECTIONS_MAX],
         "all_collections": collections,
+        # D-06: the NIP-07 sign-in affordance renders only while the
+        # merchant's inbox profile is live (kind-10050 published).
+        "nostr_signin": merchant.get("inbox_state") == "active",
     }
 
 

@@ -389,6 +389,10 @@ TABLE_CLASSIFICATION: dict[str, str] = {
     "settings": TABLE_NOT_MODELED,
     "migration_jobs": TABLE_NOT_MODELED,
     "email_queue": TABLE_MODELED,
+    # Buyer-session tables (plan 03-03, D-01 — not spec §4 literals)
+    "nostr_challenges": TABLE_NOT_MODELED,
+    "buyer_sessions": TABLE_NOT_MODELED,
+    "inbox_blocklist": TABLE_NOT_MODELED,
 }
 
 # --- Section 4 modeled-table field sets -------------------------------------------

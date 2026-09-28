@@ -40,8 +40,14 @@
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7l9-4 9 4v10l-9 4-9-4V7zm9 2.2L5 6.3v9.4l7 3.1V9.2zm2 9.6l5-2.2V6.3l-5 2.2v10.3z" fill="currentColor"/></svg>
           Track order
         </a>
+        {% if nostr_signin %}
+        <button type="button" class="nav-signin" id="gm-nostr-signin" data-gm="signin">Sign in with Nostr</button>
+        {% endif %}
       </nav>
     </div>
+    {% if nostr_signin %}
+    <section class="nostr-panel" id="gm-nostr-panel" data-gm="nostr-panel" hidden></section>
+    {% endif %}
   </header>
   <main class="gm-main" id="gm-main">
     {% block content %}{% endblock %}
@@ -61,6 +67,7 @@
   </footer>
 </div>
 <script src="/infinitemarkets/static/infinitemarkets/js/public_storefront.js?v={{ asset_revision }}" defer></script>
+{% if nostr_signin %}<script src="/infinitemarkets/static/infinitemarkets/js/public_nostr.js?v={{ asset_revision }}" defer></script>{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

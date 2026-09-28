@@ -1349,3 +1349,89 @@
 .gm-public .storefront-empty { color: var(--color-text-muted); }
 .gm-public .merchant-line { color: var(--color-text-muted); font-size: 14px; }
 .gm-public .public-error { padding: var(--space-16) 0; text-align: center; }
+
+/* NIP-07 buyer sign-in + history (Release B, 03-03). */
+.gm-public .nav-signin {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gm-public .nav-signin:hover { background: var(--color-surface-alt); }
+.gm-public .nostr-panel {
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+.gm-public .nostr-box {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.gm-public .nostr-lead { font-weight: 600; margin: 0 0 var(--space-sm); }
+.gm-public .nostr-note { color: var(--color-text-muted); font-size: 14px; }
+.gm-public .nostr-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.gm-public .nostr-orders {
+  list-style: none;
+  margin: var(--space-sm) 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.gm-public .nostr-order {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+}
+.gm-public .nostr-order-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.gm-public .nostr-order-meta {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.gm-public .nostr-delivery { margin-top: var(--space-sm); }
+.gm-public .nostr-order-links { margin-top: 6px; }
+.gm-public .nostr-order-link { color: var(--color-primary); }
+.gm-public .nostr-claim { margin-top: var(--space-md); }
+.gm-public .nostr-claim-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.gm-public .nostr-claim-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  margin-bottom: var(--space-sm);
+}
+.gm-public .nostr-claim-msg {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}

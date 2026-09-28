@@ -524,6 +524,33 @@ orders(merchant_id, external_id_hash) UNIQUE WHERE protocol = 'web'
 email_queue(state, next_attempt_at)         email_queue(order_id)
 ```
 
+### 4.20 `inbox_blocklist`
+
+`id` PK, `merchant_id` FK, `author_hash` TEXT, `reason`, `created_at`.
+UNIQUE(merchant_id, author_hash) dedupes the mute decision. Rows are created
+from the rejected-intake mute action (§8.5) and checked at intake admission —
+muted rumor authors drop before domain dispatch. `author_hash` is the
+merchant-scoped HMAC sender index, so a mute binds to this merchant's
+sender identity only.
+
+### 4.21 `nostr_challenges`
+
+`id` PK, `merchant_id` FK, `challenge_hash` UNIQUE, `scope_hash`,
+`expires_at`, `used_at`, `created_at`. Raw challenges are 256-bit
+base64url strings returned once to the client; only their SHA-256 lookup
+digest persists. `scope_hash` binds the challenge to merchant + client
+scope; the row is one-use (`used_at`) with a five-minute TTL.
+
+### 4.22 `buyer_sessions`
+
+`id` PK, `merchant_id` FK, `token_hash` UNIQUE, `buyer_pubkey_enc` BLOB,
+`buyer_pubkey_hash` TEXT, `expires_at`, `revoked_at`, `created_at`.
+The raw session token leaves the server only through the `gm_nostr_session`
+Set-Cookie header; at rest it is SHA-256 lookup-hashed. `buyer_pubkey_enc` is
+envelope-encrypted per §6.2; `buyer_pubkey_hash` is the
+PURPOSE_BUYER_PUBKEY HMAC equality index — `ix_buyer_sessions_pubkey
+(merchant_id, buyer_pubkey_hash)` serves order-history lookups.
+
 ---
 
 ## 5. HTTP API surface

@@ -897,3 +897,54 @@ async def m006_gamma_inbox(db: Connection):
         f"CREATE UNIQUE INDEX ux_inbox_events_merchant_rumor "
         f"ON {s}inbox_events(merchant_id, rumor_id)"
     )
+
+
+async def m007_nostr_signin(db: Connection):
+    """Plan 03-03 — NIP-07 buyer sign-in schema (D-01, locked option).
+
+    ``nostr_challenges``: single-use sign-in challenges — only the SHA-256
+    lookup hash is stored (``token_lookup_hash`` posture), scope-bound to
+    merchant+client-IP HMAC, 300 s TTL.
+
+    ``buyer_sessions``: revocable buyer sessions — only the token hash is
+    stored (same strict-lookup posture as ``public_token_hash``), the
+    buyer pubkey under AEAD plus its ``buyer-pubkey`` HMAC index for the
+    order-history scope, TTL'd + server-side revocable via ``revoked_at``.
+    """
+    s = db.references_schema
+    int_t = db.big_int
+    blob_t = db.blob
+
+    await db.execute(
+        f"""
+        CREATE TABLE {s}nostr_challenges (
+            id TEXT PRIMARY KEY,
+            merchant_id TEXT NOT NULL
+                REFERENCES {s}merchants(id) ON DELETE RESTRICT,
+            challenge_hash TEXT NOT NULL UNIQUE,
+            scope_hash TEXT NOT NULL,
+            expires_at {int_t} NOT NULL,
+            used_at {int_t},
+            created_at {int_t} NOT NULL DEFAULT 0
+        )
+        """
+    )
+    await db.execute(
+        f"""
+        CREATE TABLE {s}buyer_sessions (
+            id TEXT PRIMARY KEY,
+            merchant_id TEXT NOT NULL
+                REFERENCES {s}merchants(id) ON DELETE RESTRICT,
+            token_hash TEXT NOT NULL UNIQUE,
+            buyer_pubkey_enc {blob_t},
+            buyer_pubkey_hash TEXT NOT NULL,
+            expires_at {int_t} NOT NULL,
+            revoked_at {int_t},
+            created_at {int_t} NOT NULL DEFAULT 0
+        )
+        """
+    )
+    await db.execute(
+        f"CREATE INDEX ix_buyer_sessions_pubkey "
+        f"ON {s}buyer_sessions(merchant_id, buyer_pubkey_hash)"
+    )

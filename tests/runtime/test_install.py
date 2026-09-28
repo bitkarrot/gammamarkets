@@ -65,6 +65,12 @@ M006_TABLES = {
     "inbox_blocklist",
 }
 
+# Tables m007 creates (NIP-07 buyer sign-in — D-01).
+M007_TABLES = {
+    "nostr_challenges",
+    "buyer_sessions",
+}
+
 # Tables no migration creates yet (Phase 4).
 ABSENT_TABLES = {
     "migration_jobs",
@@ -124,7 +130,7 @@ async def test_discovered_and_registered(runtime_env):
 
 async def test_m001_tables_created(runtime_env):
     tables = await _table_names(runtime_env["ext_module"])
-    missing = (M001_TABLES | M002_TABLES | M006_TABLES) - tables
+    missing = (M001_TABLES | M002_TABLES | M006_TABLES | M007_TABLES) - tables
     assert not missing, f"missing m001/m002/m006 tables: {missing}"
     stray = ABSENT_TABLES & tables
     assert not stray, f"migrations created tables owned by later phases: {stray}"
@@ -150,7 +156,7 @@ async def test_modeled_columns_match_registry(runtime_env):
     """Every modeled field set (spec section 4 literals) is a subset of the
     migrated table's columns — the registry<->migration diff."""
     ext_module = runtime_env["ext_module"]
-    for name in M001_TABLES | M002_TABLES | M006_TABLES:
+    for name in M001_TABLES | M002_TABLES | M006_TABLES | M007_TABLES:
         if TABLE_CLASSIFICATION.get(name) != "modeled":
             continue
         modeled = SCHEMA_FIELDS[name]
