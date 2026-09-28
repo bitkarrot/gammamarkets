@@ -409,7 +409,7 @@ def test_identifier_closure():
         m.lower()
         for m in re.findall(r"(?i)gamma[-_ ]?markets?", qual_src)
     }
-    assert variants == {"gammamarkets"}, (
+    assert variants == {"infinitemarkets"}, (
         f"variant runtime-identifier spellings present: {sorted(variants)}"
     )
 

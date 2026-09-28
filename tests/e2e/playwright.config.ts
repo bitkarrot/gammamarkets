@@ -5,7 +5,7 @@ if (nodeMajor !== 22 && nodeMajor !== 24) {
   throw new Error(`Playwright requires Node 22 or 24; received ${process.versions.node}`)
 }
 
-/* Playwright E2E for gammamarkets (02-04 verification).
+/* Playwright E2E for infinitemarkets (02-04 verification).
  *
  * Requires the seeded host server:
  *   uv run python tools/e2e_server.py   # serves http://127.0.0.1:5099

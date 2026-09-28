@@ -47,7 +47,7 @@ pytestmark = [
 
 CANONICAL_ORIGIN = "https://shop.example"
 ORDER_TOKEN = "gq-order-token-" + "a" * 32
-PROBE_PREFIX = "/gammamarkets-qual-probe"
+PROBE_PREFIX = "/infinitemarkets-qual-probe"
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session")
@@ -224,7 +224,7 @@ async def test_audit_rows_redact_secrets_and_pii():
     address = "123 Hidden St, Springfield"
     email = "buyer@example.com"
     row = audit.record(
-        "gammamarkets.probe.test",
+        "infinitemarkets.probe.test",
         order_id="gq-order-01",
         token=token,
         bolt11=bolt11,
@@ -265,7 +265,7 @@ async def test_order_status_audit_capture_redacts_token(probe_env):
     )
     status_rows = [
         r for r in probe_env["audit"].rows
-        if r["event"] == "gammamarkets.probe.order-status"
+        if r["event"] == "infinitemarkets.probe.order-status"
     ]
     assert status_rows, "the order-status request was audit-captured"
     rendered = str(status_rows)
@@ -294,13 +294,13 @@ async def test_startup_registers_only_bounded_tasks(probe_env):
 
     assert lifecycle.checkout_allowed() is False
 
-    handles = lifecycle.start({"gammamarkets.reconciliation": reconcile})
+    handles = lifecycle.start({"infinitemarkets.reconciliation": reconcile})
     try:
         # Registration is synchronous/bounded: the coroutine has NOT run
         # inline during start().
         assert ran_inline == []
-        assert task_manager.get_task("gammamarkets.reconciliation") is not None
-        assert all(h.name == "gammamarkets.reconciliation" for h in handles)
+        assert task_manager.get_task("infinitemarkets.reconciliation") is not None
+        assert all(h.name == "infinitemarkets.reconciliation" for h in handles)
         assert lifecycle.ready is False
         assert lifecycle.checkout_allowed() is False
 
@@ -372,16 +372,16 @@ async def test_stop_hook_cancels_only_owned_handles(probe_env):
     unrelated = task_manager.create_task(
         unrelated_worker(), name="gamma_qual_p012_unrelated"
     )
-    handles = lifecycle.start({"gammamarkets.probe_worker": owned_worker})
+    handles = lifecycle.start({"infinitemarkets.probe_worker": owned_worker})
     try:
         await asyncio.sleep(0.05)
-        assert task_manager.get_task("gammamarkets.probe_worker") is not None
+        assert task_manager.get_task("infinitemarkets.probe_worker") is not None
 
         lifecycle.stop()
 
         await asyncio.sleep(0.05)
         assert all(h.task.done() or h.task.cancelled() for h in handles)
-        assert task_manager.get_task("gammamarkets.probe_worker") is None
+        assert task_manager.get_task("infinitemarkets.probe_worker") is None
         # The unrelated task survived: stop used cancel_task on owned
         # handles only — cancel_all_tasks would have killed it.
         assert not unrelated.task.done()

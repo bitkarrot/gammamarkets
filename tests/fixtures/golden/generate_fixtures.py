@@ -11,7 +11,7 @@ ephemeral wrapper key and randomized past timestamps per copy, so
 regeneration produces equivalent-but-different seal/wrap ciphertexts — the
 checked-in files are the frozen reference (D-08), not a byte-stable recipe.
 
-All keys are synthetic test keys (``sha256("gammamarkets-qual:<role>")``);
+All keys are synthetic test keys (``sha256("infinitemarkets-qual:<role>")``);
 no real key material is ever present in this tree.
 """
 
@@ -37,7 +37,7 @@ ORDER_EXTERNAL_ID = "gq-order-01"
 PRODUCT_D = "gq-prod-0001"
 RECOMMENDED_APP_D = "gqapp-rec-001"
 SEED_NOTE = (
-    "keys = sha256('gammamarkets-qual:'+role); rumor created_at=1750000000; "
+    "keys = sha256('infinitemarkets-qual:'+role); rumor created_at=1750000000; "
     "order external id=gq-order-01; product d=gq-prod-0001; "
     "recommended_app_d=gqapp-rec-001"
 )
@@ -127,11 +127,11 @@ async def gen_nip17(buyer: ns.Keys, merchant: ns.Keys) -> None:
         {
             "note": "synthetic test keys only — never real key material",
             "buyer_secret_hex": hashlib.sha256(
-                b"gammamarkets-qual:buyer"
+                b"infinitemarkets-qual:buyer"
             ).hexdigest(),
             "buyer_pubkey": buyer.public_key().to_hex(),
             "merchant_secret_hex": hashlib.sha256(
-                b"gammamarkets-qual:merchant"
+                b"infinitemarkets-qual:merchant"
             ).hexdigest(),
             "merchant_pubkey": merchant.public_key().to_hex(),
         },
@@ -147,8 +147,8 @@ async def gen_nip89(merchant: ns.Keys) -> None:
     handler = await (
         ns.EventBuilder(ns.Kind(31990), json.dumps(
             {
-                "name": "GammaMarkets checkout",
-                "about": "LNbits gammamarkets extension checkout handler",
+                "name": "Infinitemarkets checkout",
+                "about": "LNbits infinitemarkets extension checkout handler",
                 "picture": "",
             },
             sort_keys=True,
@@ -158,7 +158,7 @@ async def gen_nip89(merchant: ns.Keys) -> None:
                 ns.Tag.parse(["d", RECOMMENDED_APP_D]),
                 ns.Tag.parse(["k", "30402"]),
                 ns.Tag.parse(
-                    ["web", "https://shop.example/gammamarkets/p/<bech32>", "naddr"]
+                    ["web", "https://shop.example/infinitemarkets/p/<bech32>", "naddr"]
                 ),
             ]
         )

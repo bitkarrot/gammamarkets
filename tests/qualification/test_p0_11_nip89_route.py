@@ -45,7 +45,7 @@ def registry() -> nip89.LocalCatalogRegistry:
     mpk = MERCHANT.public_key().to_hex()
     return nip89.LocalCatalogRegistry(
         merchant_pubkeys=frozenset({mpk}),
-        pages={(mpk, PRODUCT_D): f"/gammamarkets/p/{mpk}/{PRODUCT_D}"},
+        pages={(mpk, PRODUCT_D): f"/infinitemarkets/p/{mpk}/{PRODUCT_D}"},
     )
 
 
@@ -68,7 +68,7 @@ def test_golden_naddr_resolves_locally(registry):
     mpk = MERCHANT.public_key().to_hex()
     assert resolved.pubkey == mpk
     assert resolved.d == PRODUCT_D
-    assert resolved.path == f"/gammamarkets/p/{mpk}/{PRODUCT_D}"
+    assert resolved.path == f"/infinitemarkets/p/{mpk}/{PRODUCT_D}"
     # The fixture embeds a hint; it is recorded but never dereferenced.
     assert resolved.relay_hints == ("wss://relay.example.com",)
 

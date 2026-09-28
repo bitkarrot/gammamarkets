@@ -1,4 +1,4 @@
-# GammaMarkets qualification harness — canonical command surface (D-06, D-07, D-12).
+# Infinitemarkets qualification harness — canonical command surface (D-06, D-07, D-12).
 #
 # One canonical command (`make verify`) runs the complete qualification suite
 # for the selected profile (SQLite when LNBITS_DATABASE_URL is unset/empty,

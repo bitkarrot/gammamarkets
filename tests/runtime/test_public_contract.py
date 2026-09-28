@@ -18,7 +18,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 PUBLIC = f"{API}/public"
 
 
@@ -47,7 +47,7 @@ async def _setup(runtime_env):
     )
     assert resp.status_code == 201, resp.text
     mid = resp.json()["id"]
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -79,7 +79,7 @@ async def _setup(runtime_env):
             "SELECT pubkey FROM merchants WHERE id = :m", {"m": mid},
         )
 
-    from gammamarkets.services import readiness
+    from infinitemarkets.services import readiness
 
     readiness.mark_reconciled()
 
@@ -200,12 +200,12 @@ async def test_protective_headers_everywhere(runtime_env):
 
 async def test_checkout_rate_limits(runtime_env, monkeypatch):
     """Both §15 windows engage: the per-minute cap trips first."""
-    monkeypatch.setenv("GAMMAMARKETS_CHECKOUT_RATE_LIMIT", "2")
-    from gammamarkets.db import db
+    monkeypatch.setenv("INFINITEMARKETS_CHECKOUT_RATE_LIMIT", "2")
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         await conn.execute(
-            "DELETE FROM gammamarkets.rate_limit_buckets"
+            "DELETE FROM infinitemarkets.rate_limit_buckets"
             " WHERE bucket LIKE 'checkout%'",
         )
     anon = runtime_env["anon"]
@@ -223,7 +223,7 @@ async def test_checkout_rate_limits(runtime_env, monkeypatch):
         results.append(resp.status_code)
     assert results[:2] == [201, 201]
     assert results[2:] == [429, 429]
-    assert resp.json()["type"] == "urn:gammamarkets:rate-limited"
+    assert resp.json()["type"] == "urn:infinitemarkets:rate-limited"
 
 
 async def test_end_to_end_journey(runtime_env):
@@ -237,13 +237,13 @@ async def test_end_to_end_journey(runtime_env):
     product = runtime_env["product"]
     mid = runtime_env["merchant_id"]
 
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     # Publish intents were enqueued for the catalog aggregates.
     async with db.connect() as conn:
         intents = await conn.fetchall(
             "SELECT aggregate_type, event_kind FROM"
-            " gammamarkets.outbox_events WHERE merchant_id = :m",
+            " infinitemarkets.outbox_events WHERE merchant_id = :m",
             {"m": mid},
         )
     kinds = {(r["aggregate_type"], r["event_kind"]) for r in intents}
@@ -268,15 +268,15 @@ async def test_end_to_end_journey(runtime_env):
     assert resp.status_code == 201, resp.text
     token = resp.json()["public_token"]
 
-    from gammamarkets.crypto import token_lookup_hash
+    from infinitemarkets.crypto import token_lookup_hash
 
     async with db.connect() as conn:
         order = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(token)},
         ))
         core = dict(await conn.fetchone(
-            "SELECT COUNT(*) AS n FROM gammamarkets.payments"
+            "SELECT COUNT(*) AS n FROM infinitemarkets.payments"
             " WHERE order_id = :o",
             {"o": order["id"]},
         ))
@@ -289,7 +289,7 @@ async def test_end_to_end_journey(runtime_env):
     async with core_db.connect() as conn:
         core_payment = dict(await conn.fetchone(
             "SELECT * FROM apipayments WHERE external_id = :e",
-            {"e": f"gammamarkets:{order['id']}"},
+            {"e": f"infinitemarkets:{order['id']}"},
         ))
     funding = get_funding_source()
     pay = await funding.pay_invoice(
@@ -307,7 +307,7 @@ async def test_end_to_end_journey(runtime_env):
 
     import importlib
 
-    settlement = importlib.import_module("gammamarkets.services.settlement")
+    settlement = importlib.import_module("infinitemarkets.services.settlement")
     await settlement.invoice_listener(settled)
 
     # Order confirmed; status hides the invoice now.
@@ -338,7 +338,7 @@ async def test_end_to_end_journey(runtime_env):
 
     async with db.connect() as conn:
         emails = await conn.fetchall(
-            "SELECT channel, event_type FROM gammamarkets.email_queue"
+            "SELECT channel, event_type FROM infinitemarkets.email_queue"
             " WHERE order_id = :o",
             {"o": order["id"]},
         )

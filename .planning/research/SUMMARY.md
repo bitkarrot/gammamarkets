@@ -26,7 +26,7 @@ The highest-risk failures are plausible but silent: duplicate invoices after unk
 
 - `docs/technical-specification.md` — normative corrected contract.
 - `docs/architecture-proposal.md` — synchronized rationale.
-- Standalone Astra review completed against GammaMarkets `5dc79c5`, Nostr NIPs `a2494f4`, LNbits `e336fe1` (rechecked after source drift), `nostrmarket`, `nostrclient`, and SDK release-source evidence.
+- Standalone Astra review completed against Infinitemarkets `5dc79c5`, Nostr NIPs `a2494f4`, LNbits `e336fe1` (rechecked after source drift), `nostrmarket`, `nostrclient`, and SDK release-source evidence.
 
 ## Research Policy
 

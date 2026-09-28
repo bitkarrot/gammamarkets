@@ -16,7 +16,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session", autouse=True)
@@ -49,7 +49,7 @@ async def _setup(runtime_env):
     # Activation: draft -> publication_pending -> active happens when the
     # merchant_profile intent publishes (RELAY_IO=off never sends, so the
     # publish path is covered in test_outbox.py; flip directly here).
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -103,17 +103,17 @@ def _svcs():
     import importlib
 
     return {
-        name: importlib.import_module(f"gammamarkets.services.{name}")
+        name: importlib.import_module(f"infinitemarkets.services.{name}")
         for name in ("checkout", "orders", "settlement", "fx", "readiness")
     }
 
 
 async def _merchant_pubkey(runtime_env):
-    from gammamarkets.db import db  # noqa: PLC0415
+    from infinitemarkets.db import db  # noqa: PLC0415
 
     async with db.connect() as conn:
         row = await conn.fetchone(
-            "SELECT pubkey FROM gammamarkets.merchants WHERE id = :m",
+            "SELECT pubkey FROM infinitemarkets.merchants WHERE id = :m",
             {"m": runtime_env["merchant_id"]},
         )
     return row["pubkey"]
@@ -128,12 +128,12 @@ async def _payload(runtime_env, items, **kw):
 
 
 async def _order_for_token(token: str) -> dict:
-    from gammamarkets.crypto import token_lookup_hash
-    from gammamarkets.db import db
+    from infinitemarkets.crypto import token_lookup_hash
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         row = await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(token)},
         )
     return dict(row)
@@ -144,7 +144,7 @@ async def _order_for_token(token: str) -> dict:
 
 async def test_intake_rejects_bad_items(runtime_env):
     checkout = _svcs()["checkout"]
-    from gammamarkets.security import ProblemError
+    from infinitemarkets.security import ProblemError
 
     async def bad(items):
         with pytest.raises(ProblemError):
@@ -172,7 +172,7 @@ async def test_intake_rejects_bad_items(runtime_env):
 
 async def test_intake_rejects_unpurchasable(runtime_env):
     checkout = _svcs()["checkout"]
-    from gammamarkets.security import ProblemError
+    from infinitemarkets.security import ProblemError
 
     # Unknown d_tag.
     with pytest.raises(ProblemError):
@@ -228,11 +228,11 @@ async def test_fresh_checkout_creates_order(runtime_env):
     runtime_env["token"] = token
     runtime_env["order_id"] = (await _order_for_token(token))["id"]
 
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         res = await conn.fetchall(
-            "SELECT * FROM gammamarkets.inventory_reservations"
+            "SELECT * FROM infinitemarkets.inventory_reservations"
             " WHERE order_id = :o",
             {"o": runtime_env["order_id"]},
         )
@@ -242,15 +242,15 @@ async def test_fresh_checkout_creates_order(runtime_env):
         }
         assert all(r["state"] == "held" for r in res)
         proj = await conn.fetchone(
-            "SELECT * FROM gammamarkets.payments WHERE order_id = :o",
+            "SELECT * FROM infinitemarkets.payments WHERE order_id = :o",
             {"o": runtime_env["order_id"]},
         )
         assert proj["status"] == "pending"
         assert proj["core_external_id"] == (
-            f"gammamarkets:{runtime_env['order_id']}"
+            f"infinitemarkets:{runtime_env['order_id']}"
         )
         items = await conn.fetchall(
-            "SELECT * FROM gammamarkets.order_items WHERE order_id = :o",
+            "SELECT * FROM infinitemarkets.order_items WHERE order_id = :o",
             {"o": runtime_env["order_id"]},
         )
         assert len(items) == 2
@@ -272,18 +272,18 @@ async def test_idempotency_replay_and_conflict(runtime_env):
     # Same key + same body -> byte-identical stored response.
     assert second["public_token"] == first["public_token"]
 
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         await conn.fetchone(
-            "SELECT COUNT(*) AS n FROM gammamarkets.orders"
+            "SELECT COUNT(*) AS n FROM infinitemarkets.orders"
             " WHERE merchant_id = :m",
             {"m": runtime_env["merchant_id"]},
         )
     # One replay must never mint a second order for the same request.
     first_order = (await _order_for_token(first["public_token"]))["id"]
 
-    from gammamarkets.security import ProblemError
+    from infinitemarkets.security import ProblemError
 
     other = await _payload(runtime_env, [
         {"d_tag": runtime_env["gizmo"]["d_tag"], "quantity": 1},
@@ -312,7 +312,7 @@ async def test_idempotency_crash_resume(runtime_env):
     )
     # Force the record back to an expired in_progress lease — a kill
     # between intake and response.
-    from gammamarkets.db import DomainTransaction, db
+    from infinitemarkets.db import DomainTransaction, db
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -327,7 +327,7 @@ async def test_idempotency_crash_resume(runtime_env):
     assert replay["public_token"] == first["public_token"]
     async with db.connect() as conn:
         n = await conn.fetchone(
-            "SELECT COUNT(*) AS n FROM gammamarkets.orders"
+            "SELECT COUNT(*) AS n FROM infinitemarkets.orders"
             " WHERE merchant_id = :m",
             {"m": runtime_env["merchant_id"]},
         )
@@ -341,7 +341,7 @@ async def test_oversell_rejected(runtime_env):
     body = await _payload(runtime_env, [
         {"d_tag": runtime_env["gizmo"]["d_tag"], "quantity": 5},
     ])
-    from gammamarkets.security import ProblemError
+    from infinitemarkets.security import ProblemError
 
     with pytest.raises(ProblemError) as exc:
         await checkout.checkout(
@@ -349,11 +349,11 @@ async def test_oversell_rejected(runtime_env):
             client_scope="t6",
         )
     assert exc.value.code == "insufficient-stock"
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         res = await conn.fetchone(
-            "SELECT COUNT(*) AS n FROM gammamarkets.inventory_reservations"
+            "SELECT COUNT(*) AS n FROM infinitemarkets.inventory_reservations"
             " WHERE product_id = :p AND state = 'held'",
             {"p": runtime_env["gizmo"]["id"]},
         )
@@ -381,11 +381,11 @@ async def test_fx_usd_conversion(runtime_env, monkeypatch):
     # $10.00 at $100k/BTC = 10_000 sats.
     assert resp["order"]["total_sat"] == 10_000
     order_id = (await _order_for_token(resp["public_token"]))["id"]
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         quote = await conn.fetchone(
-            "SELECT * FROM gammamarkets.order_fx_quotes WHERE order_id = :o",
+            "SELECT * FROM infinitemarkets.order_fx_quotes WHERE order_id = :o",
             {"o": order_id},
         )
         assert quote is not None
@@ -408,7 +408,7 @@ async def test_missing_fx_rejected(runtime_env, monkeypatch):
     body = await _payload(runtime_env, [
         {"d_tag": runtime_env["usd_item"]["d_tag"], "quantity": 1},
     ])
-    from gammamarkets.security import ProblemError
+    from infinitemarkets.security import ProblemError
 
     with pytest.raises(ProblemError) as exc:
         await checkout.checkout(
@@ -443,7 +443,7 @@ async def test_checkout_crash_keeps_idempotency_link(runtime_env, monkeypatch, c
                 payload=body, idempotency_key=key, client_scope=crash_at,
             )
 
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         record = await tx.fetch_one(
@@ -466,14 +466,14 @@ async def test_checkout_crash_keeps_idempotency_link(runtime_env, monkeypatch, c
     async with core_db.connect() as conn:
         count = await conn.fetchone(
             "SELECT COUNT(*) AS n FROM apipayments WHERE external_id = :e",
-            {"e": f"gammamarkets:{order['id']}"},
+            {"e": f"infinitemarkets:{order['id']}"},
         )
     assert count["n"] == 1
 
 
 @pytest.mark.parametrize("invalid_quantity", [True, False])
 async def test_boolean_quantity_is_rejected(runtime_env, invalid_quantity):
-    from gammamarkets.security import ProblemError
+    from infinitemarkets.security import ProblemError
 
     with pytest.raises(ProblemError) as error:
         await _svcs()["checkout"].checkout(
@@ -527,7 +527,7 @@ async def test_shipping_rejects_invalid_coverage(runtime_env, problem):
     address = {"country": "CA" if problem == "region-country-mismatch" else "US", "line1": "Test"}
     if problem != "missing-region":
         address["region"] = "US-CA"
-    from gammamarkets.security import ProblemError
+    from infinitemarkets.security import ProblemError
 
     with pytest.raises(ProblemError) as error:
         await _svcs()["checkout"].checkout(
@@ -604,7 +604,7 @@ async def test_shipping_quotes_include_precision_and_components(
 
 async def test_reclaimed_checkout_fences_stale_admission(runtime_env, monkeypatch):
     checkout = _svcs()["checkout"]
-    db_module = importlib.import_module("gammamarkets.db")
+    db_module = importlib.import_module("infinitemarkets.db")
     original = checkout._insert_order_intake
     paused, resume = asyncio.Event(), asyncio.Event()
     captured = {}
@@ -661,7 +661,7 @@ async def test_reclaimed_checkout_fences_stale_admission(runtime_env, monkeypatc
 
 async def test_stock_rejection_does_not_leave_recoverable_received_order(runtime_env, monkeypatch):
     checkout = _svcs()["checkout"]
-    db_module = importlib.import_module("gammamarkets.db")
+    db_module = importlib.import_module("infinitemarkets.db")
     client = runtime_env["client"]
     headers = {"Origin": ORIGIN, "X-CSRF-Token": client.cookies.get("gm_csrf")}
     response = await client.post(f"{API}/products", headers=headers, json={
@@ -700,7 +700,7 @@ async def test_stock_rejection_does_not_leave_recoverable_received_order(runtime
 @pytest.mark.parametrize("cap", ["open", "held"])
 async def test_checkout_caps_are_transactional(runtime_env, monkeypatch, cap):
     checkout = _svcs()["checkout"]
-    db_module = importlib.import_module("gammamarkets.db")
+    db_module = importlib.import_module("infinitemarkets.db")
     client = runtime_env["client"]
     headers = {"Origin": ORIGIN, "X-CSRF-Token": client.cookies.get("gm_csrf")}
     response = await client.post(f"{API}/products", headers=headers, json={
@@ -754,7 +754,7 @@ async def test_duplicate_cart_items_are_rejected_before_intake(runtime_env):
 
 
 async def test_non_utc_database_blocks_financial_operations(runtime_env, monkeypatch):
-    from gammamarkets.services import readiness, settlement
+    from infinitemarkets.services import readiness, settlement
 
     async def local_timezone():
         return "America/Los_Angeles"
@@ -787,7 +787,7 @@ async def test_non_utc_database_blocks_financial_operations(runtime_env, monkeyp
 
 
 async def test_changed_quote_creates_no_order_or_invoice(runtime_env):
-    from gammamarkets.db import db, table
+    from infinitemarkets.db import db, table
 
     payload = await _payload(runtime_env, [
         {"d_tag": runtime_env["widget"]["d_tag"], "quantity": 1},
@@ -805,7 +805,7 @@ async def test_changed_quote_creates_no_order_or_invoice(runtime_env):
         headers={"Idempotency-Key": uuid.uuid4().hex * 2, "Origin": ORIGIN},
     )
     assert result.status_code == 422, result.text
-    assert result.json()["type"] == "urn:gammamarkets:quote-changed"
+    assert result.json()["type"] == "urn:infinitemarkets:quote-changed"
     async with db.connect() as conn:
         after = await conn.fetchone(
             f"SELECT COUNT(*) AS n FROM {table('orders')}"

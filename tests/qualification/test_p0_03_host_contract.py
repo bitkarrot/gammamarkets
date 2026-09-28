@@ -2,13 +2,13 @@
 
 Probes against the real pinned host (e336fe1) with FakeWallet funding:
 
-- (a) invoice metadata: create_invoice with extension="gammamarkets",
-  external_id="gammamarkets:<uuid>", sat amount, and the gammamarkets extra
+- (a) invoice metadata: create_invoice with extension="infinitemarkets",
+  external_id="infinitemarkets:<uuid>", sat amount, and the infinitemarkets extra
   tag; the persisted core payment row records extension, exact external_id,
   wallet id, and amount, and exact external_id lookup retrieves it (the
   section 8.2 reconciliation key);
 - (b) invoice-listener lifecycle: a listener registered via
-  task_manager.register_invoice_listener(coro, name="gammamarkets") receives
+  task_manager.register_invoice_listener(coro, name="infinitemarkets") receives
   the settled Payment carrying our extension/external_id when the FakeWallet
   invoice is paid through the host's own settlement path (pay_invoice);
 - (c) owned-handle cancellation: cancelling only the extension-owned handle
@@ -57,20 +57,20 @@ SETTLE_TIMEOUT_S = 20.0
 
 def _external_id() -> tuple[str, str]:
     order_id = str(uuid.uuid4())
-    return order_id, f"gammamarkets:{order_id}"
+    return order_id, f"infinitemarkets:{order_id}"
 
 
-async def _create_gammamarkets_invoice(wallet, amount_sat: int = 123):
+async def _create_infinitemarkets_invoice(wallet, amount_sat: int = 123):
     from lnbits.core.services.payments import create_invoice
 
     order_id, external_id = _external_id()
     payment = await create_invoice(
         wallet_id=wallet.id,
         amount=amount_sat,
-        memo="GammaMarkets order",
+        memo="Infinitemarkets order",
         expiry=3600,
-        extra={"tag": "gammamarkets", "order_id": order_id},
-        extension="gammamarkets",
+        extra={"tag": "infinitemarkets", "order_id": order_id},
+        extension="infinitemarkets",
         external_id=external_id,
     )
     return order_id, external_id, payment
@@ -103,27 +103,27 @@ async def test_invoice_metadata_persisted_and_exactly_queryable(tmp_path):
     """P0-03 (a): extension/external-id/wallet/amount metadata + lookup."""
     async with host_module.host_app(tmp_path / "run") as _app:
         _user, wallet = await host_module.create_test_wallet()
-        order_id, external_id, payment = await _create_gammamarkets_invoice(
+        order_id, external_id, payment = await _create_infinitemarkets_invoice(
             wallet, amount_sat=321
         )
 
         # Persisted core payment row carries the contract metadata.
-        assert payment.extension == "gammamarkets"
+        assert payment.extension == "infinitemarkets"
         assert payment.external_id == external_id
         assert payment.wallet_id == wallet.id
         assert payment.amount == 321_000  # msat
-        assert payment.extra["tag"] == "gammamarkets"
+        assert payment.extra["tag"] == "infinitemarkets"
         assert payment.extra["order_id"] == order_id
 
         # Exact external_id lookup retrieves it (the reconciliation key).
         found = await _payments_by_external_id(external_id)
         assert len(found) == 1, "exactly one payment for the exact external_id"
         assert found[0].checking_id == payment.checking_id
-        assert found[0].extension == "gammamarkets"
+        assert found[0].extension == "infinitemarkets"
         assert found[0].external_id == external_id
 
         # A different external_id does not match (no cross-key leakage).
-        _other_order, other_external, _p2 = await _create_gammamarkets_invoice(
+        _other_order, other_external, _p2 = await _create_infinitemarkets_invoice(
             wallet, amount_sat=1
         )
         assert await _payments_by_external_id(other_external)
@@ -143,7 +143,7 @@ async def test_invoice_listener_lifecycle_and_owned_handle_cancellation(tmp_path
             received.append(payment)
             got_payment.set()
 
-        our_task = task_manager.register_invoice_listener(on_paid, name="gammamarkets")
+        our_task = task_manager.register_invoice_listener(on_paid, name="infinitemarkets")
 
         # An unrelated named task that must survive our cancellation.
         stop_unrelated = asyncio.Event()
@@ -157,13 +157,13 @@ async def test_invoice_listener_lifecycle_and_owned_handle_cancellation(tmp_path
 
         try:
             # (b) settle through the host's own settlement path.
-            _oid, external_id, payment = await _create_gammamarkets_invoice(wallet)
+            _oid, external_id, payment = await _create_infinitemarkets_invoice(wallet)
             await _settle(payment, wallet)
             await asyncio.wait_for(got_payment.wait(), timeout=SETTLE_TIMEOUT_S)
 
             assert len(received) == 1
             settled = received[0]
-            assert settled.extension == "gammamarkets"
+            assert settled.extension == "infinitemarkets"
             assert settled.external_id == external_id
             assert settled.wallet_id == wallet.id
             assert settled.status == "success"
@@ -177,7 +177,7 @@ async def test_invoice_listener_lifecycle_and_owned_handle_cancellation(tmp_path
             assert task_manager.get_task("gamma_qual_unrelated_worker") is not None
 
             # After cancellation our listener receives nothing further.
-            _oid2, external_id2, payment2 = await _create_gammamarkets_invoice(wallet)
+            _oid2, external_id2, payment2 = await _create_infinitemarkets_invoice(wallet)
             await _settle(payment2, wallet)
             await asyncio.sleep(1.5)
             assert len(received) == 1, "cancelled listener must receive nothing"
@@ -215,9 +215,9 @@ async def test_no_durable_callback_delivery_across_restart(tmp_path):
         _user, wallet = await host_module.create_test_wallet()
         # Registered (returned Task intentionally unused here: the point is
         # that registration is in-memory only and does not survive restart).
-        task_manager.register_invoice_listener(on_paid, name="gammamarkets")
+        task_manager.register_invoice_listener(on_paid, name="infinitemarkets")
         try:
-            _oid, external_id, payment = await _create_gammamarkets_invoice(wallet)
+            _oid, external_id, payment = await _create_infinitemarkets_invoice(wallet)
             await _settle(payment, wallet)
             await asyncio.sleep(2.0)
             assert len(received) == 1, "listener must fire before restart"
@@ -229,7 +229,7 @@ async def test_no_durable_callback_delivery_across_restart(tmp_path):
     # listener receives nothing even though a new invoice settles.
     async with host_module.host_app(tmp_path / "run") as _app2:
         _user2, wallet2 = await host_module.create_test_wallet()
-        _oid2, external_id2, payment2 = await _create_gammamarkets_invoice(wallet2)
+        _oid2, external_id2, payment2 = await _create_infinitemarkets_invoice(wallet2)
         await _settle(payment2, wallet2)
         await asyncio.sleep(2.0)
         assert len(received) == 1, (

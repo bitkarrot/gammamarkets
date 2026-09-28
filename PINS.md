@@ -1,7 +1,7 @@
-# PINS — GammaMarkets Qualification Profile
+# PINS — Infinitemarkets Qualification Profile
 
 Frozen pins, platform claims, artifact identities, provenance, and evidence
-pointers for the GammaMarkets conformance profile. Surfaced per technical
+pointers for the Infinitemarkets conformance profile. Surfaced per technical
 specification section 2 (Pinned inputs). Any candidate other than the
 host-resolved `nostr-sdk==0.44.8` requires an explicit spec decision and the
 identical qualification profile (D-13, D-14). The host MUST NOT be silently
@@ -15,7 +15,7 @@ downgraded.
 
 | Input | Pin |
 |---|---|
-| GammaMarkets market-spec | commit `5dc79c5` (`main` @ 2025-05-10) |
+| Infinitemarkets market-spec | commit `5dc79c5` (`main` @ 2025-05-10) |
 | Nostr NIPs | commit `a2494f4f81d46684e5814a9bf35e2b1df978f955` (2026-09-09); files 09, 15, 17, 32, 37, 42, 44, 59, 65, 89, 99 |
 | NIP-15 status | draft/unrecommended — compatibility only |
 | NIP-44 version | v2 payload only |
@@ -138,12 +138,12 @@ run that produced them.
 
 ### Protocol constants
 
-- **NIP-32 namespace** (§6.8): `org.gammamarkets.protocol` — pinned; carried
+- **NIP-32 namespace** (§6.8): `org.infinitemarkets.protocol` — pinned; carried
   by public commerce events (30402/30405/30406, optionally 30017/30018) and
   never on kind-0, NIP-89, NIP-04, seals, or gift wraps.
-- **Frozen identifiers** (§21.25): package `gammamarkets`, route prefix
-  `/gammamarkets`, hooks `gammamarkets_start`/`gammamarkets_stop`, env
-  prefix `GAMMAMARKETS_`, payment correlation `gammamarkets:`.
+- **Frozen identifiers** (§21.25): package `infinitemarkets`, route prefix
+  `/infinitemarkets`, hooks `infinitemarkets_start`/`infinitemarkets_stop`, env
+  prefix `INFINITEMARKETS_`, payment correlation `infinitemarkets:`.
 
 ### SDK security / FFI / crypto (P0-02)
 
@@ -205,7 +205,7 @@ dependency set that never ships. All 11 alerts are dismissed as
 `tolerable_risk` with this reasoning:
 
 - **pyjwt 2.12.1** (5 alerts: GHSA-xgmm/993g/jq35/w7vc/fhv5) — every
-  advisory is a `PyJWKClient`/`PyJWK`/JWT-decode path. gammamarkets
+  advisory is a `PyJWKClient`/`PyJWK`/JWT-decode path. infinitemarkets
   performs no JWT decoding; auth is Nostr-signed events via nostr-sdk
   plus host session. Exposure is the host's own token code, which is the
   host's posture, not this extension's.

@@ -498,7 +498,7 @@ class EmailModel:
         ).decode()
         # The subject carries only the merchant display name and event name
         # (section 8.8 step 3) — no PII.
-        subject = f"GammaMarkets merchant: {row['event_type']}"
+        subject = f"Infinitemarkets merchant: {row['event_type']}"
         body = "transactional order notification"
         try:
             sent = await self.smtp.send_email(
@@ -653,7 +653,7 @@ class EmailModel:
             bytes(rows[0]["public_token_enc"]),
             aad=f"public-token:{order_id}".encode(),
         ).decode()
-        return f"/gammamarkets/order#{encoded}"
+        return f"/infinitemarkets/order#{encoded}"
 
     async def revoke_public_token(
         self, *, order_id: str, now: int | None = None

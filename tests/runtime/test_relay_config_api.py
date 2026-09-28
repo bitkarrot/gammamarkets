@@ -33,12 +33,12 @@ async def _merchant_id(env: dict) -> tuple[str, str]:
     # the boundary issues gm_csrf on any authenticated request — seed it;
     # the shared user gets exactly one merchant (user_id UNIQUE).
     existing = await client.get(
-        "/gammamarkets/api/v1/merchants/current", headers=_headers(env)
+        "/infinitemarkets/api/v1/merchants/current", headers=_headers(env)
     )
     if existing.status_code == 200:
         return existing.json()["id"], _csrf(client)
     resp = await client.post(
-        "/gammamarkets/api/v1/merchants",
+        "/infinitemarkets/api/v1/merchants",
         json={"wallet_id": env["wallet"].id},
         headers=_headers(env, _csrf(client)),
     )
@@ -54,7 +54,7 @@ async def test_relay_config_accepts_public_inbox_both(runtime_env):
     client, env = runtime_env["client"], runtime_env
     mid, csrf = await _merchant_id(env)
     resp = await client.patch(
-        f"/gammamarkets/api/v1/merchants/{mid}",
+        f"/infinitemarkets/api/v1/merchants/{mid}",
         json={
             "relay_configs": [
                 {"relay_url": "wss://relay-a.example", "direction": "public"},
@@ -72,7 +72,7 @@ async def test_relay_config_accepts_public_inbox_both(runtime_env):
     assert resp.status_code == 200, resp.text
 
     health = await client.get(
-        f"/gammamarkets/api/v1/merchants/{mid}/relay-health",
+        f"/infinitemarkets/api/v1/merchants/{mid}/relay-health",
         headers=_headers(env),
     )
     assert health.status_code == 200, health.text
@@ -102,7 +102,7 @@ async def test_relay_config_rejects_invalid_and_duplicates(runtime_env):
         ],
     ):
         resp = await client.patch(
-            f"/gammamarkets/api/v1/merchants/{mid}",
+            f"/infinitemarkets/api/v1/merchants/{mid}",
             json={"relay_configs": configs},
             headers=_headers(env, csrf),
         )
@@ -113,7 +113,7 @@ async def test_blossom_servers_configurable_with_https_only(runtime_env):
     client, env = runtime_env["client"], runtime_env
     mid, csrf = await _merchant_id(env)
     resp = await client.patch(
-        f"/gammamarkets/api/v1/merchants/{mid}",
+        f"/infinitemarkets/api/v1/merchants/{mid}",
         json={
             "blossom_servers": [
                 "https://blossom.primal.net",
@@ -125,7 +125,7 @@ async def test_blossom_servers_configurable_with_https_only(runtime_env):
     assert resp.status_code == 200, resp.text
 
     health = await client.get(
-        f"/gammamarkets/api/v1/merchants/{mid}/relay-health",
+        f"/infinitemarkets/api/v1/merchants/{mid}/relay-health",
         headers=_headers(env),
     )
     assert health.json()["blossom_servers"] == [
@@ -136,7 +136,7 @@ async def test_blossom_servers_configurable_with_https_only(runtime_env):
     for bad in ("http://media.example.com", "https://127.0.0.1:3000",
                 "https://user:pw@media.example.com"):
         resp = await client.patch(
-            f"/gammamarkets/api/v1/merchants/{mid}",
+            f"/infinitemarkets/api/v1/merchants/{mid}",
             json={"blossom_servers": [bad]},
             headers=_headers(env, csrf),
         )
@@ -149,7 +149,7 @@ async def test_outbox_listing_and_retry_routes(runtime_env):
     mid, csrf = await _merchant_id(env)
 
     resp = await client.get(
-        f"/gammamarkets/api/v1/merchants/{mid}/outbox",
+        f"/infinitemarkets/api/v1/merchants/{mid}/outbox",
         headers=_headers(env),
     )
     assert resp.status_code == 200, resp.text
@@ -157,12 +157,12 @@ async def test_outbox_listing_and_retry_routes(runtime_env):
 
     # publishing enqueues intents (profile + handler pair) that surface here
     resp = await client.post(
-        f"/gammamarkets/api/v1/merchants/{mid}/publish",
+        f"/infinitemarkets/api/v1/merchants/{mid}/publish",
         headers=_headers(env, csrf),
     )
     assert resp.status_code == 200, resp.text
     listing = await client.get(
-        f"/gammamarkets/api/v1/merchants/{mid}/outbox",
+        f"/infinitemarkets/api/v1/merchants/{mid}/outbox",
         headers=_headers(env),
     )
     intents = listing.json()["intents"]
@@ -177,7 +177,7 @@ async def test_outbox_listing_and_retry_routes(runtime_env):
     # configured relays, so publish does not seed — seeding is pinned by
     # test_relay_targets_direction_and_defaults in test_outbox.py)
     health = await client.get(
-        f"/gammamarkets/api/v1/merchants/{mid}/relay-health",
+        f"/infinitemarkets/api/v1/merchants/{mid}/relay-health",
         headers=_headers(env),
     )
     assert "wss://relay.damus.io" in health.json()["defaults"]["relays"]
@@ -185,14 +185,14 @@ async def test_outbox_listing_and_retry_routes(runtime_env):
     # a published intent rejects retry
     intent_id = intents[0]["id"]
     resp = await client.post(
-        f"/gammamarkets/api/v1/merchants/{mid}/outbox/{intent_id}/retry",
+        f"/infinitemarkets/api/v1/merchants/{mid}/outbox/{intent_id}/retry",
         headers=_headers(env, csrf),
     )
     assert resp.status_code == 409, resp.text
 
     # other-merchant access is forbidden
     resp = await client.get(
-        f"/gammamarkets/api/v1/merchants/{uuid.uuid4().hex}/outbox",
+        f"/infinitemarkets/api/v1/merchants/{uuid.uuid4().hex}/outbox",
         headers=_headers(env),
     )
     assert resp.status_code in (403, 404)

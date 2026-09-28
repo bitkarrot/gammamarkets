@@ -77,15 +77,15 @@ No shadcn initialization or third-party component registry exists. UI primitives
 
 - `.planning/phases/02-release-a-safe-web-commerce/02-UI-SPEC.md`
 - `.devin/skills/ecommerce-design-guide/SKILL.md`
-- `.devin/skills/sketch-findings-gammamarkets/SKILL.md`
-- `gammamarkets/templates/gammamarkets/admin.html`
-- `gammamarkets/templates/gammamarkets/public_base.html`
-- `gammamarkets/templates/gammamarkets/public_product.html`
-- `gammamarkets/templates/gammamarkets/public_order.html`
-- `gammamarkets/static/gammamarkets/css/gm-public.css`
-- `gammamarkets/static/gammamarkets/css/themes/*.css`
-- `gammamarkets/static/gammamarkets/js/admin_*.js`
-- `gammamarkets/static/gammamarkets/js/public_*.js`
+- `.devin/skills/sketch-findings-infinitemarkets/SKILL.md`
+- `infinitemarkets/templates/infinitemarkets/admin.html`
+- `infinitemarkets/templates/infinitemarkets/public_base.html`
+- `infinitemarkets/templates/infinitemarkets/public_product.html`
+- `infinitemarkets/templates/infinitemarkets/public_order.html`
+- `infinitemarkets/static/infinitemarkets/css/gm-public.css`
+- `infinitemarkets/static/infinitemarkets/css/themes/*.css`
+- `infinitemarkets/static/infinitemarkets/js/admin_*.js`
+- `infinitemarkets/static/infinitemarkets/js/public_*.js`
 - `tests/runtime/test_admin_ui.py`
 - `tests/runtime/test_buyer_ui.py`
 - `tests/runtime/test_themes.py`

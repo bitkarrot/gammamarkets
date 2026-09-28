@@ -14,7 +14,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session", autouse=True)
@@ -48,7 +48,7 @@ async def _setup(runtime_env):
         headers=await cookie(),
     )
     assert resp.status_code == 200, resp.text
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -82,7 +82,7 @@ def _svc():
     import importlib
 
     return {
-        n: importlib.import_module(f"gammamarkets.services.{n}")
+        n: importlib.import_module(f"infinitemarkets.services.{n}")
         for n in ("checkout", "orders", "email", "settlement")
     }
 
@@ -90,11 +90,11 @@ def _svc():
 async def _order(runtime_env, *, email=None, opt_in=False) -> dict:
     """A fresh awaiting_payment order; returns the row."""
     svcs = _svc()
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         merchant = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.merchants WHERE id = :m",
+            "SELECT * FROM infinitemarkets.merchants WHERE id = :m",
             {"m": runtime_env["merchant_id"]},
         ))
     payload = {
@@ -109,20 +109,20 @@ async def _order(runtime_env, *, email=None, opt_in=False) -> dict:
         payload=payload, idempotency_key=uuid.uuid4().hex * 2,
         client_scope="email-test",
     )
-    from gammamarkets.crypto import token_lookup_hash
+    from infinitemarkets.crypto import token_lookup_hash
 
     async with db.connect() as conn:
         return dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(resp["public_token"])},
         ))
 
 
 async def _queue_rows(order_id=None):
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
-        sql = "SELECT * FROM gammamarkets.email_queue"
+        sql = "SELECT * FROM infinitemarkets.email_queue"
         params = {}
         if order_id:
             sql += " WHERE order_id = :o"
@@ -141,7 +141,7 @@ async def test_enqueue_dedupes(runtime_env):
     assert merchant_rows[0]["event_type"] == "order_received"
 
     # Enqueue the identical intent again — still one row.
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await svcs["orders"].enqueue_email_intents(
@@ -168,7 +168,7 @@ async def test_claim_token_fencing(runtime_env):
     assert row["claim_token"] == 1
 
     # A stale-token write loses.
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         try:
@@ -200,7 +200,7 @@ async def test_suppression_taxonomy(runtime_env):
     order = await _order(runtime_env, email="c@example.com", opt_in=True)
     # Enqueue a customer row directly (order_received is merchant-only by
     # design; use a different event for the customer row).
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await svcs["orders"].enqueue_email_intents(
@@ -260,8 +260,8 @@ async def test_send_classification(runtime_env, monkeypatch):
     assert rows2[0]["last_error"] == "send-failed"
 
     # Exhaustion -> failed.
-    from gammamarkets.db import DomainTransaction
-    from gammamarkets.settings import ext_settings
+    from infinitemarkets.db import DomainTransaction
+    from infinitemarkets.settings import ext_settings
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -282,7 +282,7 @@ async def test_consent_revocation_suppresses(runtime_env):
     consent is re-checked at send time."""
     svcs = _svc()
     order = await _order(runtime_env, email="c2@example.com", opt_in=True)
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await svcs["orders"].enqueue_email_intents(
@@ -364,11 +364,11 @@ async def test_orderless_test_send(runtime_env, monkeypatch):
     finally:
         host_settings.lnbits_email_notifications_enabled = False
 
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         row = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.email_queue"
+            "SELECT * FROM infinitemarkets.email_queue"
             " WHERE merchant_id = :m AND order_id IS NULL",
             {"m": mid},
         ))
@@ -399,7 +399,7 @@ async def test_expired_claim_never_calls_smtp(runtime_env, monkeypatch):
     import lnbits.core.services.notifications as notifications
     from lnbits.settings import settings
 
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     email = _svc()["email"]
     monkeypatch.setattr(type(settings), "is_email_notifications_configured", lambda self: True)
@@ -456,7 +456,7 @@ async def test_worker_errors_do_not_log_private_exception_text(runtime_env, monk
 async def test_concurrent_email_claims_do_not_overlap(runtime_env, monkeypatch):
     from lnbits.db import POSTGRES
 
-    from gammamarkets.db import DomainTransaction, db
+    from infinitemarkets.db import DomainTransaction, db
 
     if db.type != POSTGRES:
         pytest.skip("PostgreSQL row-lock concurrency drill")
@@ -488,7 +488,7 @@ async def test_concurrent_email_claims_do_not_overlap(runtime_env, monkeypatch):
 async def test_email_rate_limit_is_atomic(runtime_env, monkeypatch):
     from lnbits.db import POSTGRES
 
-    from gammamarkets.db import DomainTransaction, db
+    from infinitemarkets.db import DomainTransaction, db
 
     if db.type != POSTGRES:
         pytest.skip("PostgreSQL rate-bucket concurrency drill")

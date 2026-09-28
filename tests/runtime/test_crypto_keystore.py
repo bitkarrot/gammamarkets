@@ -8,9 +8,9 @@ import hashlib
 
 import pytest
 
-from gammamarkets import crypto
-from gammamarkets import settings as gsettings
-from gammamarkets.security import validate_relay_url
+from infinitemarkets import crypto
+from infinitemarkets import settings as gsettings
+from infinitemarkets.security import validate_relay_url
 
 pytestmark = pytest.mark.runtime
 
@@ -34,12 +34,12 @@ def _set_env(monkeypatch, **extra):
     import json
 
     env = {
-        "GAMMAMARKETS_MASTER_KEYS": json.dumps(
+        "INFINITEMARKETS_MASTER_KEYS": json.dumps(
             {"v1": base64.b64encode(bytes(32)).decode()}
         ),
-        "GAMMAMARKETS_ACTIVE_KEY_VERSION": "v1",
-        "GAMMAMARKETS_PRIVACY_KEY": base64.b64encode(bytes([9]) * 32).decode(),
-        "GAMMAMARKETS_PUBLIC_BASE_URL": "https://x.example",
+        "INFINITEMARKETS_ACTIVE_KEY_VERSION": "v1",
+        "INFINITEMARKETS_PRIVACY_KEY": base64.b64encode(bytes([9]) * 32).decode(),
+        "INFINITEMARKETS_PUBLIC_BASE_URL": "https://x.example",
     }
     env.update(extra)
     for key, value in env.items():
@@ -60,7 +60,7 @@ async def _insert_merchant(database, merchant_id: str) -> None:
     """Minimal merchants row so merchant_keys' FK is satisfied."""
     async with database.connect() as conn:
         await conn.execute(
-            "INSERT INTO gammamarkets.merchants "
+            "INSERT INTO infinitemarkets.merchants "
             "(id, user_id, pubkey, key_ref, wallet_id_enc, wallet_id_hash,"
             " state, created_at, updated_at) "
             "VALUES (:i, :u, :p, :kr, :we, :wh, 'draft', 0, 0)",
@@ -80,12 +80,12 @@ async def _insert_merchant(database, merchant_id: str) -> None:
 
 def test_keyring_validation_via_env(monkeypatch):
     # missing entirely
-    monkeypatch.delenv("GAMMAMARKETS_MASTER_KEYS", raising=False)
-    monkeypatch.setenv("GAMMAMARKETS_ACTIVE_KEY_VERSION", "v1")
+    monkeypatch.delenv("INFINITEMARKETS_MASTER_KEYS", raising=False)
+    monkeypatch.setenv("INFINITEMARKETS_ACTIVE_KEY_VERSION", "v1")
     monkeypatch.setenv(
-        "GAMMAMARKETS_PRIVACY_KEY", base64.b64encode(bytes([9]) * 32).decode()
+        "INFINITEMARKETS_PRIVACY_KEY", base64.b64encode(bytes([9]) * 32).decode()
     )
-    monkeypatch.setenv("GAMMAMARKETS_PUBLIC_BASE_URL", "https://x.example")
+    monkeypatch.setenv("INFINITEMARKETS_PUBLIC_BASE_URL", "https://x.example")
     with pytest.raises(gsettings.SettingsError):
         gsettings.ext_settings()
 
@@ -93,14 +93,14 @@ def test_keyring_validation_via_env(monkeypatch):
 
     # malformed json / not a map / empty map
     for raw in ("", "not-json", "[]", "{}"):
-        monkeypatch.setenv("GAMMAMARKETS_MASTER_KEYS", raw)
+        monkeypatch.setenv("INFINITEMARKETS_MASTER_KEYS", raw)
         with pytest.raises(gsettings.SettingsError):
             gsettings.ext_settings()
 
     # bad base64 and wrong length
     for bad_value in ("notb64!", base64.b64encode(b"short").decode()):
         monkeypatch.setenv(
-            "GAMMAMARKETS_MASTER_KEYS", json.dumps({"v1": bad_value})
+            "INFINITEMARKETS_MASTER_KEYS", json.dumps({"v1": bad_value})
         )
         with pytest.raises(gsettings.SettingsError):
             gsettings.ext_settings()
@@ -108,22 +108,22 @@ def test_keyring_validation_via_env(monkeypatch):
     # duplicate key material under two versions
     dup = base64.b64encode(bytes(32)).decode()
     monkeypatch.setenv(
-        "GAMMAMARKETS_MASTER_KEYS", json.dumps({"v1": dup, "v2": dup})
+        "INFINITEMARKETS_MASTER_KEYS", json.dumps({"v1": dup, "v2": dup})
     )
     with pytest.raises(gsettings.SettingsError):
         gsettings.ext_settings()
 
     # active version absent from ring
     monkeypatch.setenv(
-        "GAMMAMARKETS_MASTER_KEYS", json.dumps({"v1": dup})
+        "INFINITEMARKETS_MASTER_KEYS", json.dumps({"v1": dup})
     )
-    monkeypatch.setenv("GAMMAMARKETS_ACTIVE_KEY_VERSION", "v9")
+    monkeypatch.setenv("INFINITEMARKETS_ACTIVE_KEY_VERSION", "v9")
     with pytest.raises(gsettings.SettingsError):
         gsettings.ext_settings()
 
     # privacy key identical to a master key
-    monkeypatch.setenv("GAMMAMARKETS_ACTIVE_KEY_VERSION", "v1")
-    monkeypatch.setenv("GAMMAMARKETS_PRIVACY_KEY", dup)
+    monkeypatch.setenv("INFINITEMARKETS_ACTIVE_KEY_VERSION", "v1")
+    monkeypatch.setenv("INFINITEMARKETS_PRIVACY_KEY", dup)
     with pytest.raises(gsettings.SettingsError):
         gsettings.ext_settings()
 
@@ -138,22 +138,22 @@ def test_public_base_url_must_be_canonical_https(monkeypatch):
         "https://user:pw@x.example",   # userinfo
         "x.example",                   # no scheme
     ):
-        monkeypatch.setenv("GAMMAMARKETS_PUBLIC_BASE_URL", bad)
+        monkeypatch.setenv("INFINITEMARKETS_PUBLIC_BASE_URL", bad)
         with pytest.raises(gsettings.SettingsError):
             gsettings.ext_settings()
 
 
 def test_start_hook_fails_before_activation(monkeypatch):
-    """Missing/malformed config must abort gammamarkets_start — merchant
+    """Missing/malformed config must abort infinitemarkets_start — merchant
     services never activate on bad configuration."""
-    import gammamarkets
+    import infinitemarkets
 
-    monkeypatch.delenv("GAMMAMARKETS_MASTER_KEYS", raising=False)
+    monkeypatch.delenv("INFINITEMARKETS_MASTER_KEYS", raising=False)
     # Reference the exception through the SAME module instance under test —
-    # runtime fixtures purge/reimport gammamarkets*, so a module-level
+    # runtime fixtures purge/reimport infinitemarkets*, so a module-level
     # ``gsettings`` may hold a different class object.
-    with pytest.raises(gammamarkets.settings.SettingsError):
-        gammamarkets.gammamarkets_start()
+    with pytest.raises(infinitemarkets.settings.SettingsError):
+        infinitemarkets.infinitemarkets_start()
 
 
 # --- AES-256-GCM envelope -----------------------------------------------------
@@ -312,7 +312,7 @@ async def test_keystore_rewrap_rotation_drill(keystore_env):
 
     async with keystore_env["db"].connect() as conn:
         row = await conn.fetchone(
-            "SELECT key_version, key_origin FROM gammamarkets.merchant_keys "
+            "SELECT key_version, key_origin FROM infinitemarkets.merchant_keys "
             "WHERE merchant_id = 'm2'"
         )
     assert row["key_version"] == "v2"
@@ -399,7 +399,7 @@ async def test_imported_nsec_never_stored_plaintext(keystore_env):
     async with keystore_env["db"].connect() as conn:
         row = await conn.fetchone(
             "SELECT key_origin, nonce, ciphertext "
-            "FROM gammamarkets.merchant_keys WHERE merchant_id = 'm7'"
+            "FROM infinitemarkets.merchant_keys WHERE merchant_id = 'm7'"
         )
     assert row["key_origin"] == "imported"
     stored = bytes(row["nonce"]) + bytes(row["ciphertext"])
@@ -454,7 +454,7 @@ async def test_merchant_and_key_rollback_together(keystore_env, monkeypatch):
     import uuid
     from types import SimpleNamespace
 
-    from gammamarkets.services import merchant
+    from infinitemarkets.services import merchant
 
     _set_env(monkeypatch)
     settings = keystore_env["settings"].ext_settings()
@@ -482,7 +482,7 @@ async def test_merchant_and_key_rollback_together(keystore_env, monkeypatch):
         for table_name in ("merchants", "merchant_keys"):
             column = "id" if table_name == "merchants" else "merchant_id"
             row = await conn.fetchone(
-                f"SELECT COUNT(*) AS n FROM gammamarkets.{table_name} WHERE {column} = :m",
+                f"SELECT COUNT(*) AS n FROM infinitemarkets.{table_name} WHERE {column} = :m",
                 {"m": captured[0]},
             )
             assert row["n"] == 0

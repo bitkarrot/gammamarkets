@@ -81,11 +81,11 @@ async def _table_names(ext_module) -> set[str]:
         if db.type == POSTGRES:
             rows = await conn.fetchall(
                 "SELECT table_name AS name FROM information_schema.tables "
-                "WHERE table_schema = 'gammamarkets'"
+                "WHERE table_schema = 'infinitemarkets'"
             )
             return {r["name"] for r in rows}
         rows = await conn.fetchall(
-            "SELECT name FROM gammamarkets.sqlite_master "
+            "SELECT name FROM infinitemarkets.sqlite_master "
             "WHERE type = 'table'"
         )
         return {r["name"] for r in rows}
@@ -99,7 +99,7 @@ async def _columns(ext_module, name: str) -> set[str]:
         if db.type == POSTGRES:
             rows = await conn.fetchall(
                 "SELECT column_name AS name FROM information_schema.columns "
-                "WHERE table_schema = 'gammamarkets' AND table_name = :t",
+                "WHERE table_schema = 'infinitemarkets' AND table_name = :t",
                 {"t": name},
             )
             return {r["name"] for r in rows}
@@ -114,7 +114,7 @@ async def test_discovered_and_registered(runtime_env):
     start hook (``started_at`` set) — proving the sync-def contract."""
     ext_module = runtime_env["ext_module"]
     assert ext_module.started_at is not None
-    assert ext_module.gammamarkets_ext.prefix == "/gammamarkets"
+    assert ext_module.infinitemarkets_ext.prefix == "/infinitemarkets"
 
 
 async def test_m001_tables_created(runtime_env):
@@ -149,30 +149,30 @@ async def test_admin_page_requires_auth(runtime_env):
     async with httpx.AsyncClient(
         transport=transport, base_url="https://shop.example"
     ) as client:
-        resp = await client.get("/gammamarkets/", follow_redirects=False)
+        resp = await client.get("/infinitemarkets/", follow_redirects=False)
     assert resp.status_code in (307, 401, 403), resp.status_code
 
 
 async def test_admin_page_renders_template(runtime_env):
     """Real-loader template spike (research OQ2): the resolved template name
-    is ``templates/gammamarkets/index.html`` — the renderer searches the
+    is ``templates/infinitemarkets/index.html`` — the renderer searches the
     extension ROOT, so the name carries the templates/ prefix."""
     client = runtime_env["client"]
     resp = await client.get(
-        "/gammamarkets/",
+        "/infinitemarkets/",
         headers=_cookie_headers(runtime_env["token"]),
     )
     assert resp.status_code == 200, resp.text
-    assert "GammaMarkets" in resp.text
+    assert "Infinitemarkets" in resp.text
 
 
 async def test_static_probe_mounted(runtime_env):
     client = runtime_env["client"]
     resp = await client.get(
-        "/gammamarkets/static/gammamarkets/probe.txt"
+        "/infinitemarkets/static/infinitemarkets/probe.txt"
     )
     assert resp.status_code == 200
-    assert "gammamarkets" in resp.text
+    assert "infinitemarkets" in resp.text
 
 
 async def test_deactivation_404s_routes(runtime_env):
@@ -184,23 +184,23 @@ async def test_deactivation_404s_routes(runtime_env):
     )
 
     client = runtime_env["client"]
-    await deactivate_extension("gammamarkets")
+    await deactivate_extension("infinitemarkets")
     try:
         resp = await client.get(
-            "/gammamarkets/",
+            "/infinitemarkets/",
             headers=_cookie_headers(runtime_env["token"]),
         )
         assert resp.status_code == 404, resp.status_code
     finally:
         # Restore for other tests sharing the module-scoped boot.
         await activate_extension(
-            Extension(code="gammamarkets", is_valid=True)
+            Extension(code="infinitemarkets", is_valid=True)
         )
 
 
 async def test_reactivation_reruns_start_hook(runtime_env):
     """Deactivation + activation reimports the module and reruns the sync
     start hook — the live module in sys.modules has ``started_at`` set."""
-    ext_module = importlib.import_module("gammamarkets")
-    assert sys.modules["gammamarkets"] is ext_module
+    ext_module = importlib.import_module("infinitemarkets")
+    assert sys.modules["infinitemarkets"] is ext_module
     assert ext_module.started_at is not None

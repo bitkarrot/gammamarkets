@@ -1,8 +1,8 @@
-"""Launch a real LNbits + gammamarkets server for Playwright E2E.
+"""Launch a real LNbits + infinitemarkets server for Playwright E2E.
 
 Boots the pinned host through uvicorn with the same posture as the
 runtime suite (FakeWallet, extension symlinked into a tmp
-LNBITS_EXTENSIONS_PATH, GAMMAMARKETS_* env), plus a real local Nostr
+LNBITS_EXTENSIONS_PATH, INFINITEMARKETS_* env), plus a real local Nostr
 relay (harness.relay.LocalRelay) so outbox publication produces genuine
 positive-ACK evidence instead of external-relay failures. Seeds an
 account/wallet/merchant/catalog/products + one live order via the real
@@ -30,12 +30,12 @@ import uuid
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PKG_DIR = REPO_ROOT / "gammamarkets"
+PKG_DIR = REPO_ROOT / "infinitemarkets"
 sys.path.insert(0, str(REPO_ROOT))
 
 PORT = int(os.environ.get("GM_E2E_PORT", "5099"))
 # Served over HTTPS so the real browser satisfies the §5.1 invariant
-# (cookie mutations require Origin == GAMMAMARKETS_PUBLIC_BASE_URL, and
+# (cookie mutations require Origin == INFINITEMARKETS_PUBLIC_BASE_URL, and
 # that setting must be an https:// origin). A throwaway self-signed cert
 # is generated per run; the seed client + Playwright ignore verification.
 BASE_URL = f"https://localhost:{PORT}"
@@ -60,22 +60,22 @@ TMP = Path(tempfile.mkdtemp(prefix="gm-e2e-"))
 EXT_DIR = TMP / "extroot" / "extensions"
 DATA_DIR = TMP / "data"
 EXT_DIR.mkdir(parents=True)
-(EXT_DIR / "gammamarkets").symlink_to(PKG_DIR, target_is_directory=True)
+(EXT_DIR / "infinitemarkets").symlink_to(PKG_DIR, target_is_directory=True)
 DATA_DIR.mkdir()
 
 os.environ.update(
     {
-        "GAMMAMARKETS_MASTER_KEYS": json.dumps(
+        "INFINITEMARKETS_MASTER_KEYS": json.dumps(
             {"v1": base64.b64encode(b"k" * 32).decode()}
         ),
-        "GAMMAMARKETS_ACTIVE_KEY_VERSION": "v1",
-        "GAMMAMARKETS_PRIVACY_KEY": base64.b64encode(b"p" * 32).decode(),
-        "GAMMAMARKETS_PUBLIC_BASE_URL": BASE_URL,
+        "INFINITEMARKETS_ACTIVE_KEY_VERSION": "v1",
+        "INFINITEMARKETS_PRIVACY_KEY": base64.b64encode(b"p" * 32).decode(),
+        "INFINITEMARKETS_PUBLIC_BASE_URL": BASE_URL,
         # Real relay I/O against the local LocalRelay — deterministic
         # positive ACKs, no external relay dependency.
-        "GAMMAMARKETS_RELAY_IO": "on",
+        "INFINITEMARKETS_RELAY_IO": "on",
         # TEST-ONLY escape hatch: permits ws:// loopback relay targets.
-        "GAMMAMARKETS_ALLOW_INSECURE_RELAYS": "1",
+        "INFINITEMARKETS_ALLOW_INSECURE_RELAYS": "1",
         # Host settings via env so they are in place at settings/db
         # construction — not just attribute assignment after the fact.
         "LNBITS_DATA_FOLDER": str(DATA_DIR),
@@ -146,12 +146,12 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
             "cookie_access_token", token, domain="localhost", path="/"
         )
         resp = await client.put(
-            "/api/v1/extension/gammamarkets/enable",
+            "/api/v1/extension/infinitemarkets/enable",
             headers={"Origin": BASE_URL},
         )
         assert resp.status_code == 200, resp.text
 
-        api = "/gammamarkets/api/v1"
+        api = "/infinitemarkets/api/v1"
 
         async def cookie() -> dict:
             if not client.cookies.get("gm_csrf"):
@@ -171,8 +171,8 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
         assert resp.status_code == 201, resp.text
         mid = resp.json()["id"]
 
-        from gammamarkets.db import DomainTransaction
-        from gammamarkets.services import merchant as merchant_service
+        from infinitemarkets.db import DomainTransaction
+        from infinitemarkets.services import merchant as merchant_service
 
         # Fixed test identity so storefront/product URLs are STABLE across
         # restarts (key material is test-only; the seed DB is disposable).
@@ -203,7 +203,7 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
         )
         cid = resp.json()["id"]
 
-        img_base = f"{BASE_URL}/gammamarkets/static/gammamarkets/img"
+        img_base = f"{BASE_URL}/infinitemarkets/static/infinitemarkets/img"
         resp = await client.post(
             f"{api}/products",
             json={
@@ -310,7 +310,7 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
         assert resp.status_code == 201, resp.text
         order = resp.json()
 
-    from gammamarkets.services import readiness
+    from infinitemarkets.services import readiness
 
     readiness.mark_reconciled()
 
@@ -327,8 +327,8 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
             "shipping": shipping,
             "seeded_order_token": order["public_token"],
             "relay_url": relay_url,
-            "digital_url": f"{BASE_URL}/gammamarkets/p/{pubkey}/{digital['d_tag']}",
-            "physical_url": f"{BASE_URL}/gammamarkets/p/{pubkey}/{physical['d_tag']}",
+            "digital_url": f"{BASE_URL}/infinitemarkets/p/{pubkey}/{digital['d_tag']}",
+            "physical_url": f"{BASE_URL}/infinitemarkets/p/{pubkey}/{physical['d_tag']}",
         }
     )
 
@@ -342,12 +342,12 @@ async def _settle(token: str) -> dict:
     )
     from lnbits.wallets import get_funding_source
 
-    from gammamarkets.crypto import token_lookup_hash
-    from gammamarkets.db import db
+    from infinitemarkets.crypto import token_lookup_hash
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         row = await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(token)},
         )
     if row is None:
@@ -358,7 +358,7 @@ async def _settle(token: str) -> dict:
         core = dict(
             await conn.fetchone(
                 "SELECT * FROM apipayments WHERE external_id = :e",
-                {"e": f"gammamarkets:{order['id']}"},
+                {"e": f"infinitemarkets:{order['id']}"},
             )
         )
     funding = get_funding_source()
@@ -370,13 +370,13 @@ async def _settle(token: str) -> dict:
     )
     assert settled is not None
 
-    from gammamarkets.services.settlement import (
+    from infinitemarkets.services.settlement import (
         _core_payments_by_external_id,  # noqa: SLF001
         invoice_listener,
     )
 
     payments = await _core_payments_by_external_id(
-        f"gammamarkets:{order['id']}"
+        f"infinitemarkets:{order['id']}"
     )
     await invoice_listener(payments[0])
     return {"ok": True, "order_id": order["id"]}
@@ -449,7 +449,7 @@ async def main() -> None:
 
     from lnbits.app import check_and_register_extensions
 
-    ext_module = importlib.import_module("gammamarkets")
+    ext_module = importlib.import_module("infinitemarkets")
     if ext_module.started_at is None:
         await check_and_register_extensions(app)
 

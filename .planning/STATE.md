@@ -70,14 +70,14 @@ Progress: [█████░░░░░] 50% of roadmap phases; Phases 1 and 2
 
 Decisions are logged in PROJECT.md and the normative specification.
 
-- Runtime identity is `gammamarkets`.
+- Runtime identity is `infinitemarkets`.
 - Direct qualified `nostr-sdk` is the baseline; other relay extensions are unqualified adapter candidates.
 - GSD Phase 1 is the contract's Phase 0 evidence gate; it contains no production runtime implementation.
 - Release order is A web commerce, B Gamma NIP-17, C legacy interop/migration.
 - Checkout preserves Editorial/Guided/Compact merchant presets with responsive mobile fallback and invariant payment semantics.
 - Merchant order operations use a split list/detail workspace with embedded chronology.
 - Public themes use preset, Brand Basics, and guarded Advanced Tokens tiers; admin styling stays host-controlled.
-- Phase 2 UI planning must load `.devin/skills/sketch-findings-gammamarkets/` and produce a binding UI contract.
+- Phase 2 UI planning must load `.devin/skills/sketch-findings-infinitemarkets/` and produce a binding UI contract.
 - [Phase 1]: Plan 01-01 shipped the permanent qualification harness: pins/provenance (P0-01), SDK security boundary (P0-02), host contract boundary (P0-03), one canonical make verify + evidence bundle, CI blocking matrix. — Everything later phases build depends on the pinned host/SDK/database contract being proven reproducible; the harness is permanent regression infrastructure (D-05), not disposable qualification code.
 - [Phase 1]: PG queue claims run as lock-select/update/fetch in one transaction with FOR UPDATE SKIP LOCKED: SQLAlchemy 1.4 + asyncpg returns no rows from raw text() UPDATE...RETURNING (01-02)
 - [Phase 1]: Idempotent intent inserts use ON CONFLICT DO NOTHING with deterministic ids: PostgreSQL aborts transactions on constraint violations, so IntegrityError catch-and-continue is not dialect-portable (01-02)

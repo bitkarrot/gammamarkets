@@ -1,8 +1,8 @@
-# gammamarkets
+# infinitemarkets
 
 ## What This Is
 
-gammamarkets is a standard Python LNbits extension for merchants who want to publish GammaMarkets/NIP-99 catalogs and accept Lightning orders without leaving inventory, payment, or relay reliability to a browser session. LNbits remains the wallet and settlement authority; the extension owns commerce state, inventory, protocol projection, and durable delivery. Development follows the corrected contract in `docs/technical-specification.md`, with `docs/architecture-proposal.md` as supporting rationale.
+infinitemarkets is a standard Python LNbits extension for merchants who want to publish Infinitemarkets/NIP-99 catalogs and accept Lightning orders without leaving inventory, payment, or relay reliability to a browser session. LNbits remains the wallet and settlement authority; the extension owns commerce state, inventory, protocol projection, and durable delivery. Development follows the corrected contract in `docs/technical-specification.md`, with `docs/architecture-proposal.md` as supporting rationale.
 
 ## Core Value
 
@@ -36,7 +36,7 @@ A merchant can sell one authoritative inventory safely through LNbits-backed web
 ## Context
 
 - The architecture pivoted from a WASM proposal to a standard Python LNbits extension because durable tasks, direct relay connections, real migrations, and transactional inventory are required while the merchant UI is closed.
-- A standalone GPT-6 Astra Max audit reviewed the contract against pinned LNbits, Nostr NIPs, GammaMarkets, `nostrmarket`, `nostrclient`, and release-source SDK evidence. The audit found the architecture viable but required 13 contract corrections before Phase 0.
+- A standalone GPT-6 Astra Max audit reviewed the contract against pinned LNbits, Nostr NIPs, Infinitemarkets, `nostrmarket`, `nostrclient`, and release-source SDK evidence. The audit found the architecture viable but required 13 contract corrections before Phase 0.
 - Those corrections are incorporated into `docs/technical-specification.md`: SDK qualification, cancellation/invoice races, partial outbox retries, SMTP/token persistence, NIP-89 routing, NIP-15 DTOs, migration liabilities, worker storage, host boundaries, FX conversion, release scoping, and the plural runtime name.
 - `nostr-sdk==0.44.8` is only the host-resolved Phase 0 candidate. Exact wheel hashes, native provenance, and executable security/FFI/ACK behavior must be recorded before implementation.
 - Deterministic local relays are authoritative tests. `wss://nostr.net` is allowed only as an optional ephemeral, non-sensitive public-relay smoke target.
@@ -46,8 +46,8 @@ A merchant can sell one authoritative inventory safely through LNbits-backed web
 
 - **Normative contract**: `docs/technical-specification.md` overrides rationale and planning summaries.
 - **Host baseline**: LNbits `v1.6.2-rc1` at commit `e336fe1`; other revisions need explicit qualification.
-- **Protocol pins**: GammaMarkets `5dc79c5` and Nostr NIPs `a2494f4`; changes require a recorded specification decision.
-- **Runtime identity**: package, routes, hooks, environment variables, AAD, and payment correlation use `gammamarkets` before any migration/publication.
+- **Protocol pins**: Infinitemarkets `5dc79c5` and Nostr NIPs `a2494f4`; changes require a recorded specification decision.
+- **Runtime identity**: package, routes, hooks, environment variables, AAD, and payment correlation use `infinitemarkets` before any migration/publication.
 - **Payments**: LNbits incoming payment records are authoritative; receipts and buyer amounts never settle an order.
 - **Database**: single-process SQLite and PostgreSQL only; domain transactions must not use LNbits auto-committing helpers.
 - **Security**: no production implementation begins until the relevant Phase 0 evidence passes; Release B additionally requires deployed egress controls.
@@ -59,7 +59,7 @@ A merchant can sell one authoritative inventory safely through LNbits-backed web
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Standard Python LNbits extension | Durable background work, direct relay transport, migrations, and transactions are required | Pending validation |
-| Runtime identifier is `gammamarkets` | Freeze package/API/payment/AAD identity before persisted data exists | Pending validation |
+| Runtime identifier is `infinitemarkets` | Freeze package/API/payment/AAD identity before persisted data exists | Pending validation |
 | Corrected technical specification is authoritative | Prevent rationale or plan drift from inventing behavior | Pending validation |
 | Phase 0 precedes runtime implementation | Plausible host/SDK assumptions need executable evidence | Pending validation |
 | Direct qualified `nostr-sdk` transport is baseline | NIP-17 requires per-recipient targets and positive ACK evidence | Pending validation |

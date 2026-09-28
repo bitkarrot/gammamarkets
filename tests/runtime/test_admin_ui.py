@@ -14,8 +14,8 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
-JS = "/gammamarkets/static/gammamarkets/js"
+API = "/infinitemarkets/api/v1"
+JS = "/infinitemarkets/static/infinitemarkets/js"
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session", autouse=True)
@@ -47,7 +47,7 @@ async def _setup(runtime_env):
 
 async def test_admin_shell_document(runtime_env):
     """The admin page mounts inside the host shell with all modules."""
-    resp = await runtime_env["client"].get("/gammamarkets/")
+    resp = await runtime_env["client"].get("/infinitemarkets/")
     assert resp.status_code == 200
     assert resp.headers["cache-control"] == "no-store"
     html = resp.text
@@ -68,7 +68,7 @@ async def test_admin_shell_document(runtime_env):
 
 async def test_admin_verbatim_copy(runtime_env):
     """UI-SPEC copy strings render verbatim in the document."""
-    resp = await runtime_env["client"].get("/gammamarkets/")
+    resp = await runtime_env["client"].get("/infinitemarkets/")
     html = resp.text
     # B1 search placeholder.
     assert "Search order or buyer" in html
@@ -95,7 +95,7 @@ async def test_admin_verbatim_copy(runtime_env):
 async def test_admin_workspace_layout(runtime_env):
     """B1 Linear Split grid — ~390px list desktop, ~320px medium,
     list→detail on ≤560px."""
-    resp = await runtime_env["client"].get("/gammamarkets/")
+    resp = await runtime_env["client"].get("/infinitemarkets/")
     blocks = re.findall(r"<style>(.*?)</style>", resp.text, re.S)
     css = next(b for b in blocks if ".gm-workspace" in b)
     assert "grid-template-columns: 390px minmax(0, 1fr)" in css
@@ -106,7 +106,7 @@ async def test_admin_workspace_layout(runtime_env):
 async def test_admin_no_secrets(runtime_env):
     """The admin document never renders nsec, bearer tokens, full payment
     evidence, or merchant theme tokens."""
-    resp = await runtime_env["client"].get("/gammamarkets/")
+    resp = await runtime_env["client"].get("/infinitemarkets/")
     html = resp.text
     # The nsec input is masked (password) and its value is never echoed.
     assert 'type="password"' in html

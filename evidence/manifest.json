@@ -1173,7 +1173,7 @@
         ]
       },
       {
-        "name": "gammamarkets",
+        "name": "infinitemarkets",
         "version": "0.1.0",
         "source": null,
         "artifacts": []
@@ -3108,7 +3108,7 @@
     "nostr_sdk": "0.44.8",
     "lnbits_commit": "e336fe14b841d6f0c940e75b3d343e3ab5cf8433",
     "lnbits_tag": "v1.6.2-rc1",
-    "nip32_namespace": "org.gammamarkets.protocol"
+    "nip32_namespace": "org.infinitemarkets.protocol"
   },
   "fx_measurement": {
     "seed": 20260920,
@@ -3211,7 +3211,7 @@
       "observations": {}
     },
     {
-      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[5dc79c5-GammaMarkets market-spec pin]",
+      "nodeid": "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[5dc79c5-Infinitemarkets market-spec pin]",
       "outcome": "passed",
       "duration_s": 0.000722,
       "markers": [
@@ -8570,7 +8570,7 @@
           "tests/qualification/test_p0_01_pins.py::test_installed_wheel_matches_machine_platform",
           "tests/qualification/test_p0_01_pins.py::test_native_library_hash_recorded_into_evidence_pins",
           "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[0.44.8-nostr-sdk candidate pin]",
-          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[5dc79c5-GammaMarkets market-spec pin]",
+          "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[5dc79c5-Infinitemarkets market-spec pin]",
           "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[APPROVED-approval section (D-11)]",
           "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux ARM64-blocking platform (ARM64)]",
           "tests/qualification/test_p0_01_pins.py::test_pins_md_records_the_pinned_identities[Linux x86_64-blocking platform (x86_64)]",

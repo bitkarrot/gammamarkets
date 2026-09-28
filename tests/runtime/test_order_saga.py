@@ -16,7 +16,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session", autouse=True)
@@ -44,7 +44,7 @@ async def _setup(runtime_env):
     )
     assert resp.status_code == 201, resp.text
     mid = resp.json()["id"]
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -84,17 +84,17 @@ def _svcs():
     import importlib
 
     return {
-        name: importlib.import_module(f"gammamarkets.services.{name}")
+        name: importlib.import_module(f"infinitemarkets.services.{name}")
         for name in ("checkout", "orders", "settlement", "email")
     }
 
 
 async def _mpk(runtime_env):
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         row = await conn.fetchone(
-            "SELECT pubkey FROM gammamarkets.merchants WHERE id = :m",
+            "SELECT pubkey FROM infinitemarkets.merchants WHERE id = :m",
             {"m": runtime_env["merchant_id"]},
         )
     return row["pubkey"]
@@ -114,19 +114,19 @@ async def _new_order(runtime_env, *, qty=2, stock=10, title=None, key=None):
         idempotency_key=key or uuid.uuid4().hex * 2,
         client_scope="saga",
     )
-    from gammamarkets.crypto import token_lookup_hash
-    from gammamarkets.db import db
+    from infinitemarkets.crypto import token_lookup_hash
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         order = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(resp["public_token"])},
         ))
     return order, product, resp
 
 
 async def _row(sql, params):
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         return dict(await conn.fetchone(sql, params))
@@ -149,7 +149,7 @@ async def _settle_core_payment(order_id: str, total_sat: int):
 
     core = await _core_row(
         "SELECT * FROM apipayments WHERE external_id = :e",
-        {"e": f"gammamarkets:{order_id}"},
+        {"e": f"infinitemarkets:{order_id}"},
     )
     funding = get_funding_source()
     resp = await funding.pay_invoice(
@@ -167,12 +167,12 @@ async def _settle_core_payment(order_id: str, total_sat: int):
     )
     assert settled is not None, "FakeWallet settlement did not land"
     assert settled.success
-    from gammamarkets.services.settlement import (
+    from infinitemarkets.services.settlement import (
         _core_payments_by_external_id,  # noqa: SLF001
     )
 
     payments = await _core_payments_by_external_id(
-        f"gammamarkets:{order_id}"
+        f"infinitemarkets:{order_id}"
     )
     assert len(payments) == 1
     return payments[0]
@@ -189,23 +189,23 @@ async def test_settlement_confirms_once(runtime_env):
     await svcs["settlement"].invoice_listener(payment)
 
     fresh = await _row(
-        "SELECT * FROM gammamarkets.orders WHERE id = :i",
+        "SELECT * FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "confirmed"
     proj = await _row(
-        "SELECT * FROM gammamarkets.payments WHERE order_id = :o",
+        "SELECT * FROM infinitemarkets.payments WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert proj["status"] == "settled"
     res = await _row(
-        "SELECT state, COUNT(*) AS n FROM gammamarkets.inventory_reservations"
+        "SELECT state, COUNT(*) AS n FROM infinitemarkets.inventory_reservations"
         " WHERE order_id = :o GROUP BY state",
         {"o": order["id"]},
     )
     assert res["state"] == "consumed"
     prod = await _row(
-        "SELECT stock_on_hand, stock_reserved FROM gammamarkets.products"
+        "SELECT stock_on_hand, stock_reserved FROM infinitemarkets.products"
         " WHERE id = :p",
         {"p": product["id"]},
     )
@@ -215,7 +215,7 @@ async def test_settlement_confirms_once(runtime_env):
     # Double-delivery: the listener again must be a no-op.
     await svcs["settlement"].invoice_listener(payment)
     prod2 = await _row(
-        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        "SELECT stock_on_hand FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert prod2["stock_on_hand"] == 10 - 3  # stock never decrements twice
@@ -242,14 +242,14 @@ async def test_digital_delivery_revealed_only_after_confirmed_payment(runtime_en
     assert "delivery_enc" not in product
 
     raw = await _row(
-        "SELECT delivery_enc FROM gammamarkets.products WHERE id = :p",
+        "SELECT delivery_enc FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert raw["delivery_enc"] and secret.encode() not in bytes(raw["delivery_enc"])
 
     mpk = await _mpk(runtime_env)
     for url in (
-        f"/gammamarkets/p/{mpk}/{product['d_tag']}",
+        f"/infinitemarkets/p/{mpk}/{product['d_tag']}",
         f"{API}/public/products/{mpk}/{product['d_tag']}",
         f"{API}/products/{product['id']}/events",
     ):
@@ -267,10 +267,10 @@ async def test_digital_delivery_revealed_only_after_confirmed_payment(runtime_en
     assert status["state"] == "awaiting_payment"
     assert status["digital_delivery"] == []
 
-    from gammamarkets.crypto import token_lookup_hash
+    from infinitemarkets.crypto import token_lookup_hash
 
     order = await _row(
-        "SELECT id, total_sat FROM gammamarkets.orders WHERE public_token_hash = :h",
+        "SELECT id, total_sat FROM infinitemarkets.orders WHERE public_token_hash = :h",
         {"h": token_lookup_hash(order_resp["public_token"])},
     )
     order_id, total = order["id"], order["total_sat"]
@@ -280,7 +280,7 @@ async def test_digital_delivery_revealed_only_after_confirmed_payment(runtime_en
     assert status["state"] == "confirmed"
     assert status["digital_delivery"] == [{"title": "zine", "content": secret}]
 
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -324,12 +324,12 @@ async def test_settlement_foreign_payment_ignored(runtime_env):
         checking_id="x", payment_hash="y", wallet_id="w",
         amount=1000, status="success", memo="m",
         extension="other-extension",
-        external_id=f"gammamarkets:{order['id']}",
+        external_id=f"infinitemarkets:{order['id']}",
         fee=0, bolt11="",
     )
     await svcs["settlement"].invoice_listener(fake)
     fresh = await _row(
-        "SELECT state FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "awaiting_payment"
@@ -344,12 +344,12 @@ async def test_late_settlement_on_expired_order(runtime_env):
     # Expire the order first (invoice unpaid past expiry).
     await svcs["settlement"].expire_order(order_id=order["id"])
     fresh = await _row(
-        "SELECT state FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "expired"
     res = await _row(
-        "SELECT state FROM gammamarkets.inventory_reservations"
+        "SELECT state FROM infinitemarkets.inventory_reservations"
         " WHERE order_id = :o",
         {"o": order["id"]},
     )
@@ -361,19 +361,19 @@ async def test_late_settlement_on_expired_order(runtime_env):
     )
     assert result["action"] == "exception"
     fresh = await _row(
-        "SELECT state, payment_exception FROM gammamarkets.orders"
+        "SELECT state, payment_exception FROM infinitemarkets.orders"
         " WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "expired"  # never auto-reopened
     assert fresh["payment_exception"] in (1, True)
     proj = await _row(
-        "SELECT status FROM gammamarkets.payments WHERE order_id = :o",
+        "SELECT status FROM infinitemarkets.payments WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert proj["status"] == "settled"
     prod = await _row(
-        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        "SELECT stock_on_hand FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert prod["stock_on_hand"] == 10  # nothing consumed
@@ -385,14 +385,14 @@ async def test_late_settlement_on_expired_order(runtime_env):
     assert resolved["action"] == "accepted"
     fresh = await _row(
         "SELECT state, payment_exception, payment_exception_resolution"
-        " FROM gammamarkets.orders WHERE id = :i",
+        " FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "confirmed"
     assert fresh["payment_exception"] in (0, False)
     assert fresh["payment_exception_resolution"] == "accepted"
     prod = await _row(
-        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        "SELECT stock_on_hand FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert prod["stock_on_hand"] == 10 - 2
@@ -409,18 +409,18 @@ async def test_buyer_cancel_before_payment(runtime_env):
         order_id=order["id"], actor="buyer", reason=None,
     )
     fresh = await _row(
-        "SELECT state FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "cancelled"
     res = await _row(
-        "SELECT state FROM gammamarkets.inventory_reservations"
+        "SELECT state FROM infinitemarkets.inventory_reservations"
         " WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert res["state"] == "released"
     proj = await _row(
-        "SELECT status, bolt11_enc FROM gammamarkets.payments"
+        "SELECT status, bolt11_enc FROM infinitemarkets.payments"
         " WHERE order_id = :o",
         {"o": order["id"]},
     )
@@ -428,7 +428,7 @@ async def test_buyer_cancel_before_payment(runtime_env):
     assert proj["status"] == "pending"
     assert proj["bolt11_enc"] is not None
     prod = await _row(
-        "SELECT stock_on_hand, stock_reserved FROM gammamarkets.products"
+        "SELECT stock_on_hand, stock_reserved FROM infinitemarkets.products"
         " WHERE id = :p",
         {"p": product["id"]},
     )
@@ -451,18 +451,18 @@ async def test_invoice_creation_unknown_never_duplicates(runtime_env):
         idempotency_key=uuid.uuid4().hex * 2,
         client_scope="saga2",
     )
-    from gammamarkets.crypto import token_lookup_hash
-    from gammamarkets.db import db
+    from infinitemarkets.crypto import token_lookup_hash
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         order = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(resp["public_token"])},
         ))
     assert order["state"] == "awaiting_payment"
 
     # Simulate the unknown outcome directly on the projection.
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -477,14 +477,14 @@ async def test_invoice_creation_unknown_never_duplicates(runtime_env):
         a["order_id"] == order["id"] for a in report["attached"]
     ), report
     proj = await _row(
-        "SELECT status FROM gammamarkets.payments WHERE order_id = :o",
+        "SELECT status FROM infinitemarkets.payments WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert proj["status"] == "pending"
     # Exactly one core invoice exists — reconciliation never creates one.
     core = await _core_row(
         "SELECT COUNT(*) AS n FROM apipayments WHERE external_id = :e",
-        {"e": f"gammamarkets:{order['id']}"},
+        {"e": f"infinitemarkets:{order['id']}"},
     )
     assert core["n"] == 1
 
@@ -498,7 +498,7 @@ async def test_reconcile_resumes_received_order(runtime_env):
 
     # Insert the intake tx only — monkeypatch begin_saga to a no-op so the
     # order stays 'received'.
-    from gammamarkets.db import DomainTransaction, db
+    from infinitemarkets.db import DomainTransaction, db
 
     mpk = await _mpk(runtime_env)
     resp = await checkout.checkout(
@@ -509,11 +509,11 @@ async def test_reconcile_resumes_received_order(runtime_env):
         idempotency_key=uuid.uuid4().hex * 2,
         client_scope="saga3",
     )
-    from gammamarkets.crypto import token_lookup_hash
+    from infinitemarkets.crypto import token_lookup_hash
 
     async with db.connect() as conn:
         order = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(resp["public_token"])},
         ))
     # Force the order back to received + drop its saga artifacts (the
@@ -541,12 +541,12 @@ async def test_reconcile_resumes_received_order(runtime_env):
         r.get("state") == "awaiting_payment" for r in report["resumed"]
     ), report
     fresh = await _row(
-        "SELECT state FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "awaiting_payment"
     proj = await _row(
-        "SELECT status FROM gammamarkets.payments WHERE order_id = :o",
+        "SELECT status FROM infinitemarkets.payments WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert proj["status"] == "pending"
@@ -559,7 +559,7 @@ async def test_reservation_expiry_releases_once(runtime_env):
     order, product, resp = await _new_order(runtime_env, qty=2, stock=10)
 
     # Push the reservation expiry into the past.
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -570,18 +570,18 @@ async def test_reservation_expiry_releases_once(runtime_env):
     result = await svcs["settlement"].reservation_expiry_pass()
     assert result["expired_orders"] >= 1
     fresh = await _row(
-        "SELECT state FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "expired"
     res = await _row(
-        "SELECT state FROM gammamarkets.inventory_reservations"
+        "SELECT state FROM infinitemarkets.inventory_reservations"
         " WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert res["state"] == "expired"
     prod = await _row(
-        "SELECT stock_on_hand, stock_reserved FROM gammamarkets.products"
+        "SELECT stock_on_hand, stock_reserved FROM infinitemarkets.products"
         " WHERE id = :p",
         {"p": product["id"]},
     )
@@ -602,7 +602,7 @@ async def test_kill_before_callback_reconcile_confirms(runtime_env):
     # settlement and callback means only the core row carries truth.
     await _settle_core_payment(order["id"], order["total_sat"])
     fresh = await _row(
-        "SELECT state FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "awaiting_payment"  # nothing confirmed yet
@@ -612,12 +612,12 @@ async def test_kill_before_callback_reconcile_confirms(runtime_env):
         c["order_id"] == order["id"] for c in report["confirmed"]
     ), report
     fresh = await _row(
-        "SELECT state FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "confirmed"
     prod = await _row(
-        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        "SELECT stock_on_hand FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert prod["stock_on_hand"] == 10 - 2
@@ -628,7 +628,7 @@ async def test_kill_before_callback_reconcile_confirms(runtime_env):
         c["order_id"] == order["id"] for c in report2["confirmed"]
     )
     prod = await _row(
-        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        "SELECT stock_on_hand FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert prod["stock_on_hand"] == 10 - 2
@@ -653,8 +653,8 @@ async def test_amount_and_wallet_mismatch_quarantine(runtime_env):
         checking_id="c1", payment_hash="h1",
         wallet_id=runtime_env["wallet"].id,
         amount=500_000, status="success", memo="m",
-        extension="gammamarkets",
-        external_id=f"gammamarkets:{order_amt['id']}",
+        extension="infinitemarkets",
+        external_id=f"infinitemarkets:{order_amt['id']}",
         fee=0, bolt11="",
     )
     await svcs["settlement"].invoice_listener(bad_amount)
@@ -663,8 +663,8 @@ async def test_amount_and_wallet_mismatch_quarantine(runtime_env):
     bad_wallet = Payment(
         checking_id="c2", payment_hash="h2", wallet_id="foreign-wallet",
         amount=1_000_000, status="success", memo="m",
-        extension="gammamarkets",
-        external_id=f"gammamarkets:{order_wal['id']}",
+        extension="infinitemarkets",
+        external_id=f"infinitemarkets:{order_wal['id']}",
         fee=0, bolt11="",
     )
     await svcs["settlement"].invoice_listener(bad_wallet)
@@ -675,19 +675,19 @@ async def test_amount_and_wallet_mismatch_quarantine(runtime_env):
     ):
         fresh = await _row(
             "SELECT state, payment_exception, payment_exception_reason"
-            " FROM gammamarkets.orders WHERE id = :i",
+            " FROM infinitemarkets.orders WHERE id = :i",
             {"i": order["id"]},
         )
         assert fresh["state"] == "awaiting_payment", reason
         assert fresh["payment_exception"] in (1, True)
         assert fresh["payment_exception_reason"] == reason
         proj = await _row(
-            "SELECT status FROM gammamarkets.payments WHERE order_id = :o",
+            "SELECT status FROM infinitemarkets.payments WHERE order_id = :o",
             {"o": order["id"]},
         )
         assert proj["status"] == "pending"  # never marked settled
         res = await _row(
-            "SELECT state FROM gammamarkets.inventory_reservations"
+            "SELECT state FROM infinitemarkets.inventory_reservations"
             " WHERE order_id = :o",
             {"o": order["id"]},
         )
@@ -695,7 +695,7 @@ async def test_amount_and_wallet_mismatch_quarantine(runtime_env):
 
     for product in (product_amt, product_wal):
         prod = await _row(
-            "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+            "SELECT stock_on_hand FROM infinitemarkets.products WHERE id = :p",
             {"p": product["id"]},
         )
         assert prod["stock_on_hand"] == 10
@@ -707,7 +707,7 @@ async def test_lease_fencing(runtime_env, monkeypatch):
     token strictly increases."""
     import importlib
 
-    tasks = importlib.import_module("gammamarkets.services.tasks")
+    tasks = importlib.import_module("infinitemarkets.services.tasks")
     name = f"drill-{uuid.uuid4().hex[:8]}"
 
     monkeypatch.setattr(tasks, "WORKER_ID", "holder-A")
@@ -724,7 +724,7 @@ async def test_lease_fencing(runtime_env, monkeypatch):
     assert token_a2 > token_a
 
     # Expire the lease -> takeover with a strictly larger token.
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -743,19 +743,19 @@ async def test_duplicate_attachment_preserves_settled_projection(runtime_env):
     await svcs["settlement"].invoice_listener(payment)
     await svcs["checkout"].attach_payment(order_id=order["id"], payment=payment, now=1)
     projection = await _row(
-        "SELECT status FROM gammamarkets.payments WHERE order_id = :o",
+        "SELECT status FROM infinitemarkets.payments WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert projection["status"] == "settled"
     await svcs["settlement"].invoice_listener(payment)
     fresh = await _row(
-        "SELECT state, payment_exception FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state, payment_exception FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "confirmed"
     assert not fresh["payment_exception"]
     stock = await _row(
-        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        "SELECT stock_on_hand FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert stock["stock_on_hand"] == 9
@@ -765,11 +765,11 @@ async def test_reconciliation_verifies_payment_amount(runtime_env, monkeypatch):
     settlement = _svcs()["settlement"]
     order, product, _ = await _new_order(runtime_env, qty=1)
     lookup = settlement._core_payments_by_external_id
-    payment = (await lookup(f"gammamarkets:{order['id']}"))[0]
+    payment = (await lookup(f"infinitemarkets:{order['id']}"))[0]
     wrong = payment.copy(update={"amount": payment.amount + 1000, "status": "success"})
 
     async def mismatched(external_id):
-        if external_id == f"gammamarkets:{order['id']}":
+        if external_id == f"infinitemarkets:{order['id']}":
             return [wrong]
         return await lookup(external_id)
 
@@ -777,14 +777,14 @@ async def test_reconciliation_verifies_payment_amount(runtime_env, monkeypatch):
     await settlement.reconcile()
     fresh = await _row(
         "SELECT state, payment_exception, payment_exception_reason"
-        " FROM gammamarkets.orders WHERE id = :i",
+        " FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "awaiting_payment"
     assert fresh["payment_exception"]
     assert fresh["payment_exception_reason"] == "settlement-amount-mismatch"
     stock = await _row(
-        "SELECT stock_on_hand FROM gammamarkets.products WHERE id = :p",
+        "SELECT stock_on_hand FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert stock["stock_on_hand"] == 10
@@ -797,28 +797,28 @@ async def test_reconciliation_recovers_late_payment_without_callback(runtime_env
     await _settle_core_payment(order["id"], order["total_sat"])
     await settlement.reconcile()
     projection = await _row(
-        "SELECT status FROM gammamarkets.payments WHERE order_id = :o",
+        "SELECT status FROM infinitemarkets.payments WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert projection["status"] == "settled"
     fresh = await _row(
-        "SELECT state, payment_exception FROM gammamarkets.orders WHERE id = :i",
+        "SELECT state, payment_exception FROM infinitemarkets.orders WHERE id = :i",
         {"i": order["id"]},
     )
     assert fresh["state"] == "expired"
     assert fresh["payment_exception"]
     stock = await _row(
-        "SELECT stock_on_hand, stock_reserved FROM gammamarkets.products WHERE id = :p",
+        "SELECT stock_on_hand, stock_reserved FROM infinitemarkets.products WHERE id = :p",
         {"p": product["id"]},
     )
     assert stock == {"stock_on_hand": 10, "stock_reserved": 0}
 
 
 async def test_stale_expiry_worker_cannot_release_inventory(runtime_env, monkeypatch):
-    from gammamarkets.services import tasks
+    from infinitemarkets.services import tasks
 
     order, _, _ = await _new_order(runtime_env, qty=1)
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -844,11 +844,11 @@ async def test_stale_expiry_worker_cannot_release_inventory(runtime_env, monkeyp
         with pytest.raises(asyncio.CancelledError):
             await tasks.reservation_expiry()
     reservation = await _row(
-        "SELECT state FROM gammamarkets.inventory_reservations WHERE order_id = :o",
+        "SELECT state FROM infinitemarkets.inventory_reservations WHERE order_id = :o",
         {"o": order["id"]},
     )
     assert reservation["state"] == "held"
-    fresh = await _row("SELECT state FROM gammamarkets.orders WHERE id = :o", {"o": order["id"]})
+    fresh = await _row("SELECT state FROM infinitemarkets.orders WHERE id = :o", {"o": order["id"]})
     assert fresh["state"] == "awaiting_payment"
 
 
@@ -857,14 +857,14 @@ async def test_settlement_enqueues_addressed_stock_publication(runtime_env):
     payment = await _settle_core_payment(order["id"], order["total_sat"])
     await _svcs()["settlement"].invoice_listener(payment)
     row = await _row(
-        "SELECT * FROM gammamarkets.outbox_events WHERE aggregate_id = :p"
+        "SELECT * FROM infinitemarkets.outbox_events WHERE aggregate_id = :p"
         " AND event_kind = 30402 ORDER BY aggregate_revision DESC LIMIT 1",
         {"p": product["id"]},
     )
     assert row["aggregate_type"] == "products"
     assert row["event_address"].endswith(":" + product["d_tag"])
     assert row["aggregate_revision"] > 0
-    from gammamarkets.services.outbox import render_intent
+    from infinitemarkets.services.outbox import render_intent
 
     event = await render_intent(row)
     assert event["kind"] == 30402
@@ -873,7 +873,7 @@ async def test_settlement_enqueues_addressed_stock_publication(runtime_env):
 
 @pytest.mark.parametrize("recent_update", [False, True])
 async def test_retention_erases_all_terminal_order_private_copies(runtime_env, recent_update):
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     order, _, _ = await _new_order(runtime_env, qty=1)
     now = int(time.time())
@@ -902,7 +902,7 @@ async def test_retention_erases_all_terminal_order_private_copies(runtime_env, r
         )
     await _svcs()["settlement"].retention_prune(now=now)
     fresh = await _row(
-        "SELECT contact_enc, public_token_enc, total_sat FROM gammamarkets.orders WHERE id = :o",
+        "SELECT contact_enc, public_token_enc, total_sat FROM infinitemarkets.orders WHERE id = :o",
         {"o": order["id"]},
     )
     assert fresh["contact_enc"] is None
@@ -913,7 +913,7 @@ async def test_retention_erases_all_terminal_order_private_copies(runtime_env, r
         ("idempotency_records", "response_enc"),
     ):
         row = await _row(
-            f"SELECT {column} FROM gammamarkets.{table} WHERE order_id = :o",
+            f"SELECT {column} FROM infinitemarkets.{table} WHERE order_id = :o",
             {"o": order["id"]},
         )
         assert row and not row[column], table
@@ -935,7 +935,7 @@ async def test_invoice_listener_redacts_error_context(runtime_env, monkeypatch):
     sink = logger.add(messages.append, format="{message}")
     try:
         await settlement.invoice_listener(SimpleNamespace(
-            extension="gammamarkets", external_id=f"gammamarkets:{canary}",
+            extension="infinitemarkets", external_id=f"infinitemarkets:{canary}",
         ))
     finally:
         logger.remove(sink)
@@ -966,7 +966,7 @@ async def test_unverified_lnbits_invoice_is_not_offered_to_buyer(
     assert order["payment_exception"]
     assert order["payment_exception_reason"] == "invoice-correlation-failed"
     projection = await _row(
-        "SELECT status, bolt11_enc, core_external_id FROM gammamarkets.payments"
+        "SELECT status, bolt11_enc, core_external_id FROM infinitemarkets.payments"
         " WHERE order_id = :o",
         {"o": order["id"]},
     )

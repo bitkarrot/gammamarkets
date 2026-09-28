@@ -1,7 +1,7 @@
 {
-  "name": "gammamarkets-e2e",
+  "name": "infinitemarkets-e2e",
   "private": true,
-  "description": "Playwright E2E for the gammamarkets extension - buyer + admin journeys against a real host boot (tools/e2e_server.py).",
+  "description": "Playwright E2E for the infinitemarkets extension - buyer + admin journeys against a real host boot (tools/e2e_server.py).",
   "engines": {
     "node": "22.x || 24.x"
   },

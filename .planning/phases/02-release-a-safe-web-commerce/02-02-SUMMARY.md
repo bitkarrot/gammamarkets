@@ -16,15 +16,15 @@
 
 ## Implementation
 
-- `services/transport.py` — owned `Client` (no signer ever attached; signing is per-event via `MerchantKeyStore`), bounded `RelayLimits`, `autoconnect(False)`, revalidation of every target on connect/reconnect/send. Test-only escape hatches: `GAMMAMARKETS_ALLOW_INSECURE_RELAYS=1` (ws:// loopback only, for `LocalRelay`) and `GAMMAMARKETS_RELAY_IO=off` (host-boot tests never dial real relays).
+- `services/transport.py` — owned `Client` (no signer ever attached; signing is per-event via `MerchantKeyStore`), bounded `RelayLimits`, `autoconnect(False)`, revalidation of every target on connect/reconnect/send. Test-only escape hatches: `INFINITEMARKETS_ALLOW_INSECURE_RELAYS=1` (ws:// loopback only, for `LocalRelay`) and `INFINITEMARKETS_RELAY_IO=off` (host-boot tests never dial real relays).
 - `services/relay.py` — target resolution (`public|inbox|both` + enabled; `merchant_id NULL` server-wide defaults supplement merchant rows), starter defaults seeded on first publish (`ensure_default_relays`), Blossom endpoint config (see deltas), health aggregation from `relay_publications`, owner-scoped outbox listing + retry.
 - `services/outbox.py` — §8.6 worker: atomic claim (`BEGIN IMMEDIATE` bounded select/update on SQLite; `FOR UPDATE SKIP LOCKED` on PG), dependency gate, newer-live-revision supersession, render-from-current-state, per-event keystore signing, `created_at = max(now, latest+1)` with clock-skew pause, `send_event_to`, one durable `relay_publications` row per copy+relay with verbatim evidence, quorum/outcome policy, `min(2^n·5s, 30min)+jitter` backoff, claim-token CAS on every leased write, lease-expiry recovery reconstructing accepted targets, `worker_db()` per-worker handle, per-attempt metrics counters.
-- `services/tasks.py` — `outbox_publisher` (5s) + `relay_manager` (30s health tick) registered via host `task_manager`, handles tracked by `register_owned_task`, cancelled by `gammamarkets_stop` (now async — closes the transport; the host awaits coroutine stop hooks).
+- `services/tasks.py` — `outbox_publisher` (5s) + `relay_manager` (30s health tick) registered via host `task_manager`, handles tracked by `register_owned_task`, cancelled by `infinitemarkets_stop` (now async — closes the transport; the host awaits coroutine stop hooks).
 - `services/metrics.py` — outbox depth, oldest-pending age, per-state counts, outcome counters.
 - `services/readiness.py` — gate structure; checkout fails closed (503) until 02-03.
 - `services/nip89.py` + `views.py` + `views_public_api.py` — naddr decode/resolve (local only, hints never fetched), canonical product page, collection/merchant pages, §5.4 JSON reads, 120/min/IP rate limit on HMAC'd scope (raw IPs never stored), `no-store`/`no-referrer`/restrictive-CSP standalone documents, all UI-SPEC A1 states.
-- `services/themes.py` + `static/gammamarkets/css/{gm-public,themes/*}.css` — three presets, bounded Brand Basics, opt-in Advanced Tokens over an allowlist, server-side WCAG ≥4.5:1 gates naming pair+ratio, `.gm-public`-scoped emission never on admin docs.
-- `templates/gammamarkets/public_*.html` + `public_storefront.js` — standalone docs; buy form POSTs the real `/api/v1/public/checkout` contract (route lands in 02-03; errors surface honestly); order shell strips the fragment token via `history.replaceState`.
+- `services/themes.py` + `static/infinitemarkets/css/{gm-public,themes/*}.css` — three presets, bounded Brand Basics, opt-in Advanced Tokens over an allowlist, server-side WCAG ≥4.5:1 gates naming pair+ratio, `.gm-public`-scoped emission never on admin docs.
+- `templates/infinitemarkets/public_*.html` + `public_storefront.js` — standalone docs; buy form POSTs the real `/api/v1/public/checkout` contract (route lands in 02-03; errors surface honestly); order shell strips the fragment token via `history.replaceState`.
 
 ## Spec deltas (recorded per plan)
 

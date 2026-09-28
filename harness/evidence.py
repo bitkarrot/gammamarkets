@@ -257,7 +257,7 @@ def _render_report(manifest: dict) -> str:
     pins = manifest["pins"]
     summary = manifest["summary"]
     lines: list[str] = []
-    lines.append("# GammaMarkets Qualification Report")
+    lines.append("# Infinitemarkets Qualification Report")
     lines.append("")
     lines.append(f"- Generated (UTC): {manifest['generated_at']}")
     lines.append(f"- Verify command: `{manifest['verify_command']}`")

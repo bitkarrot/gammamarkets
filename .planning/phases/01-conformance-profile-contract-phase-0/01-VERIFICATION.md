@@ -70,7 +70,7 @@ behavior_unverified: 0
 
 ## Anti-Patterns Found
 
-None. Confirmed: no retry/flaky-green mechanism (single-run clean-pass policy in manifest), no committed raw logs (D-09), no production runtime code (probe router isolated on `/gammamarkets-qual-probe`).
+None. Confirmed: no retry/flaky-green mechanism (single-run clean-pass policy in manifest), no committed raw logs (D-09), no production runtime code (probe router isolated on `/infinitemarkets-qual-probe`).
 
 **Anti-patterns:** 0 found
 

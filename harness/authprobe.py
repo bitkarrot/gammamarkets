@@ -139,13 +139,13 @@ def build_probe_router(
 ):
     """Build the P0-12 probe router for mounting inside the host app fixture.
 
-    ``canonical_origin`` models ``GAMMAMARKETS_PUBLIC_BASE_URL`` — the same-
+    ``canonical_origin`` models ``INFINITEMARKETS_PUBLIC_BASE_URL`` — the same-
     origin check is enforced by the route itself because host CORS is never
     trusted for mutation authorization (section 21.29).
     """
     from lnbits.decorators import access_token_payload
 
-    router = APIRouter(prefix="/gammamarkets-qual-probe")
+    router = APIRouter(prefix="/infinitemarkets-qual-probe")
 
     @router.post("/mutate")
     async def mutate(
@@ -155,7 +155,7 @@ def build_probe_router(
         """State-changing probe: authenticated session AND same-origin."""
         origin = request.headers.get("origin")
         audit.record(
-            "gammamarkets.probe.mutate",
+            "infinitemarkets.probe.mutate",
             usr=getattr(payload, "usr", None),
             origin=origin or "<none>",
         )
@@ -167,7 +167,7 @@ def build_probe_router(
     async def order_status(request: Request):
         """Public-status probe: bearer token in X-Order-Token header only."""
         audit.record_request_headers(
-            "gammamarkets.probe.order-status", dict(request.headers)
+            "infinitemarkets.probe.order-status", dict(request.headers)
         )
         token = request.headers.get("x-order-token")
         if token != order_token:

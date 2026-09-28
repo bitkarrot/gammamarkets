@@ -15,7 +15,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 PUBLIC = f"{API}/public"
 
 
@@ -51,7 +51,7 @@ async def _setup(runtime_env):
         headers=await cookie(),
     )
     assert resp.status_code == 200, resp.text
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -98,7 +98,7 @@ async def _setup(runtime_env):
             "SELECT pubkey FROM merchants WHERE id = :m", {"m": mid},
         )
 
-    from gammamarkets.services import readiness
+    from infinitemarkets.services import readiness
 
     readiness.mark_reconciled()
 
@@ -121,7 +121,7 @@ def _svcs():
     import importlib
 
     return {
-        name: importlib.import_module(f"gammamarkets.services.{name}")
+        name: importlib.import_module(f"infinitemarkets.services.{name}")
         for name in ("checkout", "orders", "settlement")
     }
 
@@ -149,12 +149,12 @@ async def _order(runtime_env, *, fmt="digital", address=False) -> dict:
         payload=payload, idempotency_key=uuid.uuid4().hex * 2,
         client_scope="admin-test",
     )
-    from gammamarkets.crypto import token_lookup_hash
-    from gammamarkets.db import db
+    from infinitemarkets.crypto import token_lookup_hash
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         order = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(resp["public_token"])},
         ))
     order["_token"] = resp["public_token"]
@@ -186,7 +186,7 @@ async def test_list_and_detail(runtime_env):
         f"{API}/merchants/{mid}/orders", params={"state": "bogus"}
     )
     assert resp.status_code == 422
-    assert resp.json()["type"] == "urn:gammamarkets:invalid-transition"
+    assert resp.json()["type"] == "urn:infinitemarkets:invalid-transition"
 
     # UI-SPEC filter set: needs_attention + order-id prefix search.
     resp = await client.get(
@@ -242,19 +242,19 @@ async def test_bulk_archive_and_restore_closed_orders(runtime_env):
     assert listed[closed["id"]]["archive_eligible"] is True
     assert listed[active["id"]]["archive_eligible"] is False
 
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         before = dict(
             await conn.fetchone(
-                "SELECT updated_at FROM gammamarkets.orders WHERE id = :o",
+                "SELECT updated_at FROM infinitemarkets.orders WHERE id = :o",
                 {"o": closed["id"]},
             )
         )
         related_before = {
             table: (
                 await conn.fetchone(
-                    f"SELECT COUNT(*) AS n FROM gammamarkets.{table} "
+                    f"SELECT COUNT(*) AS n FROM infinitemarkets.{table} "
                     "WHERE order_id = :o",
                     {"o": closed["id"]},
                 )
@@ -271,7 +271,7 @@ async def test_bulk_archive_and_restore_closed_orders(runtime_env):
     assert response.status_code == 422
     async with db.connect() as conn:
         row = await conn.fetchone(
-            "SELECT archived_at FROM gammamarkets.orders WHERE id = :o",
+            "SELECT archived_at FROM infinitemarkets.orders WHERE id = :o",
             {"o": closed["id"]},
         )
     assert row["archived_at"] is None
@@ -307,14 +307,14 @@ async def test_bulk_archive_and_restore_closed_orders(runtime_env):
     async with db.connect() as conn:
         after = dict(
             await conn.fetchone(
-                "SELECT updated_at FROM gammamarkets.orders WHERE id = :o",
+                "SELECT updated_at FROM infinitemarkets.orders WHERE id = :o",
                 {"o": closed["id"]},
             )
         )
         related_after = {
             table: (
                 await conn.fetchone(
-                    f"SELECT COUNT(*) AS n FROM gammamarkets.{table} "
+                    f"SELECT COUNT(*) AS n FROM infinitemarkets.{table} "
                     "WHERE order_id = :o",
                     {"o": closed["id"]},
                 )
@@ -390,7 +390,7 @@ async def test_transition_matrix(runtime_env):
         headers=await cookie(),
     )
     assert resp.status_code == 422
-    assert resp.json()["type"] == "urn:gammamarkets:invalid-transition"
+    assert resp.json()["type"] == "urn:infinitemarkets:invalid-transition"
 
     # awaiting_payment -> confirmed -> processing -> completed is.
     for to_state in ("confirmed", "processing", "completed"):
@@ -407,14 +407,14 @@ async def test_transition_matrix(runtime_env):
         headers=await cookie(),
     )
     assert resp.status_code == 422
-    assert resp.json()["type"] == "urn:gammamarkets:invalid-transition"
+    assert resp.json()["type"] == "urn:infinitemarkets:invalid-transition"
 
     # Email intents were enqueued per transition.
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         rows = await conn.fetchall(
-            "SELECT event_type FROM gammamarkets.email_queue"
+            "SELECT event_type FROM infinitemarkets.email_queue"
             " WHERE order_id = :o AND channel = 'merchant'",
             {"o": order["id"]},
         )
@@ -437,24 +437,24 @@ async def test_cancel_releases_stock_once(runtime_env):
     assert resp.json()["action"] == "cancelled"
     assert resp.json()["released"] == 2
 
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         prod = dict(await conn.fetchone(
             "SELECT stock_on_hand, stock_reserved FROM"
-            " gammamarkets.products WHERE id = :p",
+            " infinitemarkets.products WHERE id = :p",
             {"p": product["id"]},
         ))
         assert prod["stock_on_hand"] == 10
         assert prod["stock_reserved"] == 0
         res = dict(await conn.fetchone(
-            "SELECT state FROM gammamarkets.inventory_reservations"
+            "SELECT state FROM infinitemarkets.inventory_reservations"
             " WHERE order_id = :o",
             {"o": order["id"]},
         ))
         assert res["state"] == "released"
         ev = dict(await conn.fetchone(
-            "SELECT actor, detail_json FROM gammamarkets.order_events"
+            "SELECT actor, detail_json FROM infinitemarkets.order_events"
             " WHERE order_id = :o AND to_state = 'cancelled'",
             {"o": order["id"]},
         ))
@@ -469,7 +469,7 @@ async def test_cancel_releases_stock_once(runtime_env):
     assert resp.json()["action"] == "no-op-already-cancelled"
     async with db.connect() as conn:
         prod = dict(await conn.fetchone(
-            "SELECT stock_reserved FROM gammamarkets.products"
+            "SELECT stock_reserved FROM infinitemarkets.products"
             " WHERE id = :p",
             {"p": product["id"]},
         ))
@@ -483,7 +483,7 @@ async def test_exception_refund_attestation(runtime_env):
     cookie = runtime_env["cookie"]
     order = await _order(runtime_env)
     url = _admin(runtime_env, order["id"])
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -516,11 +516,11 @@ async def test_exception_refund_attestation(runtime_env):
     assert detail["payment_exception"] is False
     assert detail["payment_exception_resolution"] == "refund_confirmed"
 
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         rows = await conn.fetchall(
-            "SELECT event_type FROM gammamarkets.email_queue"
+            "SELECT event_type FROM infinitemarkets.email_queue"
             " WHERE order_id = :o AND event_type = 'refund_requested'",
             {"o": order["id"]},
         )
@@ -597,7 +597,7 @@ async def test_decrypted_pii_owner_only(runtime_env):
         )
         token = resp.json()["access_token"]
         await c2.put(
-            "/api/v1/extension/gammamarkets/enable",
+            "/api/v1/extension/infinitemarkets/enable",
             headers={
                 "Cookie": f"cookie_access_token={token}",
                 "Origin": ORIGIN,
@@ -659,4 +659,4 @@ async def test_admin_idempotency_key_accepted(runtime_env):
         f"{url}/status", json={"to_state": "processing"}, headers=hdrs,
     )
     assert resp.status_code == 422
-    assert resp.json()["type"] == "urn:gammamarkets:invalid-idempotency-key"
+    assert resp.json()["type"] == "urn:infinitemarkets:invalid-idempotency-key"

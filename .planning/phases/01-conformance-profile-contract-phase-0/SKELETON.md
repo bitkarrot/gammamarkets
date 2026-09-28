@@ -1,4 +1,4 @@
-# Walking Skeleton — gammamarkets (Phase 1: Conformance Profile)
+# Walking Skeleton — infinitemarkets (Phase 1: Conformance Profile)
 
 **Phase:** 1
 **Generated:** 2026-09-20

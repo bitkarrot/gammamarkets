@@ -214,7 +214,7 @@ async def test_cancel_during_inflight_invoice_creation(qual_db_factory, outcome)
 
         payment = await _payment(qual_db)
         # core_external_id correlation survives cancellation (section 24).
-        assert payment["core_external_id"] == "gammamarkets:o1"
+        assert payment["core_external_id"] == "infinitemarkets:o1"
 
         if outcome == "success":
             assert result["outcome"] == "attached-cancelled"
@@ -292,7 +292,7 @@ async def test_cancel_from_awaiting_payment_then_late_settlement(qual_db_factory
         # Section 17 drill: settlement fired in the fake core with the
         # invoice-paid callback SUPPRESSED (kill between settlement and
         # callback).
-        delivered = await fake.settle("gammamarkets:o1", deliver_callback=False)
+        delivered = await fake.settle("infinitemarkets:o1", deliver_callback=False)
         assert delivered is False
         assert fake.callbacks == []
 
@@ -366,7 +366,7 @@ async def test_creation_unknown_reconciliation_attaches_exactly_one(
         # Reservations aligned to the decoded invoice expiry and still held.
         reservations = await _reservations(qual_db)
         assert [r["state"] for r in reservations] == ["held"]
-        core = fake.query_by_external_id("gammamarkets:o1")
+        core = fake.query_by_external_id("infinitemarkets:o1")
         assert reservations[0]["expires_at"] == core[0].expiry_at
 
         # Re-running reconciliation changes nothing (idempotent attach
@@ -432,7 +432,7 @@ async def test_multiple_core_payments_with_one_external_id_quarantines(
         assert (await _payment(qual_db))["status"] == "creation_unknown"
 
         # A second core payment appears with the SAME external id.
-        fake.add_extra_core_payment("gammamarkets:o1", order_id="o1")
+        fake.add_extra_core_payment("infinitemarkets:o1", order_id="o1")
 
         report = await model.reconcile(now=T0 + 30)
         assert len(report["critical"]) == 1

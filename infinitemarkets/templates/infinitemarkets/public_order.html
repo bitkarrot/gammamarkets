@@ -1,0 +1,63 @@
+{% extends "templates/infinitemarkets/public_base.html" %}
+{% block title %}Track your order{% endblock %}
+{% block head %}
+{#- Host-vendored, same-origin scripts for the invoice QR — CSP 'self'. -#}
+<script src="/static/vendor/vue.global.prod.js" defer></script>
+<script src="/static/vendor/qrcode.vue.browser.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="order-status" id="gm-order">
+  {#- The bearer token arrives as a URL fragment only (spec §5.4):
+      public_storefront.js strips it with history.replaceState before any
+      network call and public_order.js sends it as X-Order-Token. -#}
+  <p class="eyebrow">Your order</p>
+  <h1 class="order-title">Order status</h1>
+
+  <section class="order-card" id="gm-order-card">
+    <p class="order-state" id="gm-order-state" aria-live="polite"></p>
+    <p class="order-checking" id="gm-order-checking" hidden>Checking for updates…</p>
+    <p class="order-total" id="gm-order-ref"></p>
+    <div id="gm-order-detail"></div>
+    <ul class="order-items" id="gm-order-items"></ul>
+    <div id="gm-order-delivery" class="order-delivery" hidden></div>
+    <div id="gm-order-invoice" hidden></div>
+    <div class="order-actions">
+      <button type="button" class="btn-secondary" id="gm-copy-status-link"
+              hidden>Copy status link</button>
+      <button type="button" class="btn-secondary" id="gm-opt-out"
+              hidden>Stop order emails</button>
+    </div>
+  </section>
+
+  {#- Shown when the page is opened without an order link (the "Track
+      order" navigation entry). No accounts: each order has its own
+      private link, so recovery goes through the email or the shop. -#}
+  <section class="track-order" id="gm-order-prompt">
+    <p class="order-prompt">Every order has its own private link — no account or password needed. You received it right after checkout, and by email if you asked for order updates.</p>
+    <form class="track-form" id="gm-track-form" novalidate>
+      <div class="field">
+        <label for="gm-track-link">Paste your order link</label>
+        <input type="text" id="gm-track-link" name="order_link" autocomplete="off"
+               autocapitalize="off" spellcheck="false"
+               placeholder="https://…/infinitemarkets/order#…">
+        <p class="field-error" data-error-for="order_link" aria-live="polite" hidden></p>
+      </div>
+      <button type="submit" class="btn-primary">Open my order</button>
+    </form>
+    <div class="track-help">
+      <h2>Lost your link?</h2>
+      <ul>
+        <li>Search your inbox for the order confirmation email from {{ brand_name or 'the shop' }}.</li>
+        <li>Still can't find it? Contact {{ brand_name or 'the shop' }} — the seller can send you a fresh private link for your order.</li>
+      </ul>
+    </div>
+  </section>
+
+  {% if storefront_url %}
+  <p class="order-continue"><a href="{{ storefront_url }}">← Continue shopping at {{ brand_name or 'the shop' }}</a></p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/infinitemarkets/static/infinitemarkets/js/public_order.js?v={{ asset_revision }}" defer></script>
+{% endblock %}

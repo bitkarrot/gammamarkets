@@ -17,7 +17,7 @@ import pytest
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 
 def _csrf(client: httpx.AsyncClient) -> str:
@@ -69,7 +69,7 @@ async def test_cookie_mutation_requires_origin_and_csrf(runtime_env):
                  "X-CSRF-Token": _csrf(client)},
     )
     assert resp.status_code == 403
-    assert resp.json()["type"] == "urn:gammamarkets:unauthorized"
+    assert resp.json()["type"] == "urn:infinitemarkets:unauthorized"
 
     # cookie auth + correct Origin but NO csrf header -> rejected
     resp = await client.post(
@@ -160,7 +160,7 @@ async def test_duplicate_merchant_rejected(runtime_env):
         headers=await _cookie(runtime_env),
     )
     assert resp.status_code == 409
-    assert resp.json()["type"] == "urn:gammamarkets:duplicate-merchant"
+    assert resp.json()["type"] == "urn:infinitemarkets:duplicate-merchant"
 
 
 async def test_wallet_binding_rejects_foreign_wallet(runtime_env):
@@ -171,7 +171,7 @@ async def test_wallet_binding_rejects_foreign_wallet(runtime_env):
         headers=await _cookie(runtime_env),
     )
     assert resp.status_code == 409
-    assert resp.json()["type"] == "urn:gammamarkets:wallet-mismatch"
+    assert resp.json()["type"] == "urn:infinitemarkets:wallet-mismatch"
 
 
 async def test_relay_config_validation(runtime_env):
@@ -185,7 +185,7 @@ async def test_relay_config_validation(runtime_env):
         headers=await _cookie(runtime_env),
     )
     assert resp.status_code == 422
-    assert resp.json()["type"] == "urn:gammamarkets:invalid-relay"
+    assert resp.json()["type"] == "urn:infinitemarkets:invalid-relay"
 
     # valid wss config replaces the set
     resp = await runtime_env["client"].patch(
@@ -244,12 +244,12 @@ async def test_publish_enqueues_outbox_intents(runtime_env):
     assert resp.json()["state"] == "publication_pending"
 
     # the profile intent must be queued in outbox_events
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         rows = await conn.fetchall(
             "SELECT aggregate_type, event_kind, state "
-            "FROM gammamarkets.outbox_events WHERE merchant_id = :m",
+            "FROM infinitemarkets.outbox_events WHERE merchant_id = :m",
             {"m": mid},
         )
     profile_kinds = {

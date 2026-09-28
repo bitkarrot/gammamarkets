@@ -14,11 +14,11 @@ The user-provided research is an eight-page Chromium/Skia PDF created on 2026-09
 
 ## Evidence Caveat
 
-Baymard-backed checkout guidance is stronger than the secondary design blogs and Perplexity links in the source. The named products are comparative inspiration, not a gammamarkets contract. Checkout field-count guidance is an optimization target rather than a hard limit, particularly for physical shipping.
+Baymard-backed checkout guidance is stronger than the secondary design blogs and Perplexity links in the source. The named products are comparative inspiration, not a infinitemarkets contract. Checkout field-count guidance is an optimization target rather than a hard limit, particularly for physical shipping.
 
 ## LNbits Adaptation
 
-LNbits supplies Vue 3 and Quasar through its base template. gammamarkets should use shared Quasar-compatible shapes and CSS variables instead of adding React, Tailwind, or shadcn solely for aesthetics. The existing `nostrmarket` extension remains useful as a functional and data reference, but its wide tab strip and component coupling are not the information-architecture template.
+LNbits supplies Vue 3 and Quasar through its base template. infinitemarkets should use shared Quasar-compatible shapes and CSS variables instead of adding React, Tailwind, or shadcn solely for aesthetics. The existing `nostrmarket` extension remains useful as a functional and data reference, but its wide tab strip and component coupling are not the information-architecture template.
 
 ## Page Inventory
 

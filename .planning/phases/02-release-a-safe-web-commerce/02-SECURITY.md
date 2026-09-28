@@ -9,7 +9,7 @@ created: "2026-09-27"
 
 # Phase 2 — Security
 
-This is an ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04, plus T-205-01 added when UAT introduced digital delivery. `threats_open: 0` means all 26 specified mitigations were found in the extension and exercised. [Current implementation CI run 36352552899](https://github.com/bitkarrot/gammamarkets/actions/runs/36352552899) passed lint and all four blocking Linux profiles on `021c402`; human UAT passed 3/3, including payment/privacy wording, responsive accessibility, theme isolation and merchant operations. The pinned LNbits source was not changed. Optional public-relay and real-funding-provider interoperability remain outside this Phase 2 sign-off.
+This is an ASVS-1 mitigation review of the 25 threats authored in plans 02-01 through 02-04, plus T-205-01 added when UAT introduced digital delivery. `threats_open: 0` means all 26 specified mitigations were found in the extension and exercised. [Current implementation CI run 36352552899](https://github.com/bitkarrot/infinitemarkets/actions/runs/36352552899) passed lint and all four blocking Linux profiles on `021c402`; human UAT passed 3/3, including payment/privacy wording, responsive accessibility, theme isolation and merchant operations. The pinned LNbits source was not changed. Optional public-relay and real-funding-provider interoperability remain outside this Phase 2 sign-off.
 
 ## Trust Boundaries
 

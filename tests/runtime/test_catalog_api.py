@@ -10,7 +10,7 @@ import pytest
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 
 async def _cookie(runtime_env) -> dict:
@@ -54,11 +54,11 @@ async def _catalog(runtime_env) -> str:
 
 
 async def _outbox(runtime_env, agg_type=None):
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         sql = (
-            "SELECT * FROM gammamarkets.outbox_events WHERE merchant_id = :m"
+            "SELECT * FROM infinitemarkets.outbox_events WHERE merchant_id = :m"
         )
         params = {"m": runtime_env["merchant_id"]}
         if agg_type:
@@ -69,12 +69,12 @@ async def _outbox(runtime_env, agg_type=None):
 
 
 async def _deps(runtime_env, intent_id):
-    from gammamarkets.db import db
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         rows = await conn.fetchall(
             "SELECT depends_on_outbox_event_id AS d "
-            "FROM gammamarkets.outbox_dependencies "
+            "FROM infinitemarkets.outbox_dependencies "
             "WHERE outbox_event_id = :e",
             {"e": intent_id},
         )
@@ -135,7 +135,7 @@ async def test_product_validation_bounds(runtime_env):
             f"{API}/products", json=payload, headers=headers
         )
         assert resp.status_code == 422, payload
-        assert resp.json()["type"].startswith("urn:gammamarkets:")
+        assert resp.json()["type"].startswith("urn:infinitemarkets:")
 
 
 async def test_product_crud_and_outbox_intent(runtime_env):
@@ -378,7 +378,7 @@ async def test_dry_run_deterministic(runtime_env):
     tags = events[0]["tags"]
     tag_keys = [t[0] for t in tags]
     assert "d" in tag_keys and "price" in tag_keys
-    assert ["L", "org.gammamarkets.protocol"] in tags
+    assert ["L", "org.infinitemarkets.protocol"] in tags
     price_tag = next(t for t in tags if t[0] == "price")
     assert price_tag[1] == "1500" or price_tag[1] == "15.00"
     # currency/decimals: amount_minor=1500, decimals=2 -> "15.00" style
@@ -594,7 +594,7 @@ async def test_owner_scoping(runtime_env):
         )
         token = resp.json()["access_token"]
         await c2.put(
-            "/api/v1/extension/gammamarkets/enable",
+            "/api/v1/extension/infinitemarkets/enable",
             headers={
                 "Cookie": f"cookie_access_token={token}",
                 "Origin": ORIGIN,

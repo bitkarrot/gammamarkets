@@ -139,7 +139,7 @@ def test_evidence_pins_block_matches_recorded_values():
 @pytest.mark.parametrize(
     ("needle", "what"),
     [
-        ("5dc79c5", "GammaMarkets market-spec pin"),
+        ("5dc79c5", "Infinitemarkets market-spec pin"),
         (
             "a2494f4f81d46684e5814a9bf35e2b1df978f955",
             "Nostr NIPs pin",

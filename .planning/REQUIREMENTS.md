@@ -1,4 +1,4 @@
-# Requirements: gammamarkets
+# Requirements: infinitemarkets
 
 **Defined:** 2026-09-20
 **Core Value:** A merchant can sell one authoritative inventory safely through LNbits-backed web and Nostr flows without duplicate invoices, double allocation, or relay delivery being mistaken for payment truth.
@@ -18,7 +18,7 @@
 
 - [x] **QUAL-01**: Operator can reproduce the approved host/SDK dependency set on every supported platform from recorded lockfile paths, wheel hashes, release-source revisions, and native dependency provenance without a silent host downgrade.
 - [x] **QUAL-02**: Operator can demonstrate that the tested SDK binary rejects repeated invalid/known-ID events and oversized NIP-44 inputs before trusted processing or unbounded allocation while relay AUTH challenge work remains bounded when signing is paused.
-- [x] **QUAL-03**: Implementer can create/query an LNbits invoice with exact `gammamarkets` extension/external-id/wallet metadata and register/cancel only extension-owned listener/task handles.
+- [x] **QUAL-03**: Implementer can create/query an LNbits invoice with exact `infinitemarkets` extension/external-id/wallet metadata and register/cancel only extension-owned listener/task handles.
 - [x] **QUAL-04**: Implementer can distinguish positive relay OK, negative relay OK, and timeout from deterministic local relays without publishing to an unlisted target.
 - [x] **QUAL-05**: Implementer can build recipient and sender copies of a fixed kind-16 rumor, preserve rumor identity across retry, and reject every tampered outer/seal/rumor chain without plaintext logging.
 - [x] **QUAL-06**: Implementer can prove last-unit reservation atomicity, rollback, FK enforcement, and stale fencing rejection on single-process SQLite and the claimed PostgreSQL topology without an auto-committing helper splitting the transaction.
@@ -29,7 +29,7 @@
 - [x] **QUAL-11**: Operator can resolve a valid local kind-30402 naddr and reject malformed, wrong-kind, and foreign references without fetching embedded relay hints.
 - [x] **QUAL-12**: Operator can reject ID-only/cross-origin admin mutations and secret audit capture while approved bearer/CSRF paths, startup readiness, cancellation cleanup, and request redaction pass on the qualified host.
 - [x] **QUAL-13**: Implementer can prove Decimal units, provider provenance, five-minute freshness, per-component ceiling, and rejection-before-reservation for stale/invalid FX quotes.
-- [x] **QUAL-14**: Implementer can validate that every normative transition, field, route, event fixture, release gate, and `gammamarkets` identifier closes without an undeclared dependency.
+- [x] **QUAL-14**: Implementer can validate that every normative transition, field, route, event fixture, release gate, and `infinitemarkets` identifier closes without an undeclared dependency.
 
 ### Release A — Catalog and Web Commerce
 

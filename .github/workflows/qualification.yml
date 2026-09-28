@@ -1,6 +1,6 @@
 name: qualification
 
-# GammaMarkets conformance-profile qualification (D-01, D-03, D-04, D-09).
+# Infinitemarkets conformance-profile qualification (D-01, D-03, D-04, D-09).
 #
 # Blocking matrix (D-03): Linux x86_64 + Linux ARM64, each with SQLite and
 # PostgreSQL — four profiles that must all pass clean (D-10). macOS ARM64 is

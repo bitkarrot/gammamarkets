@@ -1,4 +1,4 @@
-# Roadmap: gammamarkets
+# Roadmap: infinitemarkets
 
 ## Overview
 
@@ -59,7 +59,7 @@ Plans:
 5. Release-A security, accessibility/contrast, public/admin theme separation, retention, logging, unsupported-topology, failure-drill, and applicable Phase 0 assertions pass through the real implementation.
 
 **Plans:** 4/4 plans complete
-**UI prerequisite:** Before Phase 2 plan execution, generate and approve the Phase 2 UI contract using `.devin/skills/sketch-findings-gammamarkets/` and the normative technical specification. *(Satisfied: `02-UI-SPEC.md` approved.)*
+**UI prerequisite:** Before Phase 2 plan execution, generate and approve the Phase 2 UI contract using `.devin/skills/sketch-findings-infinitemarkets/` and the normative technical specification. *(Satisfied: `02-UI-SPEC.md` approved.)*
 
 Plans:
 
@@ -73,7 +73,7 @@ Plans:
 - [x] 02-03: Checkout, reservation + invoice saga, settlement/reconciliation, order admin API, email
 - [x] 02-04: Buyer checkout/status UI and merchant admin surfaces (orders, catalog, publications, settings, appearance)
 
-**Release gate:** Complete. [Current implementation CI run 36352552899](https://github.com/bitkarrot/gammamarkets/actions/runs/36352552899) passed lint and all four required Linux x86_64/ARM64 × SQLite/PostgreSQL profiles on `021c402`; current local Chromium passed 19/19, human UAT passed 3/3, Nyquist coverage is 16/16 requirements, and the ASVS-1 register is verified with 26/26 threats closed. Port 5099 serves the fresh quote-capable demo; the old disposable database files were preserved but are not mounted. See `02-VERIFICATION.md`, `02-VALIDATION.md`, `02-SECURITY.md`, `02-UI-REVIEW.md` and `02-UAT.md`.
+**Release gate:** Complete. [Current implementation CI run 36352552899](https://github.com/bitkarrot/infinitemarkets/actions/runs/36352552899) passed lint and all four required Linux x86_64/ARM64 × SQLite/PostgreSQL profiles on `021c402`; current local Chromium passed 19/19, human UAT passed 3/3, Nyquist coverage is 16/16 requirements, and the ASVS-1 register is verified with 26/26 threats closed. Port 5099 serves the fresh quote-capable demo; the old disposable database files were preserved but are not mounted. See `02-VERIFICATION.md`, `02-VALIDATION.md`, `02-SECURITY.md`, `02-UI-REVIEW.md` and `02-UAT.md`.
 
 *Plan count revised 3→4 during plan-checker revision: order-backend and UI layers split to keep each executor under the context budget.*
 

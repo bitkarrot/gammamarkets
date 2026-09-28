@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Ship the production `gammamarkets` LNbits extension as the first vertical slice: protected merchant identity/wallet configuration, canonical catalog/inventory/shipping management, deterministic Gamma/NIP-99 publication through a durable outbox with per-relay evidence, a local NIP-89 handler with adaptive buyer checkout, the reservation→invoice→settlement saga, merchant order administration, and per-recipient email — all through the real implementation, on the qualified pins, with the Phase 1 harness kept green as the regression gate. No NIP-17 order intake (Release B), no NIP-15/NIP-04 interop or migration (Release C).
+Ship the production `infinitemarkets` LNbits extension as the first vertical slice: protected merchant identity/wallet configuration, canonical catalog/inventory/shipping management, deterministic Gamma/NIP-99 publication through a durable outbox with per-relay evidence, a local NIP-89 handler with adaptive buyer checkout, the reservation→invoice→settlement saga, merchant order administration, and per-recipient email — all through the real implementation, on the qualified pins, with the Phase 1 harness kept green as the regression gate. No NIP-17 order intake (Release B), no NIP-15/NIP-04 interop or migration (Release C).
 
 </domain>
 
@@ -16,21 +16,21 @@ Ship the production `gammamarkets` LNbits extension as the first vertical slice:
 ### Workflow and Process
 
 - **D-01:** Run a phase researcher before planning. Production runtime code warrants verified host conventions — map the pinned host's extension patterns (route registration, Vue/static asset loading, migrations, lifecycle hooks, CRUD, extension manifest/install mechanics) rather than discovering them during execution. — **Reversibility:** reversible — research output is read-only context.
-- **D-02:** Generate and approve the Phase 2 UI contract **before planning** via the ui-phase step, using `.devin/skills/sketch-findings-gammamarkets/` + `.planning/sketches/` as the guideline and the normative spec as authority. Plans 02-02/02-03 then reference concrete components, themes, and states rather than placeholders. This satisfies the roadmap's "UI prerequisite" ahead of its minimum (before execution). — **Reversibility:** costly — a contract revision after plans are written forces a replan cycle.
-- **D-03:** Production source uses the standard LNbits extension layout inside this repository (`gammamarkets/` package: `__init__.py`, views/API modules, `static/`, `templates/` as needed, migrations), mounted into the pinned host's extension directory for development and UAT. — **Reversibility:** costly — relocating the package after migrations/routes exist touches imports, manifest, and docs.
+- **D-02:** Generate and approve the Phase 2 UI contract **before planning** via the ui-phase step, using `.devin/skills/sketch-findings-infinitemarkets/` + `.planning/sketches/` as the guideline and the normative spec as authority. Plans 02-02/02-03 then reference concrete components, themes, and states rather than placeholders. This satisfies the roadmap's "UI prerequisite" ahead of its minimum (before execution). — **Reversibility:** costly — a contract revision after plans are written forces a replan cycle.
+- **D-03:** Production source uses the standard LNbits extension layout inside this repository (`infinitemarkets/` package: `__init__.py`, views/API modules, `static/`, `templates/` as needed, migrations), mounted into the pinned host's extension directory for development and UAT. — **Reversibility:** costly — relocating the package after migrations/routes exist touches imports, manifest, and docs.
 - **D-04 (owner directive, 2026-09-20):** The admin interface must be intuitive — the reference anti-pattern is the legacy nostrmarket flow, which forced merchants through a separate `nostrclient` extension and felt clunky/complicated. Consequences already implied by the spec and now explicit: no dependency on any other extension (own transport, own settings surface), single self-contained admin area, sensible defaults, minimal setup steps, and every operation reachable without Nostr expertise. Binding on 02-04's B-surface work. — **Reversibility:** cheap — a UX bar, not an architecture change.
 
 ### Carried Forward (unchanged — no re-litigation)
 
 - All 16 Phase-1 decisions (D-01..D-16): pins, Python 3.12, Linux x86_64/ARM64 blocking matrix, permanent harness, single-run clean-pass, evidence discipline, SDK fallback ladder, extension-checks-as-defense-in-depth.
-- Frozen identifiers (spec decision 25): package `gammamarkets`, `/gammamarkets` route prefix, `/gammamarkets/api/v1`, `gammamarkets_start`/`_stop` hooks, `GAMMAMARKETS_` env prefix, `gammamarkets:` payment correlation, `gammamarkets` AAD prefix, `org.gammamarkets.protocol` NIP-32 namespace.
+- Frozen identifiers (spec decision 25): package `infinitemarkets`, `/infinitemarkets` route prefix, `/infinitemarkets/api/v1`, `infinitemarkets_start`/`_stop` hooks, `INFINITEMARKETS_` env prefix, `infinitemarkets:` payment correlation, `infinitemarkets` AAD prefix, `org.infinitemarkets.protocol` NIP-32 namespace.
 - Spec decisions register 1–29 (§21) in full — including 1:1 merchant per user, manual payment_preference, local-only drafts, SQLite single-process / PostgreSQL multi-worker topology, order bearer tokens never in path/query, host-SMTP boolean boundary, and refund-as-attestation.
 - UI findings: Adaptive Blend checkout (Editorial/Guided/Compact presets + compact mobile fallback, invariant checkout semantics), Linear Split admin workspace (list/detail + embedded chronology), Tiered Controls themes (Warm Market default / Clean Minimal / High Contrast + bounded Brand Basics + guarded Advanced Tokens), public theme never styles admin or alters checkout semantics, Vue/Quasar-compatible primitives only (no React/Tailwind/shadcn).
 - Dependabot disposition recorded in `PINS.md` §5: extension code uses JSON-only request bodies, `APIRouter` only (no `HTTPEndpoint` subclassing), no `FileResponse`/`StaticFiles`, and never derives security decisions or absolute URLs from `request.url`/Host.
 
 ### Claude's Discretion
 
-- Exact file/module decomposition inside the `gammamarkets/` package, mount mechanics into the host (symlink vs extension-path), and local dev-loop tooling — resolved from pinned-host conventions during research/planning.
+- Exact file/module decomposition inside the `infinitemarkets/` package, mount mechanics into the host (symlink vs extension-path), and local dev-loop tooling — resolved from pinned-host conventions during research/planning.
 - Test layout and fixtures for the runtime implementation beyond what §17 and the Phase 1 harness already mandate.
 - Migration framework mechanics consistent with LNbits extension conventions.
 - CI workflow changes needed to run runtime tests in the existing blocking matrix (the harness suite must stay green — D-05).
@@ -55,9 +55,9 @@ Ship the production `gammamarkets` LNbits extension as the first vertical slice:
 
 ### UI Findings (binding for presentation layer)
 
-- `.devin/skills/sketch-findings-gammamarkets/SKILL.md` + `references/buyer-experience.md`, `references/merchant-operations.md`, `references/theme-system.md` — validated UI decisions and constraints.
+- `.devin/skills/sketch-findings-infinitemarkets/SKILL.md` + `references/buyer-experience.md`, `references/merchant-operations.md`, `references/theme-system.md` — validated UI decisions and constraints.
 - `.planning/sketches/` — raw sketch sources: `001-buyer-checkout/`, `002-order-operations/`, `003-theme-controls/`, `MANIFEST.md`, `UI-RESEARCH.md`, `WRAP-UP-SUMMARY.md`, `themes/` presets.
-- `.devin/skills/sketch-findings-gammamarkets/sources/themes/` — `default.css` (Warm Market), `clean-minimal.css`, `high-contrast.css` preset sources.
+- `.devin/skills/sketch-findings-infinitemarkets/sources/themes/` — `default.css` (Warm Market), `clean-minimal.css`, `high-contrast.css` preset sources.
 
 ### Project Scope
 
@@ -84,13 +84,13 @@ Ship the production `gammamarkets` LNbits extension as the first vertical slice:
 ### Established Patterns
 
 - Host serializes connections per `Database` object; concurrent work uses separate handles (per `QualWorker` model). PG queue claims: lock-select→update→fetch in one tx (SQLAlchemy 1.4+asyncpg limitation); idempotent inserts via `ON CONFLICT DO NOTHING`; SQLite `BEGIN IMMEDIATE`.
-- Payment correlation `gammamarkets:` external_id, payment projection separate from settlement truth; relay ACKs are durable append-only evidence, never payment truth.
+- Payment correlation `infinitemarkets:` external_id, payment projection separate from settlement truth; relay ACKs are durable append-only evidence, never payment truth.
 - Durable publication evidence split from fenced outcome write (§8.6 crash point model).
 - No raw secrets in logs; request redaction (X-Order-Token pattern); single-run clean-pass test policy.
 
 ### Integration Points
 
-- LNbits extension loader + `gammamarkets_start`/`gammamarkets_stop` lifecycle hooks.
+- LNbits extension loader + `infinitemarkets_start`/`infinitemarkets_stop` lifecycle hooks.
 - Host `db.py` extension boundary; `task_manager` invoice listener/owned tasks; `create_invoice` (keyword-only); host exchange-rate provider (FX adapter boundary); host SMTP `send_email` (boolean boundary).
 - `nostr-sdk` 0.44.8 direct transport: `gift_wrap`/`nip44_*`, `send_event_to`/`send_private_msg_to`/`send_msg_to` targeted sends, `SendEventOutput` per-relay output, `Nip19Coordinate` naddr parsing, `LocalRelay`/`WebSocketAdapterWrapper` for tests.
 

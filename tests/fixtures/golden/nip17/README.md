@@ -28,7 +28,7 @@ re-qualification.
 
     uv run python tests/fixtures/golden/generate_fixtures.py
 
-Recorded seed/inputs: keys = `sha256("gammamarkets-qual:<role>")` for roles
+Recorded seed/inputs: keys = `sha256("infinitemarkets-qual:<role>")` for roles
 `buyer`/`merchant`; rumor `created_at` = 1750000000; order external id =
 `gq-order-01`; product d = `gq-prod-0001`.
 

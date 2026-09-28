@@ -15,7 +15,7 @@ import pytest
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 REQUIRED_HEADERS = {
     "cache-control": "no-store",
@@ -95,7 +95,7 @@ async def test_product_page_headers_and_scoping(runtime_env):
     _, product = await _catalog_and_product(runtime_env)
 
     resp = await client.get(
-        f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}"
+        f"/infinitemarkets/p/{merchant['pubkey']}/{product['d_tag']}"
     )
     assert resp.status_code == 200
     _assert_public_headers(resp)
@@ -117,14 +117,14 @@ async def test_prices_render_in_major_units(runtime_env):
         runtime_env, amount_minor=2500, currency="SAT", currency_decimals=0,
     )
 
-    usd_page = await client.get(f"/gammamarkets/p/{merchant['pubkey']}/{usd['d_tag']}")
+    usd_page = await client.get(f"/infinitemarkets/p/{merchant['pubkey']}/{usd['d_tag']}")
     assert "15.00 USD" in usd_page.text
     assert "1500 USD" not in usd_page.text
-    sat_page = await client.get(f"/gammamarkets/p/{merchant['pubkey']}/{sat['d_tag']}")
+    sat_page = await client.get(f"/infinitemarkets/p/{merchant['pubkey']}/{sat['d_tag']}")
     assert "2,500 sats" in sat_page.text
     assert "2500 SAT" not in sat_page.text
 
-    storefront = await client.get(f"/gammamarkets/public/merchants/{merchant['pubkey']}")
+    storefront = await client.get(f"/infinitemarkets/public/merchants/{merchant['pubkey']}")
     assert "15.00 USD" in storefront.text
     assert "2,500 sats" in storefront.text
     assert "1500 USD" not in storefront.text
@@ -140,7 +140,7 @@ async def test_product_gallery_exposes_all_supported_images(runtime_env):
     _, product = await _catalog_and_product(runtime_env, format="digital", images=images)
 
     resp = await client.get(
-        f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}"
+        f"/infinitemarkets/p/{merchant['pubkey']}/{product['d_tag']}"
     )
     assert resp.status_code == 200
     assert resp.text.count('data-gallery-src=') == 16
@@ -169,7 +169,7 @@ async def test_collection_and_merchant_pages(runtime_env):
     )
 
     resp = await client.get(
-        f"/gammamarkets/public/collections/{merchant['pubkey']}/"
+        f"/infinitemarkets/public/collections/{merchant['pubkey']}/"
         f"{collection['d_tag']}"
     )
     assert resp.status_code == 200
@@ -177,7 +177,7 @@ async def test_collection_and_merchant_pages(runtime_env):
     assert "Featured" in resp.text
 
     resp = await client.get(
-        f"/gammamarkets/public/merchants/{merchant['pubkey']}"
+        f"/infinitemarkets/public/merchants/{merchant['pubkey']}"
     )
     assert resp.status_code == 200
     _assert_public_headers(resp)
@@ -185,9 +185,9 @@ async def test_collection_and_merchant_pages(runtime_env):
     # Storefront index: the on-sale product card + collection link render
     # (draft/hidden/variation rows are filtered server-side).
     assert product["title"] in resp.text
-    assert f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}" in resp.text
+    assert f"/infinitemarkets/p/{merchant['pubkey']}/{product['d_tag']}" in resp.text
     assert (
-        f"/gammamarkets/public/collections/{merchant['pubkey']}/"
+        f"/infinitemarkets/public/collections/{merchant['pubkey']}/"
         f"{collection['d_tag']}" in resp.text
     )
 
@@ -220,7 +220,7 @@ async def test_hidden_and_sold_and_preorder_states(runtime_env):
     # hidden product
     _, hidden = await _catalog_and_product(runtime_env, visibility="hidden")
     resp = await client.get(
-        f"/gammamarkets/p/{merchant['pubkey']}/{hidden['d_tag']}"
+        f"/infinitemarkets/p/{merchant['pubkey']}/{hidden['d_tag']}"
     )
     assert "This product is not available." in resp.text
 
@@ -229,7 +229,7 @@ async def test_hidden_and_sold_and_preorder_states(runtime_env):
         runtime_env, visibility="pre-order"
     )
     resp = await client.get(
-        f"/gammamarkets/p/{merchant['pubkey']}/{preorder['d_tag']}"
+        f"/infinitemarkets/p/{merchant['pubkey']}/{preorder['d_tag']}"
     )
     assert "Pre-order — purchasing opens later." in resp.text
     assert "btn-buy" not in resp.text
@@ -237,7 +237,7 @@ async def test_hidden_and_sold_and_preorder_states(runtime_env):
     # sold via stock exhaustion
     _, sold = await _catalog_and_product(runtime_env, stock_on_hand=0)
     resp = await client.get(
-        f"/gammamarkets/p/{merchant['pubkey']}/{sold['d_tag']}"
+        f"/infinitemarkets/p/{merchant['pubkey']}/{sold['d_tag']}"
     )
     assert "Sold out" in resp.text
 
@@ -246,7 +246,7 @@ async def test_not_found_and_invalid_d_tag(runtime_env):
     client = runtime_env["client"]
     merchant = await _merchant(runtime_env)
     resp = await client.get(
-        f"/gammamarkets/p/{merchant['pubkey']}/deadbeef00"
+        f"/infinitemarkets/p/{merchant['pubkey']}/deadbeef00"
     )
     assert resp.status_code == 404
     assert "not valid here" in resp.text or "not available" in resp.text
@@ -257,7 +257,7 @@ async def test_compact_fallback_and_gm_public_css(runtime_env):
     stylesheet/js assets serve from the extension's static mount."""
     client = runtime_env["client"]
     css = await client.get(
-        "/gammamarkets/static/gammamarkets/css/gm-public.css"
+        "/infinitemarkets/static/infinitemarkets/css/gm-public.css"
     )
     assert css.status_code == 200
     assert ".gm-public" in css.text
@@ -265,14 +265,14 @@ async def test_compact_fallback_and_gm_public_css(runtime_env):
         "compact mobile fallback breakpoint missing"
     )
     js = await client.get(
-        "/gammamarkets/static/gammamarkets/js/public_storefront.js"
+        "/infinitemarkets/static/infinitemarkets/js/public_storefront.js"
     )
     assert js.status_code == 200
     assert "history.replaceState" in js.text
     # The checkout module (split from the shared helpers in 02-04) owns
     # the Idempotency-Key contract.
     checkout_js = await client.get(
-        "/gammamarkets/static/gammamarkets/js/public_checkout.js"
+        "/infinitemarkets/static/infinitemarkets/js/public_checkout.js"
     )
     assert checkout_js.status_code == 200
     assert "Idempotency-Key" in checkout_js.text
@@ -281,7 +281,7 @@ async def test_compact_fallback_and_gm_public_css(runtime_env):
 async def test_order_page_shell(runtime_env):
     """The A3 shell renders and carries the fragment-strip contract."""
     client = runtime_env["client"]
-    resp = await client.get("/gammamarkets/order")
+    resp = await client.get("/infinitemarkets/order")
     assert resp.status_code == 200
     _assert_public_headers(resp)
     assert "gm-public" in resp.text

@@ -3,14 +3,14 @@
 Unlike the qualification probes (which mount fixture routers inside a host
 app), these tests exercise the actual extension lifecycle:
 
-    LNBITS_EXTENSIONS_PATH/extensions/gammamarkets/config.json
+    LNBITS_EXTENSIONS_PATH/extensions/infinitemarkets/config.json
         -> build_all_installed_extensions_list (from_ext_dir)
         -> migrate_extension_database (m001)
-        -> register_ext_routes (imports ``gammamarkets``)
-        -> register_ext_tasks (calls ``gammamarkets_start`` synchronously)
+        -> register_ext_routes (imports ``infinitemarkets``)
+        -> register_ext_tasks (calls ``infinitemarkets_start`` synchronously)
 
 The extension directory is a symlink to the repo package — same files, real
-loader. ``GAMMAMARKETS_*`` env is set before the lifespan startup so the
+loader. ``INFINITEMARKETS_*`` env is set before the lifespan startup so the
 sync start hook's strict validation passes.
 """
 
@@ -29,7 +29,7 @@ import pytest
 import pytest_asyncio
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PKG_DIR = REPO_ROOT / "gammamarkets"
+PKG_DIR = REPO_ROOT / "infinitemarkets"
 
 CANONICAL_ORIGIN = "https://shop.example"
 
@@ -50,31 +50,31 @@ async def _isolated_postgres_schema():
         return
     async with core_db.connect() as conn:
         existing = await conn.fetchone(
-            "SELECT nspname FROM pg_namespace WHERE nspname = 'gammamarkets'"
+            "SELECT nspname FROM pg_namespace WHERE nspname = 'infinitemarkets'"
         )
     if existing:
         raise RuntimeError(
-            "Runtime tests require a disposable database without a gammamarkets schema"
+            "Runtime tests require a disposable database without a infinitemarkets schema"
         )
     try:
         yield
     finally:
-        module = sys.modules.get("gammamarkets.db")
+        module = sys.modules.get("infinitemarkets.db")
         if module is not None:
             await module.db.engine.dispose()
         async with core_db.connect() as conn:
-            await conn.execute("DROP SCHEMA IF EXISTS gammamarkets CASCADE")
+            await conn.execute("DROP SCHEMA IF EXISTS infinitemarkets CASCADE")
 
 _EXT_ENV = {
-    "GAMMAMARKETS_MASTER_KEYS": json.dumps(
+    "INFINITEMARKETS_MASTER_KEYS": json.dumps(
         {"v1": base64.b64encode(b"k" * 32).decode()}
     ),
-    "GAMMAMARKETS_ACTIVE_KEY_VERSION": "v1",
-    "GAMMAMARKETS_PRIVACY_KEY": base64.b64encode(b"p" * 32).decode(),
-    "GAMMAMARKETS_PUBLIC_BASE_URL": CANONICAL_ORIGIN,
+    "INFINITEMARKETS_ACTIVE_KEY_VERSION": "v1",
+    "INFINITEMARKETS_PRIVACY_KEY": base64.b64encode(b"p" * 32).decode(),
+    "INFINITEMARKETS_PUBLIC_BASE_URL": CANONICAL_ORIGIN,
     # Never dial real relays from a host-boot test — workers stay live
     # (claim/evidence paths exercised) but the transport never connects.
-    "GAMMAMARKETS_RELAY_IO": "off",
+    "INFINITEMARKETS_RELAY_IO": "off",
 }
 
 _RUNTIME_SETTINGS_KEYS = (
@@ -84,7 +84,7 @@ _RUNTIME_SETTINGS_KEYS = (
     "lnbits_extensions_deactivate_all",
     "lnbits_admin_ui",
     "first_install",
-    # OQ3 qualified posture: audit capture off for gammamarkets tests
+    # OQ3 qualified posture: audit capture off for infinitemarkets tests
     "lnbits_audit_log_request_body",
     "lnbits_audit_log_query_params",
     "lnbits_audit_log_path_params",
@@ -97,7 +97,7 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
 
     Mirrors harness.host.host_app (chdir into the checkout, FakeWallet,
     isolated data folder) but with ``lnbits_extensions_path`` pointed at a
-    tmp dir whose ``extensions/gammamarkets`` is a symlink to the repo
+    tmp dir whose ``extensions/infinitemarkets`` is a symlink to the repo
     package, and ``lnbits_extensions_deactivate_all = False`` so the real
     restore/registration path activates the extension.
     """
@@ -115,7 +115,7 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
 
     extensions_dir = ext_root / "extensions"
     extensions_dir.mkdir(parents=True)
-    link = extensions_dir / "gammamarkets"
+    link = extensions_dir / "infinitemarkets"
     if not link.exists():
         link.symlink_to(PKG_DIR, target_is_directory=True)
 
@@ -135,11 +135,11 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
     # binds the SQLite path at construction, and the host's migration loader
     # uses whatever module object is in sys.modules. Purge any earlier
     # import so the boot binds this run's data folder.
-    for mod in [m for m in sys.modules if m == "gammamarkets" or m.startswith("gammamarkets.")]:
+    for mod in [m for m in sys.modules if m == "infinitemarkets" or m.startswith("infinitemarkets.")]:
         del sys.modules[mod]
 
     # The core DB (.cache/qual-data) is shared across boots: prior runs leave
-    # installed_extensions/dbversions/extensions rows for gammamarkets while
+    # installed_extensions/dbversions/extensions rows for infinitemarkets while
     # this boot's ext DB file is fresh. Reset BEFORE startup so the boot is
     # a real fresh install through the host's own restore path.
     from lnbits.core.db import db as core_db
@@ -156,17 +156,17 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
         if exists:
             await conn.execute(
                 "DELETE FROM installed_extensions WHERE id = :id",
-                {"id": "gammamarkets"},
+                {"id": "infinitemarkets"},
             )
             await conn.execute(
-                "DELETE FROM dbversions WHERE db = :id", {"id": "gammamarkets"}
+                "DELETE FROM dbversions WHERE db = :id", {"id": "infinitemarkets"}
             )
             await conn.execute(
                 'DELETE FROM extensions WHERE extension = :id',
-                {"id": "gammamarkets"},
+                {"id": "infinitemarkets"},
             )
-    settings.lnbits_installed_extensions_ids.discard("gammamarkets")
-    settings.lnbits_deactivated_extensions.discard("gammamarkets")
+    settings.lnbits_installed_extensions_ids.discard("infinitemarkets")
+    settings.lnbits_deactivated_extensions.discard("infinitemarkets")
 
     os.chdir(host_checkout_dir())
     try:
@@ -209,7 +209,7 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
                     "lnbits_audit_log_path_params": False,
                 }
             )
-            ext_module = importlib.import_module("gammamarkets")
+            ext_module = importlib.import_module("infinitemarkets")
             if ext_module.started_at is None:
                 await check_and_register_extensions(app)
             yield app
@@ -226,11 +226,11 @@ async def _runtime_app(data_folder: Path, ext_root: Path):
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session")
 async def keystore_env(tmp_path_factory):
-    """Fresh gammamarkets module set with all runtime migrations applied.
+    """Fresh infinitemarkets module set with all runtime migrations applied.
 
     ``Database.__init__`` binds ``settings.lnbits_data_folder`` at import
-    time, so any ``gammamarkets`` module imported earlier (e.g. at test
-    collection) holds a stale path. The fixture purges ``gammamarkets*``
+    time, so any ``infinitemarkets`` module imported earlier (e.g. at test
+    collection) holds a stale path. The fixture purges ``infinitemarkets*``
     modules, sets the folder, then imports db/keystore fresh — tests MUST
     take ``MerchantKeyStore`` from the yielded namespace, not a module-level
     import.
@@ -246,15 +246,15 @@ async def keystore_env(tmp_path_factory):
     settings.lnbits_data_folder = str(folder)
     for mod in [
         m for m in sys.modules
-        if m == "gammamarkets" or m.startswith("gammamarkets.")
+        if m == "infinitemarkets" or m.startswith("infinitemarkets.")
     ]:
         del sys.modules[mod]
     try:
-        gdb = importlib.import_module("gammamarkets.db")
-        keystore = importlib.import_module("gammamarkets.keystore")
-        crypto = importlib.import_module("gammamarkets.crypto")
-        gsettings = importlib.import_module("gammamarkets.settings")
-        from gammamarkets.migrations import m001_initial, m002_orders, m003_checkout_safety
+        gdb = importlib.import_module("infinitemarkets.db")
+        keystore = importlib.import_module("infinitemarkets.keystore")
+        crypto = importlib.import_module("infinitemarkets.crypto")
+        gsettings = importlib.import_module("infinitemarkets.settings")
+        from infinitemarkets.migrations import m001_initial, m002_orders, m003_checkout_safety
 
         async with gdb.db.connect() as conn:
             await m001_initial(conn)
@@ -317,7 +317,7 @@ async def runtime_env(tmp_path_factory):
             # Per-user enablement: the host gates extension routes on the
             # user's active extension list (extension not enabled -> 403).
             resp = await client.put(
-                "/api/v1/extension/gammamarkets/enable",
+                "/api/v1/extension/infinitemarkets/enable",
                 headers={
                     "Cookie": f"cookie_access_token={token}",
                     "Origin": CANONICAL_ORIGIN,
@@ -331,7 +331,7 @@ async def runtime_env(tmp_path_factory):
                 0, str(tmp / "extroot" / "extensions")
             )
             try:
-                ext_module = importlib.import_module("gammamarkets")
+                ext_module = importlib.import_module("infinitemarkets")
             finally:
                 sys.path.remove(str(tmp / "extroot" / "extensions"))
             yield {

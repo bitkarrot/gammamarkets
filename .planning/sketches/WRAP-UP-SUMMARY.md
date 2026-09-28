@@ -3,7 +3,7 @@
 **Date:** 2026-09-20
 **Sketches processed:** 3
 **Design areas:** Buyer Experience & Responsive Checkout; Merchant Operations & Audit; Theme System & Guardrails
-**Skill output:** `.devin/skills/sketch-findings-gammamarkets/`
+**Skill output:** `.devin/skills/sketch-findings-infinitemarkets/`
 
 ## Included Sketches
 

@@ -93,7 +93,7 @@ test('digital checkout creates a Lightning invoice', async ({page}) => {
     (window as unknown as {GM: {statusUrl(): string}}).GM.statusUrl()
   )
   // Token only in the fragment; the optional query is the public shop id.
-  expect(statusUrl).toMatch(/\/gammamarkets\/order(\?shop=[0-9a-f]{64})?#[A-Za-z0-9_-]{43}$/)
+  expect(statusUrl).toMatch(/\/infinitemarkets\/order(\?shop=[0-9a-f]{64})?#[A-Za-z0-9_-]{43}$/)
   expect(new URL(statusUrl).search).not.toContain(new URL(statusUrl).hash.slice(1))
 })
 
@@ -158,7 +158,7 @@ test('invalid order token shows identical dead-link copy', async ({
   page
 }) => {
   await page.goto(
-    `${seed.base_url}/gammamarkets/order#not-a-real-token-e2e-000`
+    `${seed.base_url}/infinitemarkets/order#not-a-real-token-e2e-000`
   )
   await expect(page.locator('#gm-order-state')).toContainText(
     'This order link is no longer valid.'
@@ -249,7 +249,7 @@ test('checkout retries preserve uncertain requests but allow corrected rejection
   await page.route('**/api/v1/public/checkout', async route => {
     requests.push({key: route.request().headers()['idempotency-key'], body: route.request().postData()})
     await route.fulfill({status: 422, contentType: 'application/problem+json', body: JSON.stringify({
-      type: 'urn:gammamarkets:fx-unavailable', title: 'Price conversion unavailable'
+      type: 'urn:infinitemarkets:fx-unavailable', title: 'Price conversion unavailable'
     })})
   })
   await page.goto(seed.digital_url)

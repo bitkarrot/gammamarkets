@@ -1,4 +1,4 @@
-# gammamarkets — Architecture Overview (as built)
+# infinitemarkets — Architecture Overview (as built)
 
 **Status:** Implementation-state document for Release A. It describes what is
 actually wired today. `technical-specification.md` remains the normative
@@ -12,7 +12,7 @@ implemented.
 ```
                                 ┌────────────────── LNbits host ───────────────────┐
                                 │                                                  │
-   Browser (merchant)           │   ┌─────────────── gammamarkets ───────────────┐ │
+   Browser (merchant)           │   ┌─────────────── infinitemarkets ───────────────┐ │
    ┌────────────────┐           │   │                                            │ │
    │ Admin SPA      │──session──┼──►│ Admin API  /api/v1/*                       │ │
    │ (Vue3/Quasar)  │  cookie   │   │  (check_user_exists → LNbits user)         │ │
@@ -110,7 +110,7 @@ endpoints are merchant-configurable but config-only today (no uploads yet).
 ## 3. How listings and orders flow within LNbits
 
 **Catalog.** Merchant edits via the admin API → validated DTOs → extension
-tables (same LNbits DB file, `gammamarkets_*` tables) → outbox intents →
+tables (same LNbits DB file, `infinitemarkets_*` tables) → outbox intents →
 signed NIP-99 events to relays. The database is authoritative; relay events
 are projections of it. Nostr clients read the relay copies; buyers read the
 public pages/API, which serve public-safe projections (`nip89.py` filters out

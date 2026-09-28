@@ -1,7 +1,7 @@
 """DomainTransaction adapter tests (plan 02-01 Task 1).
 
 Covers the section-14 transaction contract without a host boot: a fresh
-``Database("ext_gammamarkets")`` bound to a tmp data folder, m001 applied,
+``Database("ext_infinitemarkets")`` bound to a tmp data folder, m001 applied,
 then BEGIN IMMEDIATE commit/rollback/serialization semantics through the
 adapter.
 """
@@ -34,8 +34,8 @@ async def ext_db(tmp_path_factory):
     previous = settings.lnbits_data_folder
     settings.lnbits_data_folder = str(folder)
     try:
-        database = Database("ext_gammamarkets")
-        from gammamarkets.migrations import m001_initial
+        database = Database("ext_infinitemarkets")
+        from infinitemarkets.migrations import m001_initial
 
         async with database.connect() as conn:
             await m001_initial(conn)
@@ -45,7 +45,7 @@ async def ext_db(tmp_path_factory):
 
 
 async def test_commit_persists(ext_db):
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction(ext_db) as tx:
         await tx.execute(
@@ -56,7 +56,7 @@ async def test_commit_persists(ext_db):
         )
     async with ext_db.connect() as conn:
         row = await conn.fetchone(
-            "SELECT * FROM gammamarkets.task_leases WHERE name = :n",
+            "SELECT * FROM infinitemarkets.task_leases WHERE name = :n",
             {"n": "t-commit"},
         )
     assert row is not None
@@ -64,7 +64,7 @@ async def test_commit_persists(ext_db):
 
 
 async def test_rollback_discards(ext_db):
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     class Boom(Exception):
         pass
@@ -81,7 +81,7 @@ async def test_rollback_discards(ext_db):
 
     async with ext_db.connect() as conn:
         row = await conn.fetchone(
-            "SELECT * FROM gammamarkets.task_leases WHERE name = :n",
+            "SELECT * FROM infinitemarkets.task_leases WHERE name = :n",
             {"n": "t-rollback"},
         )
     assert row is None
@@ -89,11 +89,11 @@ async def test_rollback_discards(ext_db):
 
 async def test_fencing_update_inside_tx(ext_db):
     """Read-modify-write inside one transaction — the claim pattern."""
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with ext_db.connect() as conn:
         await conn.execute(
-            "INSERT INTO gammamarkets.task_leases "
+            "INSERT INTO infinitemarkets.task_leases "
             "(name, holder_id, fencing_token, leased_until, updated_at) "
             "VALUES (:name, :h, 0, 0, 0)",
             {"name": "t-fence", "h": "w0"},
@@ -115,7 +115,7 @@ async def test_fencing_update_inside_tx(ext_db):
 
     async with ext_db.connect() as conn:
         row = await conn.fetchone(
-            "SELECT * FROM gammamarkets.task_leases WHERE name = :n",
+            "SELECT * FROM infinitemarkets.task_leases WHERE name = :n",
             {"n": "t-fence"},
         )
     assert row["fencing_token"] == 1
@@ -128,14 +128,14 @@ async def test_concurrent_writers_serialize(ext_db):
     from lnbits.db import Database
     from lnbits.settings import settings
 
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     # Second handle over the same file (per-worker pattern).
     folder = Path(ext_db.path).parent if hasattr(ext_db, "path") else settings.lnbits_data_folder
     previous = settings.lnbits_data_folder
     settings.lnbits_data_folder = str(folder)
     try:
-        other = Database("ext_gammamarkets")
+        other = Database("ext_infinitemarkets")
     finally:
         settings.lnbits_data_folder = previous
 
@@ -154,7 +154,7 @@ async def test_concurrent_writers_serialize(ext_db):
     )
     async with ext_db.connect() as conn:
         rows = await conn.fetchall(
-            "SELECT name FROM gammamarkets.task_leases "
+            "SELECT name FROM infinitemarkets.task_leases "
             "WHERE name IN ('t-a', 't-b')"
         )
     assert {r["name"] for r in rows} == {"t-a", "t-b"}
@@ -162,7 +162,7 @@ async def test_concurrent_writers_serialize(ext_db):
 
 async def test_fk_enforced_inside_tx(ext_db):
     """PRAGMA foreign_keys=ON applies on the raw transaction connection."""
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async def bad_insert():
         async with DomainTransaction(ext_db) as tx:
@@ -177,13 +177,13 @@ async def test_fk_enforced_inside_tx(ext_db):
 
 
 async def test_domain_transaction_allows_separate_read_connection(ext_db):
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async def transaction_with_read():
         async with DomainTransaction(ext_db) as tx:
             await tx.fetch_one(f"SELECT COUNT(*) AS n FROM {tx.table('task_leases')}")
             async with ext_db.connect() as conn:
-                row = await conn.fetchone("SELECT COUNT(*) AS n FROM gammamarkets.task_leases")
+                row = await conn.fetchone("SELECT COUNT(*) AS n FROM infinitemarkets.task_leases")
             assert row["n"] >= 0
 
     await asyncio.wait_for(transaction_with_read(), timeout=3)
@@ -196,7 +196,7 @@ async def test_cancelled_transaction_entry_releases_sqlite_lock(ext_db, monkeypa
         pytest.skip("SQLite-specific BEGIN IMMEDIATE cancellation drill")
     import aiosqlite
 
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     execute = aiosqlite.Connection.execute
 
@@ -216,8 +216,8 @@ async def test_cancelled_transaction_entry_releases_sqlite_lock(ext_db, monkeypa
 
 
 async def test_checkout_safety_upgrade_preserves_financial_values(ext_db):
-    from gammamarkets.db import DomainTransaction
-    from gammamarkets.migrations import m002_orders, m003_checkout_safety
+    from infinitemarkets.db import DomainTransaction
+    from infinitemarkets.migrations import m002_orders, m003_checkout_safety
 
     async with ext_db.connect() as conn:
         await m002_orders(conn)

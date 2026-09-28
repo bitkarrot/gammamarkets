@@ -26,14 +26,14 @@
   payment projection BEFORE the wallet call, invoice attach in a second
   tx, `creation_unknown` never retries the external call).
 - `services/settlement.py` — self-filtered invoice listener
-  (extension tag + `gammamarkets:` external id), §8.3 verification
+  (extension tag + `infinitemarkets:` external id), §8.3 verification
   (amount/wallet/hash/expiry correlation — mismatches quarantine with
   bounded reasons, never confirm), idempotent `confirm_settlement`,
   §8.4 expiry + late-settlement exception, §8.7 reconcile (resume
   `received`, attach `creating`/`creation_unknown`, confirm settled,
   expire failed), merchant exception resolution
   (accept | refund | confirm-refund — refund is attestation-only, the
-  response says gammamarkets cannot verify outgoing payments), §11.3
+  response says infinitemarkets cannot verify outgoing payments), §11.3
   retention pruner.
 - `services/email.py` — §8.8 worker: claim-token CAS, suppression
   taxonomy (`host-email-unconfigured`, `email-disabled`,
@@ -121,4 +121,4 @@ indistinguishable token failures, protective headers, rate windows,
 end-to-end journey with FakeWallet settlement).
 
 Not verified: PostgreSQL `SKIP LOCKED` variants (CI exercises them);
-real external relay delivery (out of scope — `GAMMAMARKETS_RELAY_IO=off`).
+real external relay delivery (out of scope — `INFINITEMARKETS_RELAY_IO=off`).

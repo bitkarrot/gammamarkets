@@ -23,7 +23,7 @@ test.beforeEach(async ({context}) => {
 })
 
 test('admin shell mounts with all four surfaces', async ({page}) => {
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   await expect(page.locator('#gm-admin-root')).toBeVisible()
   for (const nav of ['orders', 'catalog', 'publications', 'settings']) {
     await expect(page.locator(`[data-gm-nav="${nav}"]`)).toBeVisible()
@@ -40,7 +40,7 @@ test('orders workspace lists the seeded order + detail pane', async ({
   // Create a fresh order first — accumulated rows settle/expire over
   // time, so no prior state can be relied on for the legal-action check.
   const checkout = await page.request.post(
-    '/gammamarkets/api/v1/public/checkout',
+    '/infinitemarkets/api/v1/public/checkout',
     {
       headers: {
         'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID(),
@@ -54,7 +54,7 @@ test('orders workspace lists the seeded order + detail pane', async ({
   )
   expect(checkout.status()).toBe(201)
 
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   await expect(
     page.locator('[placeholder="Search order or buyer"]')
   ).toBeVisible({timeout: 20_000})
@@ -80,17 +80,17 @@ test('orders workspace lists the seeded order + detail pane', async ({
 })
 
 test('closed orders can be selected, archived, and restored', async ({page, request}) => {
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   await expect(page.locator('[placeholder="Search order or buyer"]')).toBeVisible({
     timeout: 20_000
   })
   const cookies = await page.context().cookies()
   const csrf = cookies.find(cookie => cookie.name === 'gm_csrf')?.value || ''
   const headers = {Origin: seed.base_url, 'X-CSRF-Token': csrf}
-  const ordersUrl = `/gammamarkets/api/v1/merchants/${seed.merchant_id}/orders`
+  const ordersUrl = `/infinitemarkets/api/v1/merchants/${seed.merchant_id}/orders`
   const before = await page.request.get(ordersUrl)
   const beforeIds = new Set((await before.json()).map((order: {id: string}) => order.id))
-  const checkout = await page.request.post('/gammamarkets/api/v1/public/checkout', {
+  const checkout = await page.request.post('/infinitemarkets/api/v1/public/checkout', {
     headers: {
       'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID(),
       Origin: seed.base_url
@@ -149,7 +149,7 @@ test('closed orders can be selected, archived, and restored', async ({page, requ
 })
 
 test('catalog surface lists products with editor CTAs', async ({page}) => {
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   await page.locator('[data-gm-nav="catalog"]').click()
   await expect(
     page.getByRole('button', {name: 'New product'})
@@ -164,7 +164,7 @@ test('catalog surface lists products with editor CTAs', async ({page}) => {
 })
 
 test('catalog editors stay in-pane and bulk tools update selected products', async ({page}) => {
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   await page.locator('[data-gm-nav="catalog"]').click()
   const catalog = page.locator('[data-gm-surface="catalog"]')
   await expect(catalog.getByRole('button', {name: 'New product'})).toBeVisible({
@@ -198,7 +198,7 @@ test('catalog editors stay in-pane and bulk tools update selected products', asy
   const csrf = (await page.context().cookies()).find(c => c.name === 'gm_csrf')?.value || ''
   const headers = {Origin: seed.base_url, 'X-CSRF-Token': csrf}
   for (const [title, amount] of [['bulk alpha', 100], ['bulk beta', 200]] as const) {
-    const response = await page.request.post('/gammamarkets/api/v1/products', {
+    const response = await page.request.post('/infinitemarkets/api/v1/products', {
       headers,
       data: {
         catalog_id: seed.digital.catalog_id,
@@ -260,7 +260,7 @@ test('catalog editors stay in-pane and bulk tools update selected products', asy
 test('publications surface shows relay health + evidence copy', async ({
   page
 }) => {
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   await page.locator('[data-gm-nav="publications"]').click()
   await expect(
     page.getByText(
@@ -280,7 +280,7 @@ test('publications surface shows relay health + evidence copy', async ({
 test('settings surface: identity, relays, notifications, appearance', async ({
   page
 }) => {
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   await page.locator('[data-gm-nav="settings"]').click()
   const settings = page.locator('[data-gm-surface="settings"]')
   await expect(settings.getByText('Relays').first()).toBeVisible({
@@ -305,25 +305,25 @@ test('settings surface: identity, relays, notifications, appearance', async ({
 })
 
 test('storefront is one click away from the admin top level', async ({page}) => {
-  await page.goto('/gammamarkets/')
-  const storefront = `/gammamarkets/public/merchants/${seed.pubkey}`
+  await page.goto('/infinitemarkets/')
+  const storefront = `/infinitemarkets/public/merchants/${seed.pubkey}`
   await expect(page.locator('[data-gm="view-storefront"]')).toHaveAttribute('href', storefront)
   await expect(page.locator('[data-gm-nav="storefront"]')).toHaveAttribute('href', storefront)
 })
 
 test('order states are colour-coded with labels and closed orders explain themselves', async ({page}) => {
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   // The CSRF cookie is issued by the shell's first admin API read.
   await expect(page.locator('[data-gm="store-bar"]')).toBeVisible({timeout: 20_000})
   const csrf = (await page.context().cookies()).find(c => c.name === 'gm_csrf')?.value || ''
-  const checkout = await page.request.post('/gammamarkets/api/v1/public/checkout', {
+  const checkout = await page.request.post('/infinitemarkets/api/v1/public/checkout', {
     headers: {'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID(), Origin: seed.base_url},
     data: {merchant_pubkey: seed.pubkey, items: [{d_tag: seed.digital.d_tag, quantity: 1}]}
   })
   expect(checkout.status()).toBe(201)
-  const orders = await (await page.request.get(`/gammamarkets/api/v1/merchants/${seed.merchant_id}/orders?state=awaiting_payment`)).json()
+  const orders = await (await page.request.get(`/infinitemarkets/api/v1/merchants/${seed.merchant_id}/orders?state=awaiting_payment`)).json()
   const cancelled = await page.request.post(
-    `/gammamarkets/api/v1/merchants/${seed.merchant_id}/orders/${orders[0].id}/cancel`,
+    `/infinitemarkets/api/v1/merchants/${seed.merchant_id}/orders/${orders[0].id}/cancel`,
     {headers: {Origin: seed.base_url, 'X-CSRF-Token': csrf, 'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID()},
      data: {reason: 'e2e closed-order copy'}}
   )
@@ -343,7 +343,7 @@ test('order states are colour-coded with labels and closed orders explain themse
 })
 
 test('appearance choices are not clipped by the settings panel', async ({page}) => {
-  await page.goto('/gammamarkets/')
+  await page.goto('/infinitemarkets/')
   await page.locator('[data-gm-nav="settings"]').click()
   await page.getByRole('tab', {name: 'Appearance'}).click()
   const active = page.locator('.gm-preset-active').first()
@@ -361,7 +361,7 @@ test('unauthenticated admin visit redirects or denies', async ({
 }) => {
   const anon = await browser.newContext()
   const page = await anon.newPage()
-  const resp = await page.goto('/gammamarkets/')
+  const resp = await page.goto('/infinitemarkets/')
   // check_user_exists rejects anonymous — the shell must not render
   expect([302, 307, 401, 403]).toContain(resp?.status())
   await anon.close()

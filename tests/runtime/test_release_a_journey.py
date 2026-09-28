@@ -14,7 +14,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 PUBLIC = f"{API}/public"
 
 
@@ -42,7 +42,7 @@ async def _setup(runtime_env):
     )
     assert resp.status_code == 201, resp.text
     mid = resp.json()["id"]
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -79,7 +79,7 @@ async def _setup(runtime_env):
         "merchant_id": mid, "product": product,
         "pubkey": merchant["pubkey"], "anon": anon, "cookie": cookie,
     })
-    from gammamarkets.services import readiness
+    from infinitemarkets.services import readiness
 
     readiness.mark_reconciled()
     yield
@@ -94,7 +94,7 @@ async def test_release_a_journey(runtime_env):
     pubkey = runtime_env["pubkey"]
 
     # 1. Public product page renders the checkout card.
-    page = await anon.get(f"/gammamarkets/p/{pubkey}/{product['d_tag']}")
+    page = await anon.get(f"/infinitemarkets/p/{pubkey}/{product['d_tag']}")
     assert page.status_code == 200
     assert 'id="gm-checkout-card"' in page.text
     assert 'data-sum="total"' in page.text
@@ -126,7 +126,7 @@ async def test_release_a_journey(runtime_env):
     assert replay.json()["public_token"] == token
 
     # 3. Buyer status page + header-token polling.
-    order_page = await anon.get("/gammamarkets/order")
+    order_page = await anon.get("/infinitemarkets/order")
     assert order_page.status_code == 200
     status = await anon.get(
         f"{PUBLIC}/order-status", headers={"X-Order-Token": token}
@@ -136,17 +136,17 @@ async def test_release_a_journey(runtime_env):
 
     # 4. Settlement → confirmed (durable truth — relay delivery plays no
     # part).
-    from gammamarkets.crypto import token_lookup_hash
-    from gammamarkets.db import db
+    from infinitemarkets.crypto import token_lookup_hash
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         order = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(token)},
         ))
     import importlib
 
-    settlement = importlib.import_module("gammamarkets.services.settlement")
+    settlement = importlib.import_module("infinitemarkets.services.settlement")
     await settlement.confirm_settlement(order_id=order["id"], source="test")
     status = await anon.get(
         f"{PUBLIC}/order-status", headers={"X-Order-Token": token}
@@ -230,11 +230,11 @@ async def test_release_a_journey(runtime_env):
         headers=headers,
     )
     assert themed.status_code == 200, themed.text
-    page = await anon.get(f"/gammamarkets/p/{pubkey}/{product['d_tag']}")
+    page = await anon.get(f"/infinitemarkets/p/{pubkey}/{product['d_tag']}")
     assert 'data-layout="guided"' in page.text
     assert "--color-bg: #f4f7f7" in page.text
 
     # 9. Admin shell still serves for the owner.
-    admin = await client.get("/gammamarkets/")
+    admin = await client.get("/infinitemarkets/")
     assert admin.status_code == 200
     assert 'id="gm-admin-root"' in admin.text

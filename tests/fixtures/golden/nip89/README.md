@@ -21,7 +21,7 @@ the section 5.4 naddr handler.
 
     uv run python tests/fixtures/golden/generate_fixtures.py
 
-Recorded seed/inputs: merchant key = `sha256("gammamarkets-qual:merchant")`;
+Recorded seed/inputs: merchant key = `sha256("infinitemarkets-qual:merchant")`;
 `recommended_app_d` = `gqapp-rec-001`; product d = `gq-prod-0001`. Event ids
 and the naddr bech32 are fully deterministic; signatures are one frozen
 generation (schnorr aux randomness is drawn per signing).

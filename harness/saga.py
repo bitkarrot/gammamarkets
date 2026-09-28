@@ -25,7 +25,7 @@ boundary):
 
 1. ``begin`` -> ``_step1_claim``: the section 8.2 step-1 transaction (Task 1)
    including the ``creating`` payment projection with the deterministic
-   ``core_external_id = "gammamarkets:<order.id>"``;
+   ``core_external_id = "infinitemarkets:<order.id>"``;
 2. invoice creation through the fake;
 3. ``attach``: the second transaction — persisting hash/checking id/BOLT11/
    expiry and wallet snapshots to the local projection REGARDLESS of whether
@@ -209,7 +209,7 @@ class FakeLNbitsCore:
         if deliver and self._callback_handler is not None:
             for payment in payments:
                 record = {
-                    "extension": "gammamarkets",
+                    "extension": "infinitemarkets",
                     "external_id": core_external_id,
                     "payment_hash": payment.payment_hash,
                     "checking_id": payment.checking_id,
@@ -256,8 +256,8 @@ class FakeLNbitsCore:
 
 
 def core_external_id_for(order_id: str) -> str:
-    """The deterministic recovery key: ``gammamarkets:<order.id>`` (section 4.8)."""
-    return f"gammamarkets:{order_id}"
+    """The deterministic recovery key: ``infinitemarkets:<order.id>`` (section 4.8)."""
+    return f"infinitemarkets:{order_id}"
 
 
 class InvoiceSaga:

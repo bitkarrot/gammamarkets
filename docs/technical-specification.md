@@ -1,22 +1,22 @@
-# gammamarkets — Technical Specification
+# infinitemarkets — Technical Specification
 
 **Status:** Corrected draft — ready for Phase 0 planning; implementation remains gated on Phase 0 acceptance
-**Audience:** Implementers of the `gammamarkets` LNbits extension
+**Audience:** Implementers of the `infinitemarkets` LNbits extension
 **Companion document:** `gamma-native-python-extension-proposal.md` (architecture and rationale; this document is the normative build contract)
 **Target host baseline:** LNbits `v1.6.2-rc1`, commit `e336fe1`; other versions require CI qualification
-**Primary protocol:** GammaMarkets marketplace protocol, pinned to `market-spec` commit
+**Primary protocol:** Infinitemarkets marketplace protocol, pinned to `market-spec` commit
 `5dc79c5db0d41c0bea774debf445cce041192840` (2025-05-10)
 **Protocol dependencies:** NIP-99, NIP-17, NIP-44 (v2), NIP-59, NIP-89; NIP-15/NIP-04 compatibility in Release C; NIP-37 deferred
 
 The key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are to be interpreted as
-in RFC 2119. Where this specification and the pinned GammaMarkets draft conflict, the
+in RFC 2119. Where this specification and the pinned Infinitemarkets draft conflict, the
 conflict MUST be recorded in §21 (Decisions Register) rather than resolved silently.
 
 ---
 
 ## 1. Scope
 
-This specification defines the complete build contract for the `gammamarkets` LNbits
+This specification defines the complete build contract for the `infinitemarkets` LNbits
 extension:
 
 - canonical domain model and persistence schema;
@@ -31,7 +31,7 @@ extension:
 - test and conformance requirements.
 
 It does **not** define: LNbits core internals, relay implementations, UI visual design,
-or the GammaMarkets protocol itself.
+or the Infinitemarkets protocol itself.
 
 ---
 
@@ -39,7 +39,7 @@ or the GammaMarkets protocol itself.
 
 | Input | Pin |
 |---|---|
-| GammaMarkets market-spec | commit `5dc79c5` (`main` @ 2025-05-10) |
+| Infinitemarkets market-spec | commit `5dc79c5` (`main` @ 2025-05-10) |
 | Nostr NIPs | commit `a2494f4f81d46684e5814a9bf35e2b1df978f955` (2026-09-09); files 09, 15, 17, 32, 37, 42, 44, 59, 65, 89, 99 |
 | NIP-15 status | draft/unrecommended — compatibility only |
 | NIP-44 version | v2 payload only |
@@ -62,14 +62,14 @@ spec decision and the same qualification. Source ancestry is evidence, not wheel
 runtime certification; independent pre-SDK bounds and signature validation remain
 mandatory.
 
-Pins are surfaced in the merchant settings UI. The GammaMarkets revision is emitted
+Pins are surfaced in the merchant settings UI. The Infinitemarkets revision is emitted
 only on public commerce events as defined in §6.8; it MUST NOT be added to encrypted-
 message wrapper tags.
 
 ### 2.1 LNbits core integration architecture
 
 The following diagram defines the host boundary and the runtime flow between LNbits core
-and the `gammamarkets` extension. It shows only the core integration points on which this
+and the `infinitemarkets` extension. It shows only the core integration points on which this
 specification relies; the internal LNbits implementation remains outside this contract.
 
 ```mermaid
@@ -91,7 +91,7 @@ flowchart LR
         Notify[Notification service and host SMTP]
     end
 
-    subgraph Gamma[gammamarkets extension - commerce authority]
+    subgraph Gamma[infinitemarkets extension - commerce authority]
         Boundary[Extension routes and lifecycle hooks]
         Services[Checkout, catalog, order, and settlement services]
         PaymentAdapter[LNbits payment adapter]
@@ -113,7 +113,7 @@ flowchart LR
     Funding <-->|5. Invoice and settlement| Lightning
     Funding -->|Settlement detected by core| CorePayments
     CorePayments -->|Settled Payment notification| Tasks
-    Tasks -->|6. Registered gammamarkets callback| Services
+    Tasks -->|6. Registered infinitemarkets callback| Services
     Services -->|Consume reservation; confirm order; enqueue messages| GammaDB
     Workers -->|7. Query status or exact external_id after gaps or restart| InvoiceService
     Workers -->|8. Send queued order emails via host SMTP| Notify
@@ -128,7 +128,7 @@ flowchart LR
 Flow and ownership rules:
 
 1. LNbits discovers the Python extension, mounts its `APIRouter`, runs its database
-   migrations, and invokes `gammamarkets_start()`/`gammamarkets_stop()` for managed
+   migrations, and invokes `infinitemarkets_start()`/`infinitemarkets_stop()` for managed
    background work.
 2. HTTP traffic enters through the LNbits FastAPI host. Merchant routes use LNbits
    authentication and wallet ownership checks; public checkout remains capability- and
@@ -137,7 +137,7 @@ Flow and ownership rules:
    payment-projection state in its namespaced database. It MUST NOT write LNbits core
    payment tables directly.
 4. Invoice creation crosses the boundary only through the LNbits payment service with
-   `extension="gammamarkets"` and `external_id="gammamarkets:<order.id>"`. LNbits core
+   `extension="infinitemarkets"` and `external_id="infinitemarkets:<order.id>"`. LNbits core
    persists the authoritative incoming payment and delegates Lightning operations to the
    configured funding source.
 5. Core dispatches settled `Payment` objects through `TaskManager`; the extension's named
@@ -396,7 +396,7 @@ UNIQUE NULL, `checking_id_enc`, `bolt11_enc`, `wallet_refs_enc`, `wallet_id_hash
 (`creating|creation_unknown|pending|settled|expired|failed`), `settled_at`, `created_at`.
 The extension inserts the projection with `status=creating` before invoking LNbits.
 Payments are a local projection of LNbits core payments, not a second settlement
-authority. `core_external_id = "gammamarkets:<order.id>"` MUST be passed to LNbits and
+authority. `core_external_id = "infinitemarkets:<order.id>"` MUST be passed to LNbits and
 is the recovery key for the invoice saga independently of the commerce order state
 (§8.2).
 
@@ -528,12 +528,12 @@ email_queue(state, next_attempt_at)         email_queue(order_id)
 
 ## 5. HTTP API surface
 
-Base path: `/gammamarkets/api/v1`. Admin routes require
+Base path: `/infinitemarkets/api/v1`. Admin routes require
 `Depends(check_user_exists)` and every repository query also scopes by the resolved
 LNbits `user.id`/merchant id (defense in depth). Because `check_user_exists` accepts
 header, cookie, and optionally user-id-only authentication, a second dependency on every
 admin mutation MUST reject user-id-only auth and require either (a) an Authorization
-bearer, or (b) cookie auth plus exact `Origin == GAMMAMARKETS_PUBLIC_BASE_URL` and a
+bearer, or (b) cookie auth plus exact `Origin == INFINITEMARKETS_PUBLIC_BASE_URL` and a
 per-session double-submit CSRF token. Missing/`null` origins fail cookie mutations.
 The extension MUST NOT rely on host CORS, which may be permissive; origin/CSRF checks
 are enforced at the route boundary. Production qualification MUST verify that host audit
@@ -606,7 +606,7 @@ and foreign-merchant references fail without relay retrieval.
 
 Buyer browsers poll `GET /public/order-status` with `X-Order-Token` every 5s until
 a terminal/confirmed state. Bearer tokens MUST NOT appear in a request path or query.
-The shareable magic link is `/gammamarkets/order#<token>`: URL fragments are not sent
+The shareable magic link is `/infinitemarkets/order#<token>`: URL fragments are not sent
 to the server; page JavaScript reads and immediately removes the fragment with
 `history.replaceState`, keeps the token in memory only, and sends it in the header.
 The server sets `Referrer-Policy: no-referrer`; request/header logging MUST redact
@@ -659,7 +659,7 @@ POST  /import/{job_id}/cutover        final step; performs single-writer switch 
 ### 5.6 Error model
 
 All errors return RFC 9457 problem details:
-`{"type": "urn:gammamarkets:<code>", "title": …, "status": …, "detail": …}`.
+`{"type": "urn:infinitemarkets:<code>", "title": …, "status": …, "detail": …}`.
 Defined codes include: `insufficient-stock`, `invalid-transition`,
 `duplicate-order`, `wallet-mismatch`, `product-inactive`, `rate-limited`,
 `invalid-shipping-destination`, `order-expired`, `unauthorized`.
@@ -760,7 +760,7 @@ NIP-17 reachability. Release-A web checkout activation does not require kind 100
 
 - `31990` (handler information): `d` = `merchant.recommended_app_d`; content is
   kind-0-style JSON describing the extension checkout; include `["k", "30402"]`
-  and `["web", "<origin>/gammamarkets/p/<bech32>", "naddr"]`. The literal
+  and `["web", "<origin>/infinitemarkets/p/<bech32>", "naddr"]`. The literal
   `<bech32>` placeholder is replaced by clients per NIP-89.
 - `31989` (recommendation): `d` = **`"30402"`** (the supported event kind, not the
   app id); `a` tag = `["a", "31990:<merchant_pubkey>:<recommended_app_d>",
@@ -831,8 +831,8 @@ unlimited stock. Lossy rules (must be surfaced in UI preview):
 
 Public commerce events (30402/30405/30406 and optionally 30017/30018) carry a
 Phase-0-selected reverse-domain NIP-32 namespace, for example
-`["L", "org.gammamarkets.protocol"]` and
-`["l", "5dc79c5", "org.gammamarkets.protocol"]`. Kind-0, NIP-89, NIP-04, seals,
+`["L", "org.infinitemarkets.protocol"]` and
+`["l", "5dc79c5", "org.infinitemarkets.protocol"]`. Kind-0, NIP-89, NIP-04, seals,
 and gift wraps MUST NOT receive these labels: they either have fixed metadata
 semantics or the extra public tags would fingerprint private traffic. The exact
 namespace is pinned in `PINS.md` before implementation.
@@ -1057,9 +1057,9 @@ saga:
    concurrent worker can win this transition.
 2. Call LNbits `create_invoice` with the already revalidated merchant wallet,
    `amount=order.total_sat`, `currency="sat"`, `expiry=RESERVATION_TTL`,
-   `extension="gammamarkets"`, `external_id="gammamarkets:<order.id>"`, and
-   `extra={"tag":"gammamarkets","order_id":order.id}`. Memo MUST be generic
-   (`"GammaMarkets order"`) and contain no buyer key, address, email, or external id.
+   `extension="infinitemarkets"`, `external_id="infinitemarkets:<order.id>"`, and
+   `extra={"tag":"infinitemarkets","order_id":order.id}`. Memo MUST be generic
+   (`"Infinitemarkets order"`) and contain no buyer key, address, email, or external id.
 3. In a second extension-DB transaction, attach a unique returned payment to the local
    projection regardless of whether the commerce state is now `invoice_pending` or
    `cancelled`; persist hash/checking id/BOLT11/actual expiry and wallet/source-wallet
@@ -1087,10 +1087,10 @@ payment-exception path and MUST NOT auto-reopen the order.
 
 ### 8.3 Settlement (LNbits invoice-paid event)
 
-Trigger: `task_manager.register_invoice_listener(callback, name="gammamarkets")`
+Trigger: `task_manager.register_invoice_listener(callback, name="infinitemarkets")`
 on every application worker. The callback first requires
-`payment.extension == "gammamarkets"` and an exact
-`payment.external_id == "gammamarkets:<UUID>"`; it then verifies wallet, order, amount,
+`payment.extension == "infinitemarkets"` and an exact
+`payment.external_id == "infinitemarkets:<UUID>"`; it then verifies wallet, order, amount,
 and tag. It can attach a missing local payment projection (crash during §8.2 step 3)
 before settlement. A payment matched only by buyer-controlled metadata is rejected.
 
@@ -1255,7 +1255,7 @@ Email is best-effort and never blocks an order transition. Enqueue points:
 - §8.1 order insert → merchant `order_received` alert.
 - §8.3 settlement → `confirmed` to merchant, and a single combined "order placed and
   paid" email to the opted-in customer containing the order summary and the
-  `/gammamarkets/order#<token>` status link. Customer sends omit `order_received` —
+  `/infinitemarkets/order#<token>` status link. Customer sends omit `order_received` —
   placed and paid are one event; an oversold `accept` resolution adds `on_hold` with
   the backorder disclosure.
 - Admin status/shipping/cancel transitions → `processing`, `shipped`, `delivered`,
@@ -1393,11 +1393,11 @@ bounded. Never log relay AUTH challenges or complete sensitive event payloads.
 
 ## 10. Background tasks
 
-`gammamarkets_start()` performs only synchronous, bounded registration through
-`task_manager.create_permanent_task(func, name="gammamarkets.<task>")` and stores the
+`infinitemarkets_start()` performs only synchronous, bounded registration through
+`task_manager.create_permanent_task(func, name="infinitemarkets.<task>")` and stores the
 returned Task handles; it performs no network or reconciliation work inline. Checkout
 and relay subscriptions stay disabled behind a readiness gate until a startup
-reconciliation task completes. `gammamarkets_stop()` calls
+reconciliation task completes. `infinitemarkets_stop()` calls
 `task_manager.cancel_task(handle)` for only those handles (including the registered
 invoice listener) and closes SDK clients/subscriptions; calling
 `task_manager.cancel_all_tasks()` is forbidden. Every task and SDK client MUST use
@@ -1452,11 +1452,11 @@ cryptographic methods validate input lengths before allocation/decode.
   `key_version + random 96-bit nonce + ciphertext_with_tag` using LNbits' existing
   `pycryptodomex` dependency (or another approved audited AEAD already in the host).
 - Operator provides a versioned keyring through a secret source:
-  `GAMMAMARKETS_MASTER_KEYS={"v1":"<32-byte base64>","v2":"…"}` and
-  `GAMMAMARKETS_ACTIVE_KEY_VERSION=v2`. Configuration is parsed strictly; missing,
+  `INFINITEMARKETS_MASTER_KEYS={"v1":"<32-byte base64>","v2":"…"}` and
+  `INFINITEMARKETS_ACTIVE_KEY_VERSION=v2`. Configuration is parsed strictly; missing,
   duplicate, short, or malformed keys fail startup before merchant services activate.
 - AAD is unambiguous length-prefixed encoding of
-  `"gammamarkets"`, merchant/record id, table, column, and key version — preventing
+  `"infinitemarkets"`, merchant/record id, table, column, and key version — preventing
   cross-record ciphertext transplant and concatenation ambiguity.
 - Rotation is resumable: new writes use active version; a maintenance job rewraps rows
   in bounded transactions while old+new keys are present; old key removal is blocked
@@ -1477,7 +1477,7 @@ responses, participant/external/wallet identifiers, BOLT11/checking ids, and any
 decrypted rumor use the same AES-256-GCM envelope with per-record/field AAD. The inbox
 stores outer ciphertext only by default; plaintext exists only during bounded processing.
 
-Equality indexes use HMAC-SHA256 under `GAMMAMARKETS_PRIVACY_KEY` over
+Equality indexes use HMAC-SHA256 under `INFINITEMARKETS_PRIVACY_KEY` over
 length-prefixed purpose + merchant id + normalized value (`buyer-pubkey`, `order-id`,
 `wallet-id`, `source-wallet-id`, `client-ip`, `email-recipient` are distinct purposes). The key is backed up like the master key. Rotation
 requires dual-index columns/read support, a complete reindex from encrypted values, and
@@ -1506,16 +1506,16 @@ merchant action. Default expiry remains 30 days.
 
 | setting | default | notes |
 |---|---|---|
-| `GAMMAMARKETS_MASTER_KEYS` / `GAMMAMARKETS_ACTIVE_KEY_VERSION` | — | required versioned keyring (§11.2) |
-| `GAMMAMARKETS_PUBLIC_BASE_URL` | — | required canonical HTTPS origin; never derived from Host/Forwarded headers |
-| `GAMMAMARKETS_PRIVACY_KEY` | — | required stable 32-byte secret for equality indexes/IP pseudonyms; separate from encryption keys |
+| `INFINITEMARKETS_MASTER_KEYS` / `INFINITEMARKETS_ACTIVE_KEY_VERSION` | — | required versioned keyring (§11.2) |
+| `INFINITEMARKETS_PUBLIC_BASE_URL` | — | required canonical HTTPS origin; never derived from Host/Forwarded headers |
+| `INFINITEMARKETS_PRIVACY_KEY` | — | required stable 32-byte secret for equality indexes/IP pseudonyms; separate from encryption keys |
 | `RESERVATION_TTL` | 900s | requested invoice expiry; decoded BOLT11 expiry wins |
 | `OUTBOX_MAX_ATTEMPTS` | 20 | |
 | `OUTBOX_BATCH` | 32 | rows per claim |
 | `PEER_RELAY_TTL` | 24h | kind-10050 cache |
 | `INBOX_MAX_EVENT_BYTES` | 32768 | pre-decode cap |
 | `CHECKOUT_RATE_LIMIT` | 10/min/IP | §15 |
-| `GAMMAMARKETS_EMAIL_ENABLED` | true | effective only when host `is_email_notifications_configured()`; extension holds no SMTP credentials (§8.8) |
+| `INFINITEMARKETS_EMAIL_ENABLED` | true | effective only when host `is_email_notifications_configured()`; extension holds no SMTP credentials (§8.8) |
 | `EMAIL_MAX_ATTEMPTS` | 5 | per-queue-row retry bound |
 | `SPEC_REVISION` | `5dc79c5` | shown in settings UI |
 
@@ -1541,7 +1541,7 @@ merchant action. Default expiry remains 30 days.
 5. **Cutover:** after liabilities are accounted, flip publish flags and enqueue
    aggregates. Old settlement handling remains active for already-issued invoices while
    new old-system orders remain disabled. Expired/released liability stock transfers to
-   gammamarkets only through an audited inventory adjustment. Parallel operation is
+   infinitemarkets only through an audited inventory adjustment. Parallel operation is
    allowed only for explicitly partitioned inventory. External software cannot be
    detected; same-key reuse remains an additional operational trust boundary.
 
@@ -1626,7 +1626,7 @@ pages load no third-party scripts.
 
 ## 16. Observability
 
-- Structured logs: `event=gammamarkets.<component>.<action>` with ids/states; never
+- Structured logs: `event=infinitemarkets.<component>.<action>` with ids/states; never
   keys, addresses, bolt11 strings in full (truncate to `payment_hash` correlation),
   or decrypted content.
 - Metrics hooks: outbox depth/age, inbox depth, relay health per merchant,
@@ -1774,7 +1774,7 @@ revisit only through a spec revision.
     success versus unclassified failure. False/exception retries with a bound; it does
     not invent transient-versus-5xx classification (§8.8).
 22. **Email bearer link.** Order status emails reuse
-    `/gammamarkets/order#<token>`. A protected encrypted token copy exists only for its
+    `/infinitemarkets/order#<token>`. A protected encrypted token copy exists only for its
     valid notification lifetime; hash lookup, revocation, and erasure remain authoritative
     (§8.8/§11.4). Queue uniqueness dedupes intent, not SMTP delivery.
 23. **SDK qualification.** Host-resolved `nostr-sdk==0.44.8` is the Phase 0 candidate,
@@ -1784,7 +1784,7 @@ revisit only through a spec revision.
     cancellation. A returned or discovered invoice is attached for settlement detection
     but never delivered and never reopens a cancelled order (§7.1/§8.2).
 25. **Runtime name.** Package, extension id, routes, hooks, environment variables,
-    payment correlation, and encryption AAD are frozen as `gammamarkets` before the
+    payment correlation, and encryption AAD are frozen as `infinitemarkets` before the
     first migration or publication.
 26. **Transport adapters.** Qualified direct `nostr-sdk` is the baseline. `nostrclient`
     and an uninspected `nostrrelay` are optional candidates only after satisfying the same
@@ -1805,7 +1805,7 @@ revisit only through a spec revision.
 
 **Assessment: ready for OpenGSD initialization and Phase 0 planning; not ready for
 production runtime implementation until Phase 0 acceptance passes.** Runtime code belongs
-in the separate `gammamarkets` repository, not this proposal site. Phase 0 builds isolated
+in the separate `infinitemarkets` repository, not this proposal site. Phase 0 builds isolated
 host/SDK probes, protocol fixtures, and executable state/schema models—not the production
 extension.
 
@@ -1824,7 +1824,7 @@ extension.
 | P0-11 NIP-89 route | A valid 30402 naddr resolves locally; malformed, wrong-kind and foreign references fail; relay hints never trigger an unvalidated fetch. |
 | P0-12 auth/privacy/lifecycle | ID-only and cross-origin cookie mutations fail; approved bearer/CSRF paths pass; audit capture redacts secrets; startup readiness and cancellation-safe task/SDK cleanup satisfy the qualified host profile. |
 | P0-13 Decimal/FX | Fractional minor-unit lines and mixed-currency shipping use approved Decimal units/ceiling; stale or provenance-free quotes fail before reservation; float-boundary error is measured and approved. |
-| P0-14 contract closure | All transitions, fields, routes, event fixtures, release gates and `gammamarkets` identifiers resolve with no undeclared dependency. |
+| P0-14 contract closure | All transitions, fields, routes, event fixtures, release gates and `infinitemarkets` identifiers resolve with no undeclared dependency. |
 
 Release A reruns applicable host/domain/security assertions through the real catalog,
 checkout, settlement, worker and notification implementation. Release B additionally

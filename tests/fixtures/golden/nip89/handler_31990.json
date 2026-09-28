@@ -1,5 +1,5 @@
 {
-  "content": "{\"about\": \"LNbits gammamarkets extension checkout handler\", \"name\": \"GammaMarkets checkout\", \"picture\": \"\"}",
+  "content": "{\"about\": \"LNbits infinitemarkets extension checkout handler\", \"name\": \"Infinitemarkets checkout\", \"picture\": \"\"}",
   "created_at": 1789890281,
   "id": "a59bb304a8b427ebe937adc4d8a78fe6eaf2576894593743d97a1fbc5902507a",
   "kind": 31990,
@@ -16,7 +16,7 @@
     ],
     [
       "web",
-      "https://shop.example/gammamarkets/p/<bech32>",
+      "https://shop.example/infinitemarkets/p/<bech32>",
       "naddr"
     ]
   ]

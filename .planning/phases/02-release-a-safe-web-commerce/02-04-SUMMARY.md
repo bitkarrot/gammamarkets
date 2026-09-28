@@ -48,29 +48,29 @@ tech-stack:
 
 key-files:
   created:
-    - gammamarkets/templates/gammamarkets/admin.html
-    - gammamarkets/static/gammamarkets/js/admin_app.js
-    - gammamarkets/static/gammamarkets/js/admin_orders.js
-    - gammamarkets/static/gammamarkets/js/admin_catalog.js
-    - gammamarkets/static/gammamarkets/js/admin_publications.js
-    - gammamarkets/static/gammamarkets/js/admin_settings.js
-    - gammamarkets/static/gammamarkets/js/admin_notifications.js
-    - gammamarkets/static/gammamarkets/js/public_checkout.js
-    - gammamarkets/static/gammamarkets/js/public_order.js
+    - infinitemarkets/templates/infinitemarkets/admin.html
+    - infinitemarkets/static/infinitemarkets/js/admin_app.js
+    - infinitemarkets/static/infinitemarkets/js/admin_orders.js
+    - infinitemarkets/static/infinitemarkets/js/admin_catalog.js
+    - infinitemarkets/static/infinitemarkets/js/admin_publications.js
+    - infinitemarkets/static/infinitemarkets/js/admin_settings.js
+    - infinitemarkets/static/infinitemarkets/js/admin_notifications.js
+    - infinitemarkets/static/infinitemarkets/js/public_checkout.js
+    - infinitemarkets/static/infinitemarkets/js/public_order.js
     - tests/runtime/test_buyer_ui.py
     - tests/runtime/test_admin_ui.py
     - tests/runtime/test_release_a_journey.py
   modified:
-    - gammamarkets/views.py (index → admin.html; index.html removed)
-    - gammamarkets/views_public_api.py (payment_exception on status)
-    - gammamarkets/services/orders.py (list rows: buyer/item summary + q)
-    - gammamarkets/services/merchant.py (spec_revision on projection)
-    - gammamarkets/services/relay.py (blossom_servers on relay-health)
-    - gammamarkets/templates/gammamarkets/public_product.html (A2 card)
-    - gammamarkets/templates/gammamarkets/public_order.html (A3 shell)
-    - gammamarkets/static/gammamarkets/css/gm-public.css (checkout/order
+    - infinitemarkets/views.py (index → admin.html; index.html removed)
+    - infinitemarkets/views_public_api.py (payment_exception on status)
+    - infinitemarkets/services/orders.py (list rows: buyer/item summary + q)
+    - infinitemarkets/services/merchant.py (spec_revision on projection)
+    - infinitemarkets/services/relay.py (blossom_servers on relay-health)
+    - infinitemarkets/templates/infinitemarkets/public_product.html (A2 card)
+    - infinitemarkets/templates/infinitemarkets/public_order.html (A3 shell)
+    - infinitemarkets/static/infinitemarkets/css/gm-public.css (checkout/order
       styles, stepper, pills, focus/reduced-motion)
-    - gammamarkets/static/gammamarkets/js/public_storefront.js (shared
+    - infinitemarkets/static/infinitemarkets/js/public_storefront.js (shared
       GM helpers only — checkout/status logic moved to page modules)
 
 key-decisions:
@@ -223,4 +223,4 @@ This section supersedes the earlier test totals and initial-execution caveat; it
 - Chromium admin/buyer browser journey: **13 passed** on SQLite and **13 passed** on PostgreSQL, with LocalRelay publication ACKs; the PostgreSQL browser run preceded the last gallery-only change, which passed separately on PostgreSQL.
 - Ruff and changed JS syntax checks: passed. The pinned LNbits checkout remained clean and unchanged.
 
-The 25 planned threat mitigations have local implementation/test evidence in `02-SECURITY.md`. Post-plan [CI run 36303338957](https://github.com/bitkarrot/gammamarkets/actions/runs/36303338957) passed the four required Linux profiles; a fresh user-requested demo on port 5099 now serves the quote route. The prior disposable database was left on disk but not mounted in the new demo. Phase 2 completion is still **blocked** by human buyer/merchant UAT and security/accessibility review. `02-VERIFICATION.md` records exact profiles, source fingerprint, skips and remaining gates; `02-UAT.md` tracks unanswered human checks. No Phase 3 work was started.
+The 25 planned threat mitigations have local implementation/test evidence in `02-SECURITY.md`. Post-plan [CI run 36303338957](https://github.com/bitkarrot/infinitemarkets/actions/runs/36303338957) passed the four required Linux profiles; a fresh user-requested demo on port 5099 now serves the quote route. The prior disposable database was left on disk but not mounted in the new demo. Phase 2 completion is still **blocked** by human buyer/merchant UAT and security/accessibility review. `02-VERIFICATION.md` records exact profiles, source fingerprint, skips and remaining gates; `02-UAT.md` tracks unanswered human checks. No Phase 3 work was started.

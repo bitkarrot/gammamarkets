@@ -13,7 +13,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session", autouse=True)
@@ -41,7 +41,7 @@ async def _setup(runtime_env):
     )
     assert resp.status_code == 201, resp.text
     mid = resp.json()["id"]
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -94,8 +94,8 @@ async def _setup(runtime_env):
     runtime_env.update({
         "merchant_id": mid, "physical": physical, "digital": digital,
         "pubkey": pubkey,
-        "physical_url": f"/gammamarkets/p/{pubkey}/{physical['d_tag']}",
-        "digital_url": f"/gammamarkets/p/{pubkey}/{digital['d_tag']}",
+        "physical_url": f"/infinitemarkets/p/{pubkey}/{physical['d_tag']}",
+        "digital_url": f"/infinitemarkets/p/{pubkey}/{digital['d_tag']}",
     })
     yield
 
@@ -110,7 +110,7 @@ async def test_product_page_checkout_card(runtime_env):
     # Checkout card + form contract.
     assert 'id="gm-checkout-card"' in html
     assert 'id="gm-checkout"' in html
-    assert 'data-endpoint="/gammamarkets/api/v1/public/checkout"' in html
+    assert 'data-endpoint="/infinitemarkets/api/v1/public/checkout"' in html
     assert f'data-merchant="{runtime_env["pubkey"]}"' in html
     assert f'data-d-tag="{runtime_env["physical"]["d_tag"]}"' in html
     assert 'data-layout=' in html
@@ -159,7 +159,7 @@ async def test_order_page_shell(runtime_env):
     """A3: the order-status document carries the status regions, opt-out
     + copy controls, and the fragment-token stripping contract."""
     client = runtime_env["client"]
-    resp = await client.get("/gammamarkets/order#tok123")
+    resp = await client.get("/infinitemarkets/order#tok123")
     assert resp.status_code == 200
     html = resp.text
     assert 'id="gm-order"' in html
@@ -180,7 +180,7 @@ async def test_public_js_contracts(runtime_env):
     client = runtime_env["client"]
 
     resp = await client.get(
-        "/gammamarkets/static/gammamarkets/js/public_storefront.js"
+        "/infinitemarkets/static/infinitemarkets/js/public_storefront.js"
     )
     assert resp.status_code == 200
     js = resp.text
@@ -189,7 +189,7 @@ async def test_public_js_contracts(runtime_env):
     assert "X-Order-Token" in js or "orderToken" in js
 
     resp = await client.get(
-        "/gammamarkets/static/gammamarkets/js/public_checkout.js"
+        "/infinitemarkets/static/infinitemarkets/js/public_checkout.js"
     )
     js = resp.text
     # ≤560px forced compact — responsive safety override.
@@ -205,7 +205,7 @@ async def test_public_js_contracts(runtime_env):
     assert "Waiting for payment" in js
 
     resp = await client.get(
-        "/gammamarkets/static/gammamarkets/js/public_order.js"
+        "/infinitemarkets/static/infinitemarkets/js/public_order.js"
     )
     js = resp.text
     # Header-only token + identical invalid-token copy.
@@ -235,6 +235,6 @@ async def test_theme_emission_scoped(runtime_env):
     assert ".gm-public {" in resp.text
     assert "--color-bg: #0b0f14" in resp.text
     # The admin document never receives theme tokens.
-    admin = await client.get("/gammamarkets/")
+    admin = await client.get("/infinitemarkets/")
     assert admin.status_code == 200
     assert "--color-bg: #0b0f14" not in admin.text

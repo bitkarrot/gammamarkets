@@ -13,7 +13,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 PUBLIC = f"{API}/public"
 
 
@@ -42,7 +42,7 @@ async def _setup(runtime_env):
     )
     assert resp.status_code == 201, resp.text
     mid = resp.json()["id"]
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     async with DomainTransaction() as tx:
         await tx.execute(
@@ -73,7 +73,7 @@ async def _setup(runtime_env):
     # cancelled in tests, so flip it explicitly (the gate itself is
     # asserted in test_checkout_gated_before_reconciliation on a fresh
     # flag — see below).
-    from gammamarkets.services import readiness
+    from infinitemarkets.services import readiness
 
     readiness.mark_reconciled()
 
@@ -207,18 +207,18 @@ async def test_order_status_token_contract(runtime_env):
 
 async def test_order_status_after_confirmation(runtime_env):
     """A confirmed order's status hides the bolt11 (settled)."""
-    from gammamarkets.crypto import token_lookup_hash
-    from gammamarkets.db import db
+    from infinitemarkets.crypto import token_lookup_hash
+    from infinitemarkets.db import db
 
     token = runtime_env["token"]
     async with db.connect() as conn:
         order = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(token)},
         ))
     import importlib
 
-    settlement = importlib.import_module("gammamarkets.services.settlement")
+    settlement = importlib.import_module("infinitemarkets.services.settlement")
     await settlement.confirm_settlement(
         order_id=order["id"], source="test"
     )
@@ -244,18 +244,18 @@ async def test_email_opt_out(runtime_env):
     assert resp.status_code == 200
     assert resp.json()["email_opt_in"] is False
 
-    from gammamarkets.crypto import token_lookup_hash
-    from gammamarkets.db import db
+    from infinitemarkets.crypto import token_lookup_hash
+    from infinitemarkets.db import db
 
     async with db.connect() as conn:
         order = dict(await conn.fetchone(
-            "SELECT * FROM gammamarkets.orders WHERE public_token_hash = :h",
+            "SELECT * FROM infinitemarkets.orders WHERE public_token_hash = :h",
             {"h": token_lookup_hash(token)},
         ))
         assert order["email_opt_in"] in (0, False)
         assert order["public_token_enc"] is None
         queued = await conn.fetchall(
-            "SELECT state FROM gammamarkets.email_queue"
+            "SELECT state FROM infinitemarkets.email_queue"
             " WHERE order_id = :o AND channel = 'customer'",
             {"o": order["id"]},
         )
@@ -273,7 +273,7 @@ async def test_checkout_gated_by_readiness(runtime_env):
     reconcile pass completes."""
     import importlib
 
-    readiness = importlib.import_module("gammamarkets.services.readiness")
+    readiness = importlib.import_module("infinitemarkets.services.readiness")
     readiness._reconciled = False  # noqa: SLF001 — test the closed path
     try:
         resp = await runtime_env["client"].post(

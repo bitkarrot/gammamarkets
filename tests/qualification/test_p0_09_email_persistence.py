@@ -233,7 +233,7 @@ async def test_token_survives_idempotency_retention_then_expires(qual_db_factory
         # (default 30 days) and the hash still matches.
         now_late = invoice_expiry + 24 * 3600 + 3600
         link = await model.render_magic_link(order_id="o1", now=now_late)
-        assert link is not None and link.startswith("/gammamarkets/order#")
+        assert link is not None and link.startswith("/infinitemarkets/order#")
         assert token in link
         looked_up = await model.lookup_public_token(token, now=now_late)
         assert looked_up is not None and looked_up["id"] == "o1"

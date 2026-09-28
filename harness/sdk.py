@@ -150,10 +150,10 @@ class WrapRejection(Exception):
 def fixed_test_keys(label: str) -> Keys:
     """A deterministic synthetic keypair for golden fixtures (T-01-03).
 
-    The secret is ``sha256("gammamarkets-qual:" + label)`` — a fixed test
+    The secret is ``sha256("infinitemarkets-qual:" + label)`` — a fixed test
     value, never a real key.
     """
-    secret_hex = hashlib.sha256(f"gammamarkets-qual:{label}".encode()).hexdigest()
+    secret_hex = hashlib.sha256(f"infinitemarkets-qual:{label}".encode()).hexdigest()
     return Keys.parse(secret_hex)
 
 

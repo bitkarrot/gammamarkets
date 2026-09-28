@@ -60,7 +60,7 @@ def _build(events, **kw):
 
 
 def _events():
-    return importlib.import_module("gammamarkets.services.events")
+    return importlib.import_module("infinitemarkets.services.events")
 
 
 async def test_product_event_deterministic():
@@ -91,7 +91,7 @@ async def test_product_event_required_tags():
     assert by_key["status"][0] == ["status", "active"]
     assert by_key["published_at"][0] == ["published_at", "1700000000"]
     # NIP-32 self-describing labels present on commerce kinds
-    assert ["L", "org.gammamarkets.protocol"] in tags
+    assert ["L", "org.infinitemarkets.protocol"] in tags
     assert any(t[0] == "l" and t[1] == "5dc79c5" for t in tags)
 
 
@@ -179,7 +179,7 @@ async def test_identity_and_handler_events_have_no_labels():
     events = _events()
     merchant = {
         "display_name": "shop", "profile_json": None,
-        "recommended_app_d": "gammamarkets",
+        "recommended_app_d": "infinitemarkets",
     }
     profile = events.merchant_profile_event(merchant, pubkey=PUBKEY)
     assert profile["kind"] == 0
@@ -189,13 +189,13 @@ async def test_identity_and_handler_events_have_no_labels():
     assert rec["kind"] == 31989
     # d is the SUPPORTED KIND, not the app id
     assert ["d", "30402"] in rec["tags"]
-    assert ["a", f"31990:{PUBKEY}:gammamarkets", "", "web"] in rec["tags"]
+    assert ["a", f"31990:{PUBKEY}:infinitemarkets", "", "web"] in rec["tags"]
 
     info = events.handler_info_event(
         merchant, pubkey=PUBKEY, public_base_url="https://shop.example"
     )
     assert info["kind"] == 31990
-    assert ["d", "gammamarkets"] in info["tags"]
+    assert ["d", "infinitemarkets"] in info["tags"]
     assert ["k", "30402"] in info["tags"]
 
 
@@ -300,8 +300,8 @@ _MID = "m-outbox"
 
 async def _enqueue(env, agg_type, agg_id, kind, revision=0,
                    address=None, deps=None):
-    outbox = importlib.import_module("gammamarkets.services.outbox")
-    db_mod = importlib.import_module("gammamarkets.db")
+    outbox = importlib.import_module("infinitemarkets.services.outbox")
+    db_mod = importlib.import_module("infinitemarkets.db")
     async with db_mod.DomainTransaction() as tx:
         return await outbox.enqueue_intent(
             tx, _MID, agg_type, agg_id, kind,
@@ -311,9 +311,9 @@ async def _enqueue(env, agg_type, agg_id, kind, revision=0,
 
 
 async def _intents(env, aggregate_id=None):
-    db_mod = importlib.import_module("gammamarkets.db")
+    db_mod = importlib.import_module("infinitemarkets.db")
     sql = (
-        "SELECT * FROM gammamarkets.outbox_events WHERE merchant_id = :m"
+        "SELECT * FROM infinitemarkets.outbox_events WHERE merchant_id = :m"
     )
     params = {"m": _MID}
     if aggregate_id:
@@ -355,11 +355,11 @@ async def test_outbox_dependency_edges(keystore_env):
         keystore_env, "products", "p2", 30402, revision=1,
         deps=[("collections", "c1")],
     )
-    db_mod = importlib.import_module("gammamarkets.db")
+    db_mod = importlib.import_module("infinitemarkets.db")
     async with db_mod.db.connect() as conn:
         edges = await conn.fetchall(
             "SELECT depends_on_outbox_event_id AS d "
-            "FROM gammamarkets.outbox_dependencies "
+            "FROM infinitemarkets.outbox_dependencies "
             "WHERE outbox_event_id = :e",
             {"e": prod},
         )
@@ -376,7 +376,7 @@ async def test_outbox_dependency_edges(keystore_env):
     async with db_mod.db.connect() as conn:
         edges = await conn.fetchall(
             "SELECT depends_on_outbox_event_id AS d "
-            "FROM gammamarkets.outbox_dependencies "
+            "FROM infinitemarkets.outbox_dependencies "
             "WHERE outbox_event_id = :e",
             {"e": prod2},
         )
@@ -390,7 +390,7 @@ async def test_outbox_dependency_edges(keystore_env):
     )
     async with db_mod.db.connect() as conn:
         edges = await conn.fetchall(
-            "SELECT * FROM gammamarkets.outbox_dependencies "
+            "SELECT * FROM infinitemarkets.outbox_dependencies "
             "WHERE outbox_event_id = :e",
             {"e": orphan},
         )

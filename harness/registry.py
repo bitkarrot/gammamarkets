@@ -23,14 +23,14 @@ from __future__ import annotations
 
 # --- Frozen identifiers (section 21.25) ---------------------------------------
 
-PACKAGE_NAME = "gammamarkets"
-ROUTE_PREFIX = "/gammamarkets"
-API_BASE = "/gammamarkets/api/v1"
-HOOK_START = "gammamarkets_start"
-HOOK_STOP = "gammamarkets_stop"
-ENV_PREFIX = "GAMMAMARKETS_"
-PAYMENT_CORRELATION_PREFIX = "gammamarkets:"
-AAD_PREFIX = "gammamarkets"
+PACKAGE_NAME = "infinitemarkets"
+ROUTE_PREFIX = "/infinitemarkets"
+API_BASE = "/infinitemarkets/api/v1"
+HOOK_START = "infinitemarkets_start"
+HOOK_STOP = "infinitemarkets_stop"
+ENV_PREFIX = "INFINITEMARKETS_"
+PAYMENT_CORRELATION_PREFIX = "infinitemarkets:"
+AAD_PREFIX = "infinitemarkets"
 
 FROZEN_IDENTIFIERS = frozenset(
     {
@@ -47,7 +47,7 @@ FROZEN_IDENTIFIERS = frozenset(
 
 #: Section 6.8: Phase-0-selected NIP-32 reverse-domain namespace (pinned in
 #: PINS.md).
-NIP32_NAMESPACE = "org.gammamarkets.protocol"
+NIP32_NAMESPACE = "org.infinitemarkets.protocol"
 
 # --- Section 7 state machines (literal) ----------------------------------------
 
@@ -257,19 +257,19 @@ ERROR_CODES = frozenset(
 
 # --- Section 10 task names -------------------------------------------------------
 
-#: Permanent tasks registered as ``gammamarkets.<task>`` (section 10 table).
+#: Permanent tasks registered as ``infinitemarkets.<task>`` (section 10 table).
 TASK_NAMES = frozenset(
     {
-        "gammamarkets.relay_manager",
-        "gammamarkets.inbox_processor",
-        "gammamarkets.outbox_publisher",
-        "gammamarkets.email_sender",
-        "gammamarkets.reservation_expiry",
-        "gammamarkets.reconciliation",
-        "gammamarkets.retention_pruner",
+        "infinitemarkets.relay_manager",
+        "infinitemarkets.inbox_processor",
+        "infinitemarkets.outbox_publisher",
+        "infinitemarkets.email_sender",
+        "infinitemarkets.reservation_expiry",
+        "infinitemarkets.reconciliation",
+        "infinitemarkets.retention_pruner",
         # Invoice callback: registered on every worker (no lease); the host
         # names it "<name>_invoice_listener" (verified P0-03).
-        "gammamarkets_invoice_listener",
+        "infinitemarkets_invoice_listener",
     }
 )
 
@@ -277,17 +277,17 @@ TASK_NAMES = frozenset(
 
 SETTINGS = frozenset(
     {
-        "GAMMAMARKETS_MASTER_KEYS",
-        "GAMMAMARKETS_ACTIVE_KEY_VERSION",
-        "GAMMAMARKETS_PUBLIC_BASE_URL",
-        "GAMMAMARKETS_PRIVACY_KEY",
+        "INFINITEMARKETS_MASTER_KEYS",
+        "INFINITEMARKETS_ACTIVE_KEY_VERSION",
+        "INFINITEMARKETS_PUBLIC_BASE_URL",
+        "INFINITEMARKETS_PRIVACY_KEY",
         "RESERVATION_TTL",
         "OUTBOX_MAX_ATTEMPTS",
         "OUTBOX_BATCH",
         "PEER_RELAY_TTL",
         "INBOX_MAX_EVENT_BYTES",
         "CHECKOUT_RATE_LIMIT",
-        "GAMMAMARKETS_EMAIL_ENABLED",
+        "INFINITEMARKETS_EMAIL_ENABLED",
         "EMAIL_MAX_ATTEMPTS",
         "SPEC_REVISION",
     }

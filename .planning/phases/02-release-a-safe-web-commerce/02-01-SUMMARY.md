@@ -10,10 +10,10 @@ requires:
     plan: 03
     provides: pinned host checkout, harness db/schema/tx adapters, qualification evidence pipeline
 provides:
-  - Production `gammamarkets` package discovered/migrated/route-mounted by the REAL host loader (LNBITS_EXTENSIONS_PATH + config.json + m001 through migrate_extension_database)
+  - Production `infinitemarkets` package discovered/migrated/route-mounted by the REAL host loader (LNBITS_EXTENSIONS_PATH + config.json + m001 through migrate_extension_database)
   - m001 schema: all 21 §4 merchant/catalog/outbox tables + indexes, literal column names/constraints
   - DomainTransaction: explicit BEGIN IMMEDIATE (raw aiosqlite) on SQLite / conn.begin() on PG; markdown-safe write path avoiding rewrite_values stripping
-  - Strict §12 settings validation + topology refusal + OQ3 audit-capture startup warning in gammamarkets_start
+  - Strict §12 settings validation + topology refusal + OQ3 audit-capture startup warning in infinitemarkets_start
   - crypto.py: AES-256-GCM envelopes (key_version + 96-bit nonce + tag) with length-prefixed AAD, purpose-separated HMAC-SHA256 privacy indexes, canonical public tokens
   - keystore.py: generate/import/sign/public_key/delete/rewrap/stale_merchants + encrypted export/restore; no raw nsec persisted/logged/returned
   - security.py: RFC 9457 problem+json boundary, cookie Origin+CSRF vs bearer mutation rules (cookie wins when both present), relay URL validator
@@ -38,11 +38,11 @@ tech-stack:
 
 key-files:
   created:
-    - gammamarkets/__init__.py, config.json, db.py, migrations.py, settings.py
-    - gammamarkets/crypto.py, keystore.py, security.py, models.py
-    - gammamarkets/services/{__init__,merchant,catalog,events,outbox}.py
-    - gammamarkets/views.py, views_api.py
-    - gammamarkets/templates/gammamarkets/index.html, static/gammamarkets/probe.txt
+    - infinitemarkets/__init__.py, config.json, db.py, migrations.py, settings.py
+    - infinitemarkets/crypto.py, keystore.py, security.py, models.py
+    - infinitemarkets/services/{__init__,merchant,catalog,events,outbox}.py
+    - infinitemarkets/views.py, views_api.py
+    - infinitemarkets/templates/infinitemarkets/index.html, static/infinitemarkets/probe.txt
     - tests/runtime/{conftest,test_install,test_db,test_crypto_keystore,test_merchant_api,test_catalog_api,test_catalog_events}.py
   modified:
     - tests/conftest.py (runtime marker)
@@ -50,8 +50,8 @@ key-files:
     - evidence/{REPORT.md,manifest.json} (regenerated, 296/297)
 
 key-decisions:
-  - "Template name resolution (OQ2 verified): template_renderer(['gammamarkets']) resolves literal 'templates/gammamarkets/index.html' relative to the extension dir — the spike renders 200 through the real loader."
-  - "Static files (OQ1 disposition): gammamarkets_static_files declarative list is host-mounted and allowed — the PINS ban covers extension code instantiating FileResponse/StaticFiles, not the declaration; mount verified via /gammamarkets/static/probe.txt."
+  - "Template name resolution (OQ2 verified): template_renderer(['infinitemarkets']) resolves literal 'templates/infinitemarkets/index.html' relative to the extension dir — the spike renders 200 through the real loader."
+  - "Static files (OQ1 disposition): infinitemarkets_static_files declarative list is host-mounted and allowed — the PINS ban covers extension code instantiating FileResponse/StaticFiles, not the declaration; mount verified via /infinitemarkets/static/probe.txt."
   - "Install mechanics (OQ5): fixture symlinks the repo package into a tmp LNBITS_EXTENSIONS_PATH/extensions dir; core-DB install rows are reset per boot for fresh-install semantics."
   - "config.json permissions (OQ4): parsed and accepted by the loader; no runtime enforcement observed for Python extensions — recorded, no code depends on it."
   - "Migration split (OQ7): m001 covers merchant/catalog/outbox-intent tables; m002 (02-03) adds orders/payments/inventory/idempotency/email + schema-only inbox_events/order_messages; peer_relays/relay_cursors/migration_jobs defer to Phase 3/4."

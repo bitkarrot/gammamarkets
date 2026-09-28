@@ -3,14 +3,14 @@
 ## Architecture and Implementation Proposal
 
 **Status:** Supporting rationale synchronized with the corrected Phase 0 contract
-**Extension ID:** `gammamarkets`
+**Extension ID:** `infinitemarkets`
 **Implementation:** Standard Python LNbits extension
-**Primary protocol:** GammaMarkets marketplace protocol
+**Primary protocol:** Infinitemarkets marketplace protocol
 **Compatibility protocols:** NIP-99 Classified Listings and NIP-15 Nostr Marketplace
 **Payment backend:** LNbits wallets and Lightning invoices
 **Protocol references:**
 
-- [GammaMarkets market specification](https://github.com/GammaMarkets/market-spec/blob/main/spec.md)
+- [Infinitemarkets market specification](https://github.com/GammaMarkets/market-spec/blob/main/spec.md)
 - [NIP-99 Classified Listings](https://github.com/nostr-protocol/nips/blob/master/99.md)
 - [NIP-15 Nostr Marketplace](https://github.com/nostr-protocol/nips/blob/master/15.md)
 - [NIP-17 Private Direct Messages](https://github.com/nostr-protocol/nips/blob/master/17.md)
@@ -26,20 +26,20 @@ corrected rather than delegated to implementation.
 
 ## 1. Executive Summary
 
-This proposal recommends building a new Gamma-native Python extension for LNbits rather than making GammaMarkets a secondary feature of the existing NIP-15 `nostrmarket` extension.
+This proposal recommends building a new Gamma-native Python extension for LNbits rather than making Infinitemarkets a secondary feature of the existing NIP-15 `nostrmarket` extension.
 
 The new extension will:
 
 1. Model products, collections, shipping, inventory, orders, payments, and fulfillment independently of any Nostr event format.
-2. Publish complete NIP-99/GammaMarkets representations as the primary protocol output.
+2. Publish complete NIP-99/Infinitemarkets representations as the primary protocol output.
 3. Publish NIP-15 stalls and products as a compatibility projection for existing NIP-15 clients.
-4. Accept both GammaMarkets NIP-17 orders and legacy NIP-15 NIP-04 orders.
+4. Accept both Infinitemarkets NIP-17 orders and legacy NIP-15 NIP-04 orders.
 5. Use LNbits wallets to create Lightning invoices and LNbits payment events as the authoritative source of payment settlement.
 6. Maintain durable Nostr subscriptions and relay reconnection through Python background tasks.
 7. Support migration from an existing `nostrmarket` catalog without allowing two extensions to remain simultaneous inventory authorities.
 8. Keep payment, transport, signing, and storage behind interfaces so the protocol core can later run outside LNbits or be partly compiled to WASM.
 
-The extension will be a new commerce system, not a thin NIP-99 publisher. The distinction matters because GammaMarkets includes merchant preferences, collections, shipping, encrypted order communication, payment requests, payment receipts, and order-status messages in addition to product listings.
+The extension will be a new commerce system, not a thin NIP-99 publisher. The distinction matters because Infinitemarkets includes merchant preferences, collections, shipping, encrypted order communication, payment requests, payment receipts, and order-status messages in addition to product listings.
 
 ### Recommended architectural decision
 
@@ -95,9 +95,9 @@ NIP-99 standardizes lightweight listing metadata such as:
 
 NIP-99 alone does not define a complete merchant application, inventory system, shipping calculation, invoice workflow, or order-status protocol.
 
-### 2.3 GammaMarkets supplies the missing commerce layer
+### 2.3 Infinitemarkets supplies the missing commerce layer
 
-The GammaMarkets specification uses NIP-99 product listings as its foundation and adds the structures needed for interoperable commerce:
+The Infinitemarkets specification uses NIP-99 product listings as its foundation and adds the structures needed for interoperable commerce:
 
 - product collections (`kind:30405`);
 - shipping options (`kind:30406`);
@@ -176,7 +176,7 @@ This removes the need to build a wallet server or Lightning accounting system.
 - event aggregation and deduplication;
 - a local WebSocket endpoint used by other extensions.
 
-Its current limitation for complete GammaMarkets support is relay selection. NIP-17 requires publishing gift wraps only to the recipient's kind-10050 inbox relays. The current `nostrclient` relay manager primarily fans messages out to its configured relay pool and does not expose per-publication target relay sets through a user-scoped service API.
+Its current limitation for complete Infinitemarkets support is relay selection. NIP-17 requires publishing gift wraps only to the recipient's kind-10050 inbox relays. The current `nostrclient` relay manager primarily fans messages out to its configured relay pool and does not expose per-publication target relay sets through a user-scoped service API.
 
 ### 3.3 Existing `nostrmarket` extension
 
@@ -229,10 +229,10 @@ This proposal (the one you are reading) supersedes the browser-relay transport r
 
 Across staged Releases A–C, the v1 roadmap should:
 
-1. Provide a complete GammaMarkets merchant implementation for Lightning payments through LNbits.
+1. Provide a complete Infinitemarkets merchant implementation for Lightning payments through LNbits.
 2. Publish valid NIP-99 product listings.
-3. Publish GammaMarkets collections, shipping options, and merchant preferences.
-4. Receive and send GammaMarkets NIP-17 order messages.
+3. Publish Infinitemarkets collections, shipping options, and merchant preferences.
+4. Receive and send Infinitemarkets NIP-17 order messages.
 5. Publish NIP-15 compatibility stalls and products.
 6. Receive NIP-15 NIP-04 orders for compatibility.
 7. Maintain one authoritative product, inventory, order, and payment model.
@@ -254,7 +254,7 @@ The initial release should not attempt to:
 - translate arbitrary NIP-15 stalls from unrelated merchants into Gamma events;
 - keep two extensions as simultaneous writers for one catalog;
 - guarantee delivery through relays without exposing delivery state;
-- silently claim compatibility with future GammaMarkets draft revisions;
+- silently claim compatibility with future Infinitemarkets draft revisions;
 - support multiple merchants sharing one product or inventory record;
 - implement a general-purpose Nostr key-management service for other extensions.
 
@@ -266,9 +266,9 @@ The initial release should not attempt to:
 
 Products and orders are commerce entities. They should not be stored as serialized Nostr events. Protocol adapters generate events from domain records and ingest events into domain commands.
 
-### 5.2 GammaMarkets is primary
+### 5.2 Infinitemarkets is primary
 
-When GammaMarkets and NIP-15 differ, the internal model should preserve the richer Gamma semantics. NIP-15 output may be lossy, but Gamma output must not be constrained by NIP-15.
+When Infinitemarkets and NIP-15 differ, the internal model should preserve the richer Gamma semantics. NIP-15 output may be lossy, but Gamma output must not be constrained by NIP-15.
 
 ### 5.3 Exactly one writer per catalog
 
@@ -284,7 +284,7 @@ Publishing an event is not an atomic database operation. The extension must use 
 
 ### 5.6 Protocol revisions are explicit
 
-The GammaMarkets specification is a draft. The extension must pin a tested specification revision and expose it in settings and generated event metadata where appropriate.
+The Infinitemarkets specification is a draft. The extension must pin a tested specification revision and expose it in settings and generated event metadata where appropriate.
 
 ### 5.7 Security boundaries are explicit
 
@@ -354,7 +354,7 @@ flowchart TB
     end
 
     subgraph Protocols[Protocol adapters]
-        GammaAdapter[GammaMarkets adapter]
+        GammaAdapter[Infinitemarkets adapter]
         NIP99Adapter[NIP-99 adapter]
         NIP15Adapter[NIP-15 adapter]
         NIP17Adapter[NIP-17/NIP-44/NIP-59]
@@ -395,7 +395,7 @@ The domain layer must not import FastAPI, LNbits, SQL, `nostr-sdk`, or UI code.
 ## 8. Proposed Package Structure
 
 ```text
-gammamarkets/
+infinitemarkets/
 ├── __init__.py
 ├── config.py
 ├── dependencies.py
@@ -443,7 +443,7 @@ gammamarkets/
 │   ├── nostr_transport.py
 │   ├── direct_transport.py
 │   └── repositories.py
-├── templates/gammamarkets/
+├── templates/infinitemarkets/
 ├── static/
 └── tests/
     ├── fixtures/
@@ -672,7 +672,7 @@ The outbox should store publication intent or an unsigned event rather than a lo
 
 ### 10.2 Order-message matrix
 
-| Action | GammaMarkets | NIP-15 compatibility |
+| Action | Infinitemarkets | NIP-15 compatibility |
 |---|---|---|
 | General message | NIP-17 rumor kind `14` | NIP-04 plaintext or structured DM |
 | Create order | NIP-17 rumor kind `16`, type `1` | NIP-04 type `0` |
@@ -1044,7 +1044,7 @@ Settlement must atomically:
 
 ## 18. Background Tasks
 
-`gammamarkets_start()` performs bounded synchronous registration only. Managed tasks do
+`infinitemarkets_start()` performs bounded synchronous registration only. Managed tasks do
 network and reconciliation work; checkout and subscriptions remain behind a readiness
 gate until startup reconciliation completes. Every task/client cleans up in `finally`
 because process shutdown may cancel tasks without invoking the extension stop hook.
@@ -1115,28 +1115,28 @@ The exact request and response schemas should be defined in OpenAPI during imple
 ### 19.1 Merchant routes
 
 ```text
-POST   /gammamarkets/api/v1/merchants
-GET    /gammamarkets/api/v1/merchants/current
-PATCH  /gammamarkets/api/v1/merchants/{merchant_id}
-POST   /gammamarkets/api/v1/merchants/{merchant_id}/keys/import
-POST   /gammamarkets/api/v1/merchants/{merchant_id}/publish
-GET    /gammamarkets/api/v1/merchants/{merchant_id}/relay-health
-GET    /gammamarkets/api/v1/merchants/{merchant_id}/notifications
-PATCH  /gammamarkets/api/v1/merchants/{merchant_id}/notifications
-POST   /gammamarkets/api/v1/merchants/{merchant_id}/notifications/test
+POST   /infinitemarkets/api/v1/merchants
+GET    /infinitemarkets/api/v1/merchants/current
+PATCH  /infinitemarkets/api/v1/merchants/{merchant_id}
+POST   /infinitemarkets/api/v1/merchants/{merchant_id}/keys/import
+POST   /infinitemarkets/api/v1/merchants/{merchant_id}/publish
+GET    /infinitemarkets/api/v1/merchants/{merchant_id}/relay-health
+GET    /infinitemarkets/api/v1/merchants/{merchant_id}/notifications
+PATCH  /infinitemarkets/api/v1/merchants/{merchant_id}/notifications
+POST   /infinitemarkets/api/v1/merchants/{merchant_id}/notifications/test
 ```
 
 ### 19.2 Catalog routes
 
 ```text
-GET    /gammamarkets/api/v1/catalogs
-POST   /gammamarkets/api/v1/catalogs
-PATCH  /gammamarkets/api/v1/catalogs/{catalog_id}
-GET    /gammamarkets/api/v1/products
-POST   /gammamarkets/api/v1/products
-GET    /gammamarkets/api/v1/products/{product_id}
-PATCH  /gammamarkets/api/v1/products/{product_id}
-DELETE /gammamarkets/api/v1/products/{product_id}
+GET    /infinitemarkets/api/v1/catalogs
+POST   /infinitemarkets/api/v1/catalogs
+PATCH  /infinitemarkets/api/v1/catalogs/{catalog_id}
+GET    /infinitemarkets/api/v1/products
+POST   /infinitemarkets/api/v1/products
+GET    /infinitemarkets/api/v1/products/{product_id}
+PATCH  /infinitemarkets/api/v1/products/{product_id}
+DELETE /infinitemarkets/api/v1/products/{product_id}
 ```
 
 Collections, shipping options, variations, and publication status receive equivalent authenticated routes.
@@ -1144,40 +1144,40 @@ Collections, shipping options, variations, and publication status receive equiva
 ### 19.3 Order routes
 
 ```text
-GET    /gammamarkets/api/v1/orders
-GET    /gammamarkets/api/v1/orders/{order_id}
-POST   /gammamarkets/api/v1/orders/{order_id}/status
-POST   /gammamarkets/api/v1/orders/{order_id}/shipping
-POST   /gammamarkets/api/v1/orders/{order_id}/cancel
-POST   /gammamarkets/api/v1/orders/{order_id}/public-token/reissue
+GET    /infinitemarkets/api/v1/orders
+GET    /infinitemarkets/api/v1/orders/{order_id}
+POST   /infinitemarkets/api/v1/orders/{order_id}/status
+POST   /infinitemarkets/api/v1/orders/{order_id}/shipping
+POST   /infinitemarkets/api/v1/orders/{order_id}/cancel
+POST   /infinitemarkets/api/v1/orders/{order_id}/public-token/reissue
 ```
 
 ### 19.4 Public routes
 
 ```text
-GET    /gammamarkets/api/v1/public/merchants/{merchant_id}
-GET    /gammamarkets/api/v1/public/products/{product_id}
-GET    /gammamarkets/api/v1/public/collections/{collection_id}
-GET    /gammamarkets/api/v1/public/shipping/{shipping_id}
-POST   /gammamarkets/api/v1/public/checkout
-GET    /gammamarkets/api/v1/public/order-status          X-Order-Token header
-POST   /gammamarkets/api/v1/public/order-email-opt-out   X-Order-Token header
-GET    /gammamarkets/p/{naddr}                           NIP-89 handler
-GET    /gammamarkets/order                               token in URL fragment only
+GET    /infinitemarkets/api/v1/public/merchants/{merchant_id}
+GET    /infinitemarkets/api/v1/public/products/{product_id}
+GET    /infinitemarkets/api/v1/public/collections/{collection_id}
+GET    /infinitemarkets/api/v1/public/shipping/{shipping_id}
+POST   /infinitemarkets/api/v1/public/checkout
+GET    /infinitemarkets/api/v1/public/order-status          X-Order-Token header
+POST   /infinitemarkets/api/v1/public/order-email-opt-out   X-Order-Token header
+GET    /infinitemarkets/p/{naddr}                           NIP-89 handler
+GET    /infinitemarkets/order                               token in URL fragment only
 ```
 
 Public order lookups use high-entropy, revocable tokens in a redacted header, never in a
-request path or query. The magic link uses `/gammamarkets/order#<token>`; page code
+request path or query. The magic link uses `/infinitemarkets/order#<token>`; page code
 removes the fragment before polling.
 
 ### 19.5 Migration routes
 
 ```text
-POST   /gammamarkets/api/v1/import/nostrmarket/preview
-POST   /gammamarkets/api/v1/import/nostrmarket/execute
-POST   /gammamarkets/api/v1/import/nostr/preview
-POST   /gammamarkets/api/v1/import/nostr/execute
-GET    /gammamarkets/api/v1/import/{job_id}
+POST   /infinitemarkets/api/v1/import/nostrmarket/preview
+POST   /infinitemarkets/api/v1/import/nostrmarket/execute
+POST   /infinitemarkets/api/v1/import/nostr/preview
+POST   /infinitemarkets/api/v1/import/nostr/execute
+GET    /infinitemarkets/api/v1/import/{job_id}
 ```
 
 Migration must separate preview, validation, execution, and cutover confirmation.
@@ -1398,7 +1398,7 @@ Golden fixtures should cover:
 
 ### 23.4 Cross-client conformance tests
 
-Release B gates an external GammaMarkets client; Release C gates a NIP-15 client and
+Release B gates an external Infinitemarkets client; Release C gates a NIP-15 client and
 literal wire fixtures. These later-release runs are planned during Phase 0 but are not
 Release-A prerequisites.
 
@@ -1434,7 +1434,7 @@ The implementation should proceed as vertical slices. Each phase must leave an e
 
 ### Phase 0: Specification profile and conformance corpus
 
-**Objective:** Freeze what "GammaMarkets compatible" means for this implementation.
+**Objective:** Freeze what "Infinitemarkets compatible" means for this implementation.
 
 Deliverables:
 
@@ -1442,7 +1442,7 @@ Deliverables:
 - Execute SDK security, FFI, NIP-44/NIP-59, targeted ACK and ephemeral external-smoke probes from technical specification §22.
 - Build valid/invalid event fixtures, literal NIP-15 DTOs, and executable state/schema recovery models.
 - Qualify host invoice/listener/task/transaction/SMTP/auth/audit/FX boundaries on SQLite and the claimed PostgreSQL topology.
-- Freeze `gammamarkets` identifiers, reverse-domain labels, release-scoped claims, and migration-liability procedure.
+- Freeze `infinitemarkets` identifiers, reverse-domain labels, release-scoped claims, and migration-liability procedure.
 
 Acceptance criteria:
 
@@ -1649,7 +1649,7 @@ Acceptance criteria:
 - No known critical key, wallet, payment, or cross-tenant issue remains.
 - Required test suites pass on supported LNbits and database configurations.
 - Operators can diagnose relay, outbox, invoice, and reservation failures.
-- Release claims identify the pinned GammaMarkets revision.
+- Release claims identify the pinned Infinitemarkets revision.
 
 ---
 
@@ -1663,7 +1663,7 @@ Includes Phases 0–3 and the hardened portions of Phase 5 needed for real payme
 
 Claim:
 
-> GammaMarkets/NIP-99 catalog publisher with LNbits web checkout.
+> Infinitemarkets/NIP-99 catalog publisher with LNbits web checkout.
 
 It must not yet claim complete Gamma order-protocol support.
 
@@ -1673,7 +1673,7 @@ Adds Phase 4 and full reconciliation.
 
 Claim:
 
-> GammaMarkets-compatible merchant implementation for Lightning orders through LNbits, pinned to the documented draft revision.
+> Infinitemarkets-compatible merchant implementation for Lightning orders through LNbits, pinned to the documented draft revision.
 
 ### Release C: NIP-15 interoperability and migration
 
@@ -1681,7 +1681,7 @@ Adds Phases 6–8.
 
 Claim:
 
-> GammaMarkets-native LNbits marketplace with NIP-99 listings, NIP-15 catalog and order compatibility, and migration from LNbits Nostr Market.
+> Infinitemarkets-native LNbits marketplace with NIP-99 listings, NIP-15 catalog and order compatibility, and migration from LNbits Nostr Market.
 
 ---
 
@@ -1765,7 +1765,7 @@ It remains useful as reference code and a future adapter candidate, but is not a
 
 The normative choices are frozen in `technical-specification.md` §21. In summary:
 
-1. Runtime name and coordinated identifiers are `gammamarkets`.
+1. Runtime name and coordinated identifiers are `infinitemarkets`.
 2. Protocol/host revisions are pinned; the host-resolved SDK artifact remains a Phase 0 qualification, not an assumed safe version.
 3. Published products use at least one 30405 collection; local drafts are not published.
 4. Qualified direct `nostr-sdk` is the baseline; other relay extensions are adapter candidates only after identical routing/ACK tests.
@@ -1805,7 +1805,7 @@ Proceed with a new standard Python LNbits extension using a Gamma-native domain 
 
 The architecture should:
 
-- treat GammaMarkets as the full marketplace protocol;
+- treat Infinitemarkets as the full marketplace protocol;
 - treat NIP-99 as the public listing foundation;
 - treat NIP-15 as a compatibility adapter;
 - use LNbits as the authoritative Lightning payment backend;
@@ -1815,4 +1815,4 @@ The architecture should:
 - use reservations, idempotency, an inbox, and an outbox from the beginning;
 - separate protocol logic from LNbits-specific infrastructure so an external application remains possible later.
 
-This approach is more work than adding a `30402` event builder to `nostrmarket`, but the additional work corresponds to real protocol and commerce requirements that a dual-publisher does not solve. It avoids embedding a new protocol generation inside a legacy NIP-15 data model and provides a credible path to complete GammaMarkets interoperability without abandoning existing NIP-15 merchants and clients.
+This approach is more work than adding a `30402` event builder to `nostrmarket`, but the additional work corresponds to real protocol and commerce requirements that a dual-publisher does not solve. It avoids embedding a new protocol generation inside a legacy NIP-15 data model and provides a credible path to complete Infinitemarkets interoperability without abandoning existing NIP-15 merchants and clients.

@@ -6,7 +6,7 @@ exact SendEventOutput shape — against ``harness.relay.LocalRelay`` and a
 dead loopback port. Findings are recorded in 02-02-SUMMARY.md.
 
 Part 2: the publisher worker against the real schema (keystore_env tmp DB)
-with ``GAMMAMARKETS_ALLOW_INSECURE_RELAYS=1`` admitting ws:// loopback
+with ``INFINITEMARKETS_ALLOW_INSECURE_RELAYS=1`` admitting ws:// loopback
 targets — the production ``validate_relay_url`` remains wss-only.
 """
 
@@ -108,7 +108,7 @@ async def test_oq6_send_to_dead_relay_is_timeout_not_exception():
         assert relay_url in output.failed
         reason = str(output.failed[relay_url])
         assert reason in {"relay not connected", "timeout"}
-        from gammamarkets.services.outbox import TRANSIENT_REASONS
+        from infinitemarkets.services.outbox import TRANSIENT_REASONS
 
         assert reason in TRANSIENT_REASONS
         assert output.success == []
@@ -155,23 +155,23 @@ async def test_oq6_send_to_unregistered_relay_is_safe():
 async def worker_env(keystore_env, monkeypatch):
     """Extension modules bound to the tmp DB + insecure-relay allowance."""
     env = {
-        "GAMMAMARKETS_MASTER_KEYS": json.dumps(
+        "INFINITEMARKETS_MASTER_KEYS": json.dumps(
             {"v1": base64.b64encode(bytes(32)).decode()}
         ),
-        "GAMMAMARKETS_ACTIVE_KEY_VERSION": "v1",
-        "GAMMAMARKETS_PRIVACY_KEY": base64.b64encode(bytes([9]) * 32).decode(),
-        "GAMMAMARKETS_PUBLIC_BASE_URL": "https://x.example",
-        "GAMMAMARKETS_ALLOW_INSECURE_RELAYS": "1",
+        "INFINITEMARKETS_ACTIVE_KEY_VERSION": "v1",
+        "INFINITEMARKETS_PRIVACY_KEY": base64.b64encode(bytes([9]) * 32).decode(),
+        "INFINITEMARKETS_PUBLIC_BASE_URL": "https://x.example",
+        "INFINITEMARKETS_ALLOW_INSECURE_RELAYS": "1",
     }
     for key, value in env.items():
         monkeypatch.setenv(key, value)
     # worker tests DO dial — ensure no leaked kill switch from a host boot
-    monkeypatch.delenv("GAMMAMARKETS_RELAY_IO", raising=False)
+    monkeypatch.delenv("INFINITEMARKETS_RELAY_IO", raising=False)
     gdb = keystore_env["db"]
-    outbox = importlib.import_module("gammamarkets.services.outbox")
-    relay_service = importlib.import_module("gammamarkets.services.relay")
+    outbox = importlib.import_module("infinitemarkets.services.outbox")
+    relay_service = importlib.import_module("infinitemarkets.services.relay")
     transport_mod = importlib.import_module(
-        "gammamarkets.services.transport"
+        "infinitemarkets.services.transport"
     )
     yield {
         "db": gdb,
@@ -187,7 +187,7 @@ async def _merchant(worker_env, merchant_id: str | None = None) -> str:
     """Merchants row + generated key so keystore.sign_event works."""
     mid = merchant_id or uuid.uuid4().hex
     db = worker_env["db"]
-    from gammamarkets.db import table
+    from infinitemarkets.db import table
 
     async with db.connect() as conn:
         await conn.execute(
@@ -215,7 +215,7 @@ async def _merchant(worker_env, merchant_id: str | None = None) -> str:
 
 async def _relay_config(db, merchant_id: str, url: str,
                         direction: str = "public", enabled: bool = True):
-    from gammamarkets.db import table
+    from infinitemarkets.db import table
 
     async with db.connect() as conn:
         await conn.execute(
@@ -235,8 +235,8 @@ async def _relay_config(db, merchant_id: str, url: str,
 
 async def _intent(db, merchant_id: str, kind: int = 0) -> str:
     """merchant_profile intent — renderable from the merchants row alone."""
-    from gammamarkets.db import DomainTransaction
-    from gammamarkets.services.outbox import enqueue_intent
+    from infinitemarkets.db import DomainTransaction
+    from infinitemarkets.services.outbox import enqueue_intent
 
     async with DomainTransaction() as tx:
         return await enqueue_intent(
@@ -245,7 +245,7 @@ async def _intent(db, merchant_id: str, kind: int = 0) -> str:
 
 
 async def _state(db, intent_id: str) -> dict:
-    from gammamarkets.db import table
+    from infinitemarkets.db import table
 
     async with db.connect() as conn:
         row = await conn.fetchone(
@@ -291,7 +291,7 @@ async def test_publish_accepted_marks_published_and_records_evidence(
 async def _quiesce_pending(db) -> None:
     """Supersede leftover live intents so claim-count assertions stay
     hermetic — worker ticks claim globally across merchants."""
-    from gammamarkets.db import table
+    from infinitemarkets.db import table
 
     async with db.connect() as conn:
         await conn.execute(
@@ -382,7 +382,7 @@ async def test_accepted_targets_are_never_resent(worker_env):
         assert len(accepting.received_events) == 1
 
         # Force a second attempt without waiting for backoff.
-        from gammamarkets.db import table
+        from infinitemarkets.db import table
 
         async with worker_env["db"].connect() as conn:
             await conn.execute(
@@ -414,8 +414,8 @@ async def test_newer_live_revision_supersedes_stale_intent(worker_env):
     ) as accepting:
         mid = await _merchant(worker_env)
         await _relay_config(worker_env["db"], mid, accepting.url)
-        from gammamarkets.db import DomainTransaction
-        from gammamarkets.services.outbox import enqueue_intent
+        from infinitemarkets.db import DomainTransaction
+        from infinitemarkets.services.outbox import enqueue_intent
 
         async with DomainTransaction() as tx:
             old = await enqueue_intent(
@@ -442,8 +442,8 @@ async def test_dependency_gate_blocks_until_published(worker_env):
     ) as accepting:
         mid = await _merchant(worker_env)
         await _relay_config(worker_env["db"], mid, accepting.url)
-        from gammamarkets.db import DomainTransaction
-        from gammamarkets.services.outbox import enqueue_intent
+        from infinitemarkets.db import DomainTransaction
+        from infinitemarkets.services.outbox import enqueue_intent
 
         async with DomainTransaction() as tx:
             cid = uuid.uuid4().hex
@@ -475,7 +475,7 @@ async def test_retry_intent_resets_failed_and_skips_accepted(worker_env):
         await _relay_config(worker_env["db"], mid, accepting.url)
         intent = await _intent(worker_env["db"], mid)
         db = worker_env["db"]
-        from gammamarkets.db import table
+        from infinitemarkets.db import table
 
         async with db.connect() as conn:
             await conn.execute(
@@ -496,7 +496,7 @@ async def test_retry_intent_resets_failed_and_skips_accepted(worker_env):
                 " WHERE id = :i",
                 {"i": intent},
             )
-        from gammamarkets.security import ProblemError
+        from infinitemarkets.security import ProblemError
 
         with pytest.raises(ProblemError):
             await worker_env["relay"].retry_intent(mid, intent)
@@ -508,7 +508,7 @@ async def test_stale_claim_recovery_requeues_with_evidence(worker_env):
     mid = await _merchant(worker_env)
     db = worker_env["db"]
     intent = await _intent(db, mid)
-    from gammamarkets.db import table
+    from infinitemarkets.db import table
 
     async with db.connect() as conn:
         await conn.execute(
@@ -546,7 +546,7 @@ async def test_relay_targets_direction_and_defaults(worker_env):
 
     # starter seeding: a merchant with zero configs gets the visible set
     mid2 = uuid.uuid4().hex
-    from gammamarkets.db import table
+    from infinitemarkets.db import table
 
     async with db.connect() as conn:
         await conn.execute(
@@ -563,7 +563,7 @@ async def test_relay_targets_direction_and_defaults(worker_env):
 
 
 async def test_no_targets_cannot_be_published_or_activate_merchant(worker_env, monkeypatch):
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     mid = await _merchant(worker_env)
     intent = await _intent(worker_env["db"], mid)
@@ -590,7 +590,7 @@ async def test_no_targets_cannot_be_published_or_activate_merchant(worker_env, m
 
 
 async def test_expired_publication_claim_cannot_write(worker_env):
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     mid = await _merchant(worker_env)
     intent = await _intent(worker_env["db"], mid)
@@ -614,7 +614,7 @@ async def test_expired_publication_claim_cannot_write(worker_env):
 async def test_network_send_does_not_hold_database_write_lock(worker_env):
     from types import SimpleNamespace
 
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     mid = await _merchant(worker_env)
     intent = await _intent(worker_env["db"], mid)
@@ -651,7 +651,7 @@ async def test_network_send_does_not_hold_database_write_lock(worker_env):
 async def test_lease_expiry_during_send_cannot_commit_evidence(worker_env):
     from types import SimpleNamespace
 
-    from gammamarkets.db import DomainTransaction
+    from infinitemarkets.db import DomainTransaction
 
     mid = await _merchant(worker_env)
     intent = await _intent(worker_env["db"], mid)

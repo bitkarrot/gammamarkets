@@ -43,7 +43,7 @@ Discussion therefore focused on execution approach, not scope.
 | After planning | Roadmap minimum — produce between planning and execution | |
 
 **User's choice:** Before planning.
-**Notes:** Via the ui-phase step with `.devin/skills/sketch-findings-gammamarkets/` + `.planning/sketches/` as guideline and the normative spec as authority.
+**Notes:** Via the ui-phase step with `.devin/skills/sketch-findings-infinitemarkets/` + `.planning/sketches/` as guideline and the normative spec as authority.
 
 ## Package Layout
 
@@ -51,7 +51,7 @@ Discussion therefore focused on execution approach, not scope.
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Standard LNbits layout in-repo | `gammamarkets/` package (`__init__.py`, views/API, `static/`, migrations), mounted into pinned host for dev/UAT | Yes |
+| Standard LNbits layout in-repo | `infinitemarkets/` package (`__init__.py`, views/API, `static/`, migrations), mounted into pinned host for dev/UAT | Yes |
 | Discuss it | Explore layout/mount options | |
 | Planner discretion | Resolve from host conventions | |
 

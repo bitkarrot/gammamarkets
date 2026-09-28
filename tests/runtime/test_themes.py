@@ -13,7 +13,7 @@ import pytest
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 
 def _csrf(client) -> str:
@@ -185,13 +185,13 @@ async def test_theme_reaches_public_page_only(runtime_env):
         )
     ).json()
     resp = await client.get(
-        f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}"
+        f"/infinitemarkets/p/{merchant['pubkey']}/{product['d_tag']}"
     )
     assert ".gm-public {" in resp.text
     assert "--color-bg: #f4f7f7" in resp.text  # clean-minimal emitted
 
     # the admin shell document never carries theme CSS
-    resp = await client.get("/gammamarkets/", headers=_headers(runtime_env))
+    resp = await client.get("/infinitemarkets/", headers=_headers(runtime_env))
     assert ".gm-public" not in resp.text
 
 
@@ -200,14 +200,14 @@ async def test_layout_compact_fallback_in_css(runtime_env):
     the media query is unconditional in gm-public.css."""
     client = runtime_env["client"]
     css = await client.get(
-        "/gammamarkets/static/gammamarkets/css/gm-public.css"
+        "/infinitemarkets/static/infinitemarkets/css/gm-public.css"
     )
     assert "max-width: 560px" in css.text
     assert "grid-template-columns: 1fr" in css.text
 
 
 async def test_reset_to_preset_clears_overrides(runtime_env):
-    from gammamarkets.services import themes
+    from infinitemarkets.services import themes
 
     resp, _ = await _patch_theme(
         runtime_env,
@@ -235,4 +235,4 @@ async def test_advanced_tokens_preserve_secondary_text_and_focus(runtime_env, to
         runtime_env, {"advanced": tokens, "advanced_opt_in": True},
     )
     assert response.status_code == 422
-    assert response.json()["type"] == "urn:gammamarkets:contrast-gate"
+    assert response.json()["type"] == "urn:infinitemarkets:contrast-gate"

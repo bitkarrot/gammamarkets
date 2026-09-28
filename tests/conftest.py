@@ -1,4 +1,4 @@
-"""Pytest configuration for the GammaMarkets qualification harness.
+"""Pytest configuration for the Infinitemarkets qualification harness.
 
 Session-start env conventions (set before any ``lnbits`` import):
 

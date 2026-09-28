@@ -17,8 +17,8 @@ behavior_unverified: 0
 | Item | Value |
 |------|-------|
 | Verified date | 2026-09-27 UTC |
-| Implementation | Production extension code remains `021c402d620396b671c3fd919ad2275b4c3072ff`; later commits change closeout evidence and Node/CI policy only, with no diff under `gammamarkets/`, `tools/`, `harness/`, `pyproject.toml` or `uv.lock` |
-| Current CI | [Run 36352552899](https://github.com/bitkarrot/gammamarkets/actions/runs/36352552899), conclusion `success`, head SHA `021c402d620396b671c3fd919ad2275b4c3072ff` |
+| Implementation | Production extension code remains `021c402d620396b671c3fd919ad2275b4c3072ff`; later commits change closeout evidence and Node/CI policy only, with no diff under `infinitemarkets/`, `tools/`, `harness/`, `pyproject.toml` or `uv.lock` |
+| Current CI | [Run 36352552899](https://github.com/bitkarrot/infinitemarkets/actions/runs/36352552899), conclusion `success`, head SHA `021c402d620396b671c3fd919ad2275b4c3072ff` |
 | LNbits host | `1.6.2-rc1`, pinned checkout `e336fe14b841d6f0c940e75b3d343e3ab5cf8433`, clean; no LNbits core source changed |
 | Language | Python 3.12 |
 | Payment backend | LNbits FakeWallet in disposable host installations; no real-funds/provider claim |

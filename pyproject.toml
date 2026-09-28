@@ -1,7 +1,7 @@
 [project]
-name = "gammamarkets"
+name = "infinitemarkets"
 version = "0.1.0"
-description = "GammaMarkets qualification harness (Phase 1 contract conformance; no production runtime code)"
+description = "Infinitemarkets qualification harness (Phase 1 contract conformance; no production runtime code)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # LNbits pinned host, resolved via [tool.uv.sources] to the checkout

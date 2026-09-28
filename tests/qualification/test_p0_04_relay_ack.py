@@ -166,7 +166,7 @@ async def test_external_relay_smoke():
         assert await client.add_relay(RelayUrl.parse(url))
         await client.connect()
         event = EventBuilder.text_note(
-            "gammamarkets qualification smoke (ephemeral, non-sensitive)"
+            "infinitemarkets qualification smoke (ephemeral, non-sensitive)"
         ).sign_with_keys(keys)
         output = await client.send_event_to([RelayUrl.parse(url)], event)
         outcome, message = classify(output, url)

@@ -26,8 +26,8 @@ KIND_HANDLER_INFO = 31990
 KIND_HANDLER_RECOMMENDATION = 31989
 
 #: Canonical buyer-facing product page path (section 5.4 route table under
-#: the frozen ``/gammamarkets`` route prefix).
-CANONICAL_PAGE_TEMPLATE = "/gammamarkets/p/{pubkey}/{d}"
+#: the frozen ``/infinitemarkets`` route prefix).
+CANONICAL_PAGE_TEMPLATE = "/infinitemarkets/p/{pubkey}/{d}"
 
 
 class NaddrRejection(Exception):

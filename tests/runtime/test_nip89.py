@@ -17,7 +17,7 @@ import pytest
 pytestmark = pytest.mark.runtime
 
 ORIGIN = "https://shop.example"
-API = "/gammamarkets/api/v1"
+API = "/infinitemarkets/api/v1"
 
 
 def _csrf(client) -> str:
@@ -100,10 +100,10 @@ async def test_valid_naddr_redirects_to_canonical(runtime_env):
         [RelayUrl.parse("wss://hint-ignored.example")],
     ).to_bech32()
 
-    resp = await client.get(f"/gammamarkets/p/{naddr}")
+    resp = await client.get(f"/infinitemarkets/p/{naddr}")
     assert resp.status_code == 301
     assert resp.headers["location"].endswith(
-        f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}"
+        f"/infinitemarkets/p/{merchant['pubkey']}/{product['d_tag']}"
     )
     # public security headers on the redirect too
     assert resp.headers["cache-control"] == "no-store"
@@ -131,7 +131,7 @@ async def test_invalid_naddr_variants_render_invalid_link(runtime_env):
         ).to_bech32(),
     ]
     for naddr in variants:
-        resp = await client.get(f"/gammamarkets/p/{naddr}")
+        resp = await client.get(f"/infinitemarkets/p/{naddr}")
         assert resp.status_code == 404, (naddr, resp.status_code)
         assert "not valid here" in resp.text
 
@@ -166,7 +166,7 @@ async def test_public_product_page_states(runtime_env):
     mid, merchant = await _merchant(runtime_env)
     headers = _headers(runtime_env)
     product = await _create_product(client, mid, headers)
-    url = f"/gammamarkets/p/{merchant['pubkey']}/{product['d_tag']}"
+    url = f"/infinitemarkets/p/{merchant['pubkey']}/{product['d_tag']}"
 
     resp = await client.get(url)
     assert resp.status_code == 200
@@ -248,7 +248,7 @@ async def test_product_currency_precision_is_explicit(runtime_env, currency, dec
 
 async def test_rate_limit_enforced_on_public_routes(runtime_env, monkeypatch):
     """120 GET/min/IP — push past the bound and expect 429."""
-    from gammamarkets.services import nip89
+    from infinitemarkets.services import nip89
 
     now = int(time.time())
     monkeypatch.setattr(nip89, "time", SimpleNamespace(time=lambda: now))
