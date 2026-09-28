@@ -147,13 +147,26 @@ class WrapRejection(Exception):
     """
 
 
-def fixed_test_keys(label: str) -> Keys:
-    """A deterministic synthetic keypair for golden fixtures (T-01-03).
+#: The golden NIP-17 fixtures pin these synthetic secrets (see
+#: tests/fixtures/golden/nip17/keys.json) — they are fixture identity,
+#: never real key material.
+_FIXED_TEST_SECRETS = {
+    "buyer": "fd14237afe0b57387734877d8fd2690966740c212844d613b31a7d831dbb80d0",
+    "merchant": "d9b92e1f2c98365c4dddf2102092580f772df9e4855925b72a4fc4ee3bb701e4",
+}
 
-    The secret is ``sha256("infinitemarkets-qual:" + label)`` — a fixed test
-    value, never a real key.
-    """
-    secret_hex = hashlib.sha256(f"infinitemarkets-qual:{label}".encode()).hexdigest()
+
+def fixed_test_keys(label: str) -> Keys:
+    """The deterministic synthetic keypair pinned by the golden fixtures
+    (T-01-03) — fixed test values, never real keys.
+
+    Buyer/merchant return the fixture-pinned secrets; any other label
+    derives a deterministic stand-in (e.g. ``"stranger"``)."""
+    if label in _FIXED_TEST_SECRETS:
+        return Keys.parse(_FIXED_TEST_SECRETS[label])
+    secret_hex = hashlib.sha256(
+        f"infinitemarkets-qual:{label}".encode()
+    ).hexdigest()
     return Keys.parse(secret_hex)
 
 

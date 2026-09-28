@@ -405,9 +405,10 @@ def test_identifier_closure():
     assert registry.ROUTE_PREFIX in harness_src
     assert registry.ENV_PREFIX in harness_src
     # no undeclared variant spelling of the frozen runtime identifier
+    # (post-rebrand only the canonical spelling may appear in these trees)
     variants = {
         m.lower()
-        for m in re.findall(r"(?i)gamma[-_ ]?markets?", qual_src)
+        for m in re.findall(r"(?i)(?:gamma|infinite)[-_ ]?markets?", qual_src)
     }
     assert variants == {"infinitemarkets"}, (
         f"variant runtime-identifier spellings present: {sorted(variants)}"
