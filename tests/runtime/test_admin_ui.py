@@ -496,6 +496,17 @@ async def test_messages_workspace(runtime_env):
     )
     assert resp.status_code == 200, resp.text
 
+    # The muted badge is durable — a follow-up listing marks the row so
+    # the admin panel can render 'muted' without guessing.
+    resp = await client.get(
+        f"{API}/merchants/{mid}/rejected-intake",
+        headers=await cookie(),
+    )
+    assert resp.status_code == 200, resp.text
+    entry = next(e for e in resp.json()["entries"] if e["id"] == rid)
+    assert entry["muted"] is True
+    assert entry["reject_reason"] == "type-3 missing order tag"
+
     # --- order-detail sibling thread ---
     resp = await client.get(
         f"{API}/merchants/{mid}/orders/{order_id}/messages",

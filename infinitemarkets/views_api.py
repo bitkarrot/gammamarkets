@@ -1163,6 +1163,12 @@ async def _list_rejected_intake(merchant_id: str, user) -> dict:
             " ORDER BY processed_at DESC LIMIT 100",
             {"m": merchant_id},
         )
+        muted_rows = await conn.fetchall(
+            f"SELECT author_hash FROM {table('inbox_blocklist')}"
+            " WHERE merchant_id = :m",
+            {"m": merchant_id},
+        )
+    muted_hashes = {r["author_hash"] for r in muted_rows}
     entries = []
     for row in rows:
         author_npub = None
@@ -1189,6 +1195,10 @@ async def _list_rejected_intake(merchant_id: str, user) -> dict:
                 "processed_state": row["processed_state"],
                 "reject_reason": row["reject_reason"],
                 "author_npub": author_npub,
+                "muted": (
+                    row["author_hash"] is not None
+                    and row["author_hash"] in muted_hashes
+                ),
                 "source_relay": row["source_relay_url"],
                 "received_at": row["received_at"],
                 "processed_at": row["processed_at"],

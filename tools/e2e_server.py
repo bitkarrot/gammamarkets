@@ -336,6 +336,28 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
         assert resp.status_code == 201, resp.text
         order = resp.json()
 
+        # One rejected intake row so the Messages -> Rejected intake
+        # dialog has a mute-able entry (author_hash only — npub is
+        # optional display metadata).
+        rejected_id = uuid.uuid4().hex
+        async with DomainTransaction() as tx:
+            await tx.execute(
+                f"INSERT INTO {tx.table('inbox_events')} "
+                "(id, outer_event_id, merchant_id, source_relay_url,"
+                " received_at, kind, processed_state, reject_reason,"
+                " author_hash, processed_at)"
+                " VALUES (:i, :e, :m, :r, :n, 1059, 'rejected',"
+                " 'type-3 missing order tag', :h, :n)",
+                {
+                    "i": rejected_id,
+                    "e": uuid.uuid4().hex,
+                    "m": mid,
+                    "r": relay_url,
+                    "h": "e2e" + uuid.uuid4().hex[:29],
+                    "n": int(time.time()),
+                },
+            )
+
     from infinitemarkets.services import readiness
 
     readiness.mark_reconciled()

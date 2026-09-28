@@ -30,7 +30,8 @@
             content: "", busy: false
           },
           rejected: [],
-          showRejected: false
+          showRejected: false,
+          muteConfirm: { show: false, row: null, busy: false }
         }
       };
     },
@@ -202,32 +203,46 @@
           self.gmMessages.compose.busy = false;
         }
       },
+      gmOpenRejected: async function () {
+        var self = this;
+        self.gmMessages.showRejected = true;
+        await self.gmLoadRejected();
+      },
       gmLoadRejected: async function () {
         var self = this;
         try {
           var res = await self.gmApi(
             "GET",
-            "/merchants/" + self.gmMerchantId() +
-              "/inbox/rejected?limit=100"
+            "/merchants/" + self.gmMerchantId() + "/rejected-intake"
           );
-          self.gmMessages.rejected = res.rejected || [];
+          self.gmMessages.rejected = res.entries || [];
         } catch (e) {
           self.gmMessages.error = self.gmProblemCopy(e.problem);
         }
       },
-      gmMuteSender: async function (row) {
+      gmAskMuteSender: function (row) {
+        this.gmMessages.muteConfirm = { show: true, row: row, busy: false };
+      },
+      gmMuteSender: async function () {
         var self = this;
+        var dlg = self.gmMessages.muteConfirm;
+        var row = dlg.row;
+        if (!row) return;
+        dlg.busy = true;
         try {
           await self.gmApi(
             "POST",
             "/merchants/" + self.gmMerchantId() +
-              "/inbox/rejected/" + row.id + "/mute",
+              "/rejected-intake/" + row.id + "/mute",
             {}
           );
-          row.muted_at = Math.floor(Date.now() / 1000);
+          row.muted = true;
+          dlg.show = false;
+          dlg.row = null;
         } catch (e) {
           self.gmMessages.error = self.gmProblemCopy(e.problem);
         }
+        dlg.busy = false;
       }
     },
     mounted: function () {

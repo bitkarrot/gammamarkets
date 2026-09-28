@@ -1021,7 +1021,8 @@
           <q-btn flat dense icon="add" label="Compose"
                  @click="gmMessages.compose.show = true"></q-btn>
           <q-btn flat dense label="Rejected intake"
-                 @click="gmMessages.showRejected = true"></q-btn>
+                 data-gm="rejected-open"
+                 @click="gmOpenRejected"></q-btn>
         </div>
 
         <div class="gm-workspace" data-gm="messages-workspace">
@@ -1942,18 +1943,23 @@
                   data-gm="rejected-row">
             <q-item-section>
               <q-item-label>
-                <q-badge outline label="rejected" class="q-mr-xs"></q-badge>
-                {{ r.reason }}
+                <q-badge outline
+                         :label="r.processed_state || 'rejected'"
+                         class="q-mr-xs"></q-badge>
+                {{ r.reject_reason }}
               </q-item-label>
               <q-item-label caption>
-                relay {{ gmTrunc(r.relay_url, 16, 6) }} ·
-                {{ gmTime(r.created_at) }}
+                {{ r.author_npub ? gmTrunc(r.author_npub, 14, 6) : 'unknown author' }}
+                · relay {{ gmTrunc(r.source_relay || '', 16, 6) }} ·
+                {{ gmTime(r.processed_at || r.received_at) }}
               </q-item-label>
             </q-item-section>
             <q-item-section side>
-              <q-btn v-if="!r.muted_at" flat dense label="Mute sender"
-                     @click="gmMuteSender(r)"></q-btn>
-              <q-badge v-else outline label="muted"></q-badge>
+              <q-btn v-if="!r.muted" flat dense label="Mute sender"
+                     data-gm="mute-sender"
+                     @click="gmAskMuteSender(r)"></q-btn>
+              <q-badge v-else outline label="muted"
+                       data-gm="muted-badge"></q-badge>
             </q-item-section>
           </q-item>
         </q-list>
@@ -1961,6 +1967,31 @@
       <q-card-actions align="right">
         <q-btn flat label="Close"
                @click="gmMessages.showRejected = false"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="gmMessages.muteConfirm.show">
+    <q-card style="min-width: 420px">
+      <q-card-section>
+        <div class="text-h6">Mute this sender?</div>
+      </q-card-section>
+      <q-card-section>
+        <p>
+          {{ gmMessages.muteConfirm.row && gmMessages.muteConfirm.row.author_npub
+               ? gmTrunc(gmMessages.muteConfirm.row.author_npub, 14, 6)
+               : 'This sender' }}
+          will be added to the inbox blocklist — their future wraps drop
+          before processing. Existing entries stay listed here.
+        </p>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Back"
+               @click="gmMessages.muteConfirm.show = false"></q-btn>
+        <q-btn unelevated color="primary" label="Mute sender"
+               :loading="gmMessages.muteConfirm.busy"
+               data-gm="mute-confirm"
+               @click="gmMuteSender"></q-btn>
       </q-card-actions>
     </q-card>
   </q-dialog>

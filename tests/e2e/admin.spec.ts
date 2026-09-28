@@ -73,6 +73,24 @@ test('messages workspace: folders, empty state, health strip', async ({
     .click()
   await expect(page.locator('[data-gm="compose-content"]')).toBeVisible()
   await page.keyboard.press('Escape')
+
+  // D-23 rejected intake: the seeded row lists its reject reason; mute
+  // confirms then swaps to the durable muted badge. Suite reruns may
+  // find it already muted — either state must render honestly.
+  await page
+    .locator('[data-gm-surface="messages"] button:has-text("Rejected intake")')
+    .click()
+  const rejectedRow = page
+    .locator('[data-gm="rejected-row"]')
+    .filter({hasText: 'type-3 missing order tag'})
+    .first()
+  await expect(rejectedRow).toBeVisible()
+  if ((await rejectedRow.locator('[data-gm="mute-sender"]').count()) > 0) {
+    await rejectedRow.locator('[data-gm="mute-sender"]').click()
+    await page.locator('[data-gm="mute-confirm"]').click()
+  }
+  await expect(rejectedRow.locator('[data-gm="muted-badge"]')).toBeVisible()
+  await page.keyboard.press('Escape')
 })
 
 test('storefront mode cards render with the four modes', async ({
