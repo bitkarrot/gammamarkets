@@ -174,8 +174,19 @@ async def test_wallet_binding_rejects_foreign_wallet(runtime_env):
     assert resp.json()["type"] == "urn:infinitemarkets:wallet-mismatch"
 
 
-async def test_relay_config_validation(runtime_env):
+async def test_relay_config_validation(runtime_env, monkeypatch):
     mid = runtime_env["merchant_id"]
+
+    # Inbox-direction ('inbox'|'both') writes run the DNS egress check —
+    # stub resolution to public space so the fixture needs no real DNS.
+    import ipaddress
+
+    from infinitemarkets import security
+
+    async def _public(host, port=443):
+        return [ipaddress.ip_address("93.184.216.34")]
+
+    monkeypatch.setattr(security, "resolve_and_check_egress", _public)
     # ws:// transport rejected
     resp = await runtime_env["client"].patch(
         f"{API}/merchants/{mid}",

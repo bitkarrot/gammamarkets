@@ -265,6 +265,69 @@ def validate_relay_url(raw: str) -> str:
     return normalized
 
 
+# --- DNS egress checks (section 9.5, D-30) ------------------------------------
+
+#: The link-local cloud-metadata address is blocked explicitly even where
+#: a stub resolver would still route it.
+_METADATA_IP = ipaddress.ip_address("169.254.169.254")
+
+_DNS_CACHE_TTL_S = 60
+_dns_cache: dict[str, tuple[float, list]] = {}
+
+
+def is_public_ip(ip) -> bool:
+    """Routable public space only — loopback/private/link-local/multicast/
+    reserved/unspecified and the cloud-metadata literal are egress-banned
+    for IPv4 AND IPv6 answers alike."""
+    if ip == _METADATA_IP:
+        return False
+    return not (
+        ip.is_loopback
+        or ip.is_private
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+async def resolve_and_check_egress(host: str, port: int = 443) -> list:
+    """Resolve ``host`` and reject when ANY answer is non-public space.
+
+    Shared by ``validate_peer_relay_target`` (peer kind-10050 routes),
+    inbox-target ``relay_configs`` writes, and reconnect revalidation —
+    DNS rebinding flips an accepted target back out of service on the
+    next check. Results carry a bounded TTL cache so per-reconnect cost
+    stays flat. Raises ``unprocessable`` on resolution failure or any
+    non-public answer; returns the address list on success.
+    """
+    import asyncio
+    import socket
+    import time
+
+    cached = _dns_cache.get(host)
+    if cached and cached[0] > time.monotonic():
+        ips = cached[1]
+    else:
+        loop = asyncio.get_running_loop()
+        try:
+            infos = await loop.getaddrinfo(
+                host, port, type=socket.SOCK_STREAM
+            )
+        except socket.gaierror as exc:
+            raise unprocessable(
+                "invalid-relay", "Relay host does not resolve"
+            ) from exc
+        ips = [ipaddress.ip_address(info[4][0]) for info in infos]
+        _dns_cache[host] = (time.monotonic() + _DNS_CACHE_TTL_S, ips)
+    if not ips or not all(is_public_ip(ip) for ip in ips):
+        raise unprocessable(
+            "invalid-relay",
+            "Relay host does not resolve to public routable space",
+        )
+    return ips
+
+
 def audit_capture_enabled() -> list[str]:
     """Host audit-capture flags that are unsafe for infinitemarkets (OQ3).
 

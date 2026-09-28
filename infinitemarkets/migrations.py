@@ -887,3 +887,13 @@ async def m006_gamma_inbox(db: Connection):
     await db.execute(
         f"ALTER TABLE {s}order_messages ADD COLUMN read_at {int_t}"
     )
+
+    # --- section 8.5 rumor-level dedupe ----------------------------------------
+    # Retried rumors arrive under fresh outer event ids — the outer id is
+    # already unique (m002); rumor_id is unique per merchant so a second
+    # wrap of the same rumor is a no-op transition. NULLs (pre-processing
+    # rows) never collide.
+    await db.execute(
+        f"CREATE UNIQUE INDEX ux_inbox_events_merchant_rumor "
+        f"ON {s}inbox_events(merchant_id, rumor_id)"
+    )

@@ -81,8 +81,10 @@ async def infinitemarkets_stop() -> None:
     for task in _owned_tasks:
         task.cancel()
     _owned_tasks.clear()
+    from .services.inbox import inbox_runtime
     from .services.transport import transport
 
+    await inbox_runtime().close()
     await transport().close()
 
 

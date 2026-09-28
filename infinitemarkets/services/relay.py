@@ -211,10 +211,13 @@ async def set_blossom_servers(merchant_id: str, urls: list[str]) -> list[str]:
 
 async def relay_health(merchant_id: str) -> dict:
     """Per-relay health: config + connection state + durable publication
-    evidence aggregates (§8.6 relay_publications)."""
+    evidence aggregates (§8.6 relay_publications) + the D-26..D-28
+    per-relay auth surface (m006 columns)."""
     async with db.connect() as conn:
         configs = await conn.fetchall(
-            f"SELECT relay_url, direction, enabled FROM {table('relay_configs')} "
+            f"SELECT relay_url, direction, enabled, auth_state,"
+            " auth_note, paid_invoice, auth_updated_at"
+            f" FROM {table('relay_configs')} "
             "WHERE merchant_id = :m ORDER BY relay_url",
             {"m": merchant_id},
         )
@@ -236,12 +239,20 @@ async def relay_health(merchant_id: str) -> dict:
         slot["last_attempt_at"] = max(
             slot["last_attempt_at"], r["last_at"] or 0
         )
+    from .transport import transport
+
+    connected = set(await transport().connected_urls())
     return {
         "relays": [
             {
                 "relay_url": c["relay_url"],
                 "direction": c["direction"],
                 "enabled": bool(c["enabled"]),
+                "auth_state": c["auth_state"],
+                "auth_note": c["auth_note"],
+                "paid_invoice": c["paid_invoice"],
+                "auth_updated_at": c["auth_updated_at"],
+                "connected": c["relay_url"] in connected,
                 **by_relay.get(c["relay_url"], {
                     "accepted": 0, "rejected": 0, "timeout": 0,
                     "last_attempt_at": None,
@@ -251,6 +262,38 @@ async def relay_health(merchant_id: str) -> dict:
         ],
         "blossom_servers": await get_blossom_servers(merchant_id),
     }
+
+
+async def retry_relay_auth(merchant_id: str, relay_url: str) -> dict:
+    """Clear a failed/paid auth state so the next session re-auths — the
+    row moves back to 'auth-required' with the note/invoice cleared."""
+    async with db.connect() as conn:
+        row = await conn.fetchone(
+            f"SELECT id, auth_state FROM {table('relay_configs')} "
+            "WHERE merchant_id = :m AND relay_url = :r",
+            {"m": merchant_id, "r": relay_url},
+        )
+    if row is None:
+        from ..security import not_found
+
+        raise not_found("relay not configured")
+    if row["auth_state"] not in ("auth-failed", "payment-required",
+                               "auth-required"):
+        from ..security import conflict
+
+        raise conflict(
+            "invalid-transition", "Relay auth not retryable",
+            "only auth-failed|payment-required|auth-required retry",
+        )
+    async with DomainTransaction() as tx:
+        await tx.execute(
+            f"UPDATE {tx.table('relay_configs')} SET"
+            " auth_state = 'auth-required', auth_note = NULL,"
+            " paid_invoice = NULL, auth_updated_at = :t"
+            " WHERE merchant_id = :m AND relay_url = :r",
+            {"t": _now(), "m": merchant_id, "r": relay_url},
+        )
+    return {"relay_url": relay_url, "auth_state": "auth-required"}
 
 
 async def list_outbox(merchant_id: str, limit: int = 100) -> dict:

@@ -50,9 +50,22 @@ def _csrf(client) -> str:
     return client.cookies.get("gm_csrf") or ""
 
 
-async def test_relay_config_accepts_public_inbox_both(runtime_env):
+async def test_relay_config_accepts_public_inbox_both(runtime_env,
+                                                    monkeypatch):
     client, env = runtime_env["client"], runtime_env
     mid, csrf = await _merchant_id(env)
+
+    # Inbox-direction writes also run the DNS egress check (D-30) — stub
+    # resolution to public space so the fixture needs no real DNS.
+    import ipaddress
+
+    from infinitemarkets import security
+
+    async def _public(host, port=443):
+        return [ipaddress.ip_address("93.184.216.34")]
+
+    monkeypatch.setattr(security, "resolve_and_check_egress", _public)
+
     resp = await client.patch(
         f"/infinitemarkets/api/v1/merchants/{mid}",
         json={
@@ -85,6 +98,48 @@ async def test_relay_config_accepts_public_inbox_both(runtime_env):
     # starter defaults surface for the admin UI
     assert "wss://relay.damus.io" in body["defaults"]["relays"]
     assert body["defaults"]["blossom_servers"]
+
+
+async def test_inbox_direction_requires_public_dns(runtime_env,
+                                                   monkeypatch):
+    """D-30: a relay_configs write with direction 'inbox'|'both' fails
+    when the host resolves private/unresolvable; 'public' targets keep
+    syntactic-only validation."""
+    client, env = runtime_env["client"], runtime_env
+    mid, csrf = await _merchant_id(env)
+
+
+    from infinitemarkets import security
+    from infinitemarkets.security import unprocessable
+
+    async def _private(host, port=443):
+        raise unprocessable(
+            "invalid-relay",
+            "Relay host does not resolve to public routable space",
+        )
+
+    monkeypatch.setattr(security, "resolve_and_check_egress", _private)
+    for direction in ("inbox", "both"):
+        resp = await client.patch(
+            f"/infinitemarkets/api/v1/merchants/{mid}",
+            json={"relay_configs": [
+                {"relay_url": "wss://relay-b.example",
+                 "direction": direction},
+            ]},
+            headers=_headers(env, csrf),
+        )
+        assert resp.status_code == 422, (direction, resp.status_code)
+
+    # 'public' direction never touches DNS — passes even when resolution
+    # would fail.
+    resp = await client.patch(
+        f"/infinitemarkets/api/v1/merchants/{mid}",
+        json={"relay_configs": [
+            {"relay_url": "wss://relay-a.example", "direction": "public"},
+        ]},
+        headers=_headers(env, csrf),
+    )
+    assert resp.status_code == 200, resp.text
 
 
 async def test_relay_config_rejects_invalid_and_duplicates(runtime_env):

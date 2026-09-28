@@ -28,6 +28,7 @@ from loguru import logger
 OUTBOX_INTERVAL_S = 5
 RELAY_TICK_INTERVAL_S = 30
 EMAIL_INTERVAL_S = 5
+INBOX_INTERVAL_S = 5
 RESERVATION_EXPIRY_INTERVAL_S = 30
 RECONCILE_INTERVAL_S = 60
 RETENTION_INTERVAL_S = 86400
@@ -170,6 +171,50 @@ async def email_sender() -> None:
         await wdb.engine.dispose()
 
 
+async def inbox_processor() -> None:
+    """§8.5/§10 leased drain — 'received' inbox_events run the section-8.5
+    chain and land at 'validated' (domain dispatch is 03-02's seam)."""
+    from . import inbox as inbox_service
+
+    while True:
+        try:
+            token = await _acquire_lease("inbox_processor")
+            if token is not None:
+                report = await _run_leased(
+                    "inbox_processor", token, inbox_service.drain_received
+                )
+                if any(report.values()):
+                    logger.debug(
+                        f"infinitemarkets inbox drain: {report}"
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                f"infinitemarkets inbox drain failed: {type(exc).__name__}"
+            )
+        await asyncio.sleep(INBOX_INTERVAL_S)
+
+
+async def inbox_listener() -> None:
+    """§9.2 inbox supervisor — converges kind-1059 sessions to merchants
+    with ``inbox_state='active'``. With zero active merchants it stays
+    idle (the runtime holds no sockets); cursor commits happen only
+    after EOSE + durable admission (see services/inbox.py)."""
+    from .inbox import inbox_runtime
+
+    while True:
+        try:
+            await inbox_runtime().reconcile()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                f"infinitemarkets inbox tick failed: {type(exc).__name__}"
+            )
+        await asyncio.sleep(INBOX_INTERVAL_S)
+
+
 async def reservation_expiry() -> None:
     """§8.4 expiry loop (30s, leased): expired held reservations release
     exactly once; expired invoices take the §8.4 path."""
@@ -278,6 +323,8 @@ def start_workers() -> list[asyncio.Task]:
     for func, name in (
         (outbox_publisher, "infinitemarkets_outbox"),
         (relay_manager, "infinitemarkets_relay_manager"),
+        (inbox_listener, "infinitemarkets_inbox_listener"),
+        (inbox_processor, "infinitemarkets_inbox_processor"),
         (email_sender, "infinitemarkets_email_sender"),
         (reservation_expiry, "infinitemarkets_reservation_expiry"),
         (reconciliation, "infinitemarkets_reconciliation"),

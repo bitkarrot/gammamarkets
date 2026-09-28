@@ -352,6 +352,22 @@ async def _replace_relay_configs(tx: DomainTransaction, merchant_id: str,
             raise unprocessable(
                 "invalid-relay", "direction must be public|inbox|both"
             )
+        if direction in ("inbox", "both"):
+            # Inbox targets carry buyer order traffic — DNS-resolve +
+            # public-space egress check (D-30, shared with the peer-relay
+            # gate). ws:// loopback under the test hatch still passes.
+            from urllib.parse import urlparse
+
+            from ..security import resolve_and_check_egress
+            from .transport import insecure_relays_allowed
+
+            if not (
+                insecure_relays_allowed() and url.startswith("ws://")
+            ):
+                parsed = urlparse(url)
+                await resolve_and_check_egress(
+                    parsed.hostname or "", parsed.port or 443
+                )
         enabled = bool(cfg.get("enabled", True))
         if (url, direction) in seen:
             raise unprocessable(

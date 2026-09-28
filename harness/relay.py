@@ -33,6 +33,8 @@ class RelayMode(str, Enum):
     REJECTING = "rejecting"
     SILENT = "silent"
     AUTH_FLOOD = "auth_flood"
+    PAID = "paid"
+    AUTH_CHALLENGE = "auth_challenge"
 
 
 @dataclass
@@ -43,21 +45,39 @@ class _ConnectionRecord:
 
 @dataclass
 class LocalRelay:
-    """A deterministic local relay bound to 127.0.0.1 on an ephemeral port."""
+    """A deterministic local relay bound to 127.0.0.1 on an ephemeral port.
+
+    ``canned_events`` are served on every accepted REQ (as ``EVENT`` frames
+    followed by ``EOSE``) — the fixture's deterministic stored-event set.
+    ``AUTH_CHALLENGE`` mode issues one NIP-42 challenge per connection and
+    serves REQ only after a correct AUTH response; wrong responses are
+    recorded but leave the connection unauthenticated.
+    ``PAID`` rejects EVENT publishes with a
+    ``payment-required:`` negative OK and closes REQ with
+    ``payment-required:`` — paid-relay evidence that must never count as
+    delivery or authentication.
+    """
 
     mode: RelayMode = RelayMode.ACCEPTING
     auth_challenge_count: int = 50
     auth_challenge_interval_s: float = 0.005
     reject_message: str = "restricted: this relay is rejecting (qualification fixture)"
+    payment_message: str = "This is a paid relay: 'publish'"
+    canned_events: list[dict] = field(default_factory=list)
+    auth_challenge: str = "local-fixture-challenge"
 
     received_messages: list[str] = field(default_factory=list)
     received_events: list[dict] = field(default_factory=list)
+    received_reqs: list[list] = field(default_factory=list)
+    auth_events: list[dict] = field(default_factory=list)
     connections: list[_ConnectionRecord] = field(default_factory=list)
     auth_challenges_sent: int = 0
+    eoses_sent: int = 0
 
     def __post_init__(self) -> None:
         self._server = None
         self._port: int | None = None
+        self._authed_connections: set[int] = set()
 
     @property
     def url(self) -> str:
@@ -100,6 +120,32 @@ class LocalRelay:
             self.auth_challenges_sent += 1
             await asyncio.sleep(self.auth_challenge_interval_s)
 
+    def _connection_authed(self, websocket) -> bool:
+        return id(websocket) in self._authed_connections
+
+    def _check_auth_response(self, websocket, event: dict) -> None:
+        """Record an AUTH client message; authenticate the connection only
+        for a kind-22242 event naming THIS challenge + THIS relay url."""
+        tags = event.get("tags") or []
+        tag_values = {
+            t[0]: t[1] for t in tags
+            if isinstance(t, list) and len(t) >= 2
+        }
+        correct = (
+            event.get("kind") == 22242
+            and tag_values.get("challenge") == self.auth_challenge
+            and tag_values.get("relay") == self.url
+        )
+        self.auth_events.append({"event": event, "accepted": correct})
+        if correct:
+            self._authed_connections.add(id(websocket))
+
+    async def _serve_req(self, websocket, subscription_id) -> None:
+        for event in self.canned_events:
+            await websocket.send(json.dumps(["EVENT", subscription_id, event]))
+        await websocket.send(json.dumps(["EOSE", subscription_id]))
+        self.eoses_sent += 1
+
     async def _handler(self, websocket) -> None:
         self.connections.append(_ConnectionRecord(str(websocket.remote_address), "connect"))
         try:
@@ -107,6 +153,11 @@ class LocalRelay:
                 # Flood immediately on connect: paused-signing clients see a
                 # large bounded number of challenges without any OK.
                 await self._send_auth_challenges(websocket)
+            elif self.mode is RelayMode.AUTH_CHALLENGE:
+                await websocket.send(
+                    json.dumps(["AUTH", self.auth_challenge])
+                )
+                self.auth_challenges_sent += 1
             async for raw in websocket:
                 self.received_messages.append(raw)
                 try:
@@ -130,14 +181,45 @@ class LocalRelay:
                                 ["OK", event.get("id"), False, self.reject_message]
                             )
                         )
+                    elif self.mode is RelayMode.PAID:
+                        await websocket.send(
+                            json.dumps(
+                                ["OK", event.get("id"), False, self.payment_message]
+                            )
+                        )
                     elif self.mode is RelayMode.AUTH_FLOOD:
                         # Answer every EVENT with another bounded flood.
                         await self._send_auth_challenges(websocket)
-                    # SILENT: never reply.
-                elif kind == "REQ" and self.mode is RelayMode.ACCEPTING:
-                    # Minimal NIP-01 courtesy: immediately close the query.
-                    await websocket.send(json.dumps(["CLOSED", message[1], "fixture"]))
+                    # SILENT/AUTH_CHALLENGE: never OK an EVENT here.
+                elif kind == "AUTH" and len(message) >= 2:
+                    event = message[1] if isinstance(message[1], dict) else {}
+                    self._check_auth_response(websocket, event)
+                elif kind == "REQ":
+                    self.received_reqs.append(message)
+                    subscription_id = message[1] if len(message) >= 2 else ""
+                    if self.mode is RelayMode.AUTH_CHALLENGE:
+                        if self._connection_authed(websocket):
+                            await self._serve_req(websocket, subscription_id)
+                        else:
+                            await websocket.send(json.dumps(
+                                ["CLOSED", subscription_id,
+                                 "auth-required: we only serve authenticated"
+                                 " users (qualification fixture)"]
+                            ))
+                    elif self.mode is RelayMode.PAID:
+                        await websocket.send(json.dumps(
+                            ["CLOSED", subscription_id,
+                             "payment-required: paid relay (qualification"
+                             " fixture)"]
+                        ))
+                    elif self.mode is RelayMode.ACCEPTING:
+                        await self._serve_req(websocket, subscription_id)
+                    else:
+                        await websocket.send(
+                            json.dumps(["CLOSED", message[1], "fixture"])
+                        )
         finally:
+            self._authed_connections.discard(id(websocket))
             self.connections.append(
                 _ConnectionRecord(str(websocket.remote_address), "disconnect")
             )

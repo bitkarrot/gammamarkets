@@ -279,6 +279,51 @@ async def get_inbox_state(
     return await merchant_service.get_inbox_state(merchant_id, user)
 
 
+@infinitemarkets_api_router.get("/merchants/{merchant_id}/relay-auth")
+@problem_boundary
+async def get_relay_auth(
+    request: Request,
+    merchant_id: str, user: User = Depends(check_user_exists)
+):
+    """D-26..D-28 per-relay auth surface: state, note, paid invoice,
+    timestamps, and live connection state."""
+    from .services import relay as relay_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    health = await relay_service.relay_health(merchant_id)
+    return {
+        "relays": [
+            {
+                "relay_url": r["relay_url"],
+                "direction": r["direction"],
+                "auth_state": r["auth_state"],
+                "auth_note": r["auth_note"],
+                "paid_invoice": r["paid_invoice"],
+                "auth_updated_at": r["auth_updated_at"],
+                "connected": r["connected"],
+            }
+            for r in health["relays"]
+        ]
+    }
+
+
+@infinitemarkets_api_router.post(
+    "/merchants/{merchant_id}/relay-auth/retry/{relay_url:path}"
+)
+@problem_boundary
+async def retry_relay_auth(
+    request: Request,
+    merchant_id: str, relay_url: str,
+    user: User = Depends(check_user_exists)
+):
+    """Clear auth-failed/payment-required so the next session re-auths.
+    The relay URL is the trailing path segment (encoded or literal)."""
+    from .services import relay as relay_service
+
+    await merchant_service.get_merchant_row(merchant_id, str(user.id))
+    return await relay_service.retry_relay_auth(merchant_id, relay_url)
+
+
 @infinitemarkets_api_router.get("/merchants/{merchant_id}/notifications")
 @problem_boundary
 async def get_notifications(

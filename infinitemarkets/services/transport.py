@@ -16,10 +16,15 @@ deployments never set it.
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
 from nostr_sdk import Client, ClientBuilder, ClientOptions, RelayUrl
 
-from ..security import unprocessable, validate_relay_url
+from ..security import (
+    resolve_and_check_egress,
+    unprocessable,
+    validate_relay_url,
+)
 from ..settings import ext_settings
 
 # §9.5 bounds
@@ -59,6 +64,47 @@ def validate_relay_target(raw: str) -> str:
     return validate_relay_url(raw)
 
 
+async def validate_peer_relay_target(raw: str) -> str:
+    """Strict wss:// target whose hostname DNS-resolves ONLY to public
+    space — the D-30 peer-relay/discovery-time SSRF gate. Re-applied on
+    every reconnect (call sites re-run it), so DNS rebinding flips an
+    accepted target back out of service.
+
+    The test-only insecure hatch admits ws:// loopback (LocalRelay)
+    exactly like ``validate_relay_target`` — nothing else.
+    """
+    if insecure_relays_allowed() and raw.strip().startswith("ws://"):
+        # The hatch admits ONLY genuine loopback ws:// targets
+        # (LocalRelay). ``RelayUrl.is_local_addr`` also matches private
+        # ranges — re-check the literal host so ws:// non-loopback can
+        # never piggyback on the hatch.
+        import ipaddress as _ip
+
+        url = validate_relay_target(raw)  # raises unless is_local_addr
+        host = urlparse(url).hostname or ""
+        try:
+            loopback = _ip.ip_address(host).is_loopback
+        except ValueError:
+            loopback = host == "localhost"
+        if not loopback:
+            raise unprocessable(
+                "invalid-relay",
+                "ws:// egress targets must be loopback",
+            )
+        return url
+    parsed_url = urlparse(raw.strip())
+    url = validate_relay_url(raw)  # wss-only + literal/TLD rejections
+    host = parsed_url.hostname
+    if not host:
+        raise unprocessable("invalid-relay", "Relay URL has no host")
+    await resolve_and_check_egress(host, parsed_url.port or 443)
+    return url
+
+
+# Backward-compatible alias kept for the earlier task-3 naming.
+validate_egress_target = validate_peer_relay_target
+
+
 class RelayTransport:
     """Owned client lifecycle — no signer, bounded options, validated set."""
 
@@ -81,6 +127,9 @@ class RelayTransport:
             # Do not auto-retry forever on unreachable relays — the
             # relay_manager tick owns reconnection cadence.
             .autoconnect(False)
+            # NIP-42 is handled MANUALLY through keystore.sign_event —
+            # the SDK's automatic AUTH would need key material here.
+            .automatic_authentication(False)
         )
         self._client = ClientBuilder().opts(opts).build()
         if not relay_io_enabled():
@@ -122,6 +171,79 @@ class RelayTransport:
         if self._client is None:
             return []
         return [str(u) for u in (await self._client.relays()).keys()]
+
+    async def fetch_from(self, urls: list[str], nostr_filter,
+                        timeout_s: float = 10) -> list:
+        """Auto-closing fetch against explicit validated targets (peer
+        kind-10050 discovery). Returns [] when relay IO is disabled."""
+        import datetime
+
+        if self._client is None:
+            await self.start([])
+        if self._client is None or not relay_io_enabled():
+            return []
+        targets = [RelayUrl.parse(validate_relay_target(u)) for u in urls]
+        for target in targets:
+            if target not in await self._client.relays():
+                await self._client.add_relay(target)
+            await self._client.connect_relay(target)
+        events = await self._client.fetch_events_from(
+            targets, nostr_filter, datetime.timedelta(seconds=timeout_s)
+        )
+        return events.to_vec()
+
+    async def subscribe_to(self, urls: list[str], nostr_filter):
+        """Long-lived subscription on explicit validated targets (§9.2
+        inbox sessions). Returns the SDK SubscribeOutput; caller tracks
+        ``output.id`` → session."""
+        if self._client is None:
+            raise RuntimeError("transport not started")
+        if not relay_io_enabled():
+            raise RuntimeError("relay io disabled")
+        targets = [RelayUrl.parse(validate_relay_target(u)) for u in urls]
+        for target in targets:
+            if target not in await self._client.relays():
+                await self._client.add_relay(target)
+            await self._client.connect_relay(target)
+        return await self._client.subscribe_to(targets, nostr_filter)
+
+    async def handle_notifications(self, handler) -> None:
+        """Run the client's notification pump with ``handler`` — the
+        Python ``HandleNotification`` impl dispatches event deliveries to
+        admission and relay messages (EOSE/AUTH/CLOSED) to callbacks."""
+        if self._client is None:
+            raise RuntimeError("transport not started")
+        await self._client.handle_notifications(handler)
+
+    async def send_msg_to(self, urls: list[str], msg):
+        """Send an arbitrary ClientMessage (e.g. the manual NIP-42 AUTH
+        answer) on explicit validated connections."""
+        if self._client is None:
+            raise RuntimeError("transport not started")
+        if not relay_io_enabled():
+            raise RuntimeError("relay io disabled")
+        targets = [RelayUrl.parse(validate_relay_target(u)) for u in urls]
+        return await self._client.send_msg_to(targets, msg)
+
+    async def unsubscribe(self, subscription_id: str) -> None:
+        if self._client is not None:
+            await self._client.unsubscribe(subscription_id)
+
+    async def disconnect_relay(self, url: str) -> None:
+        if self._client is not None:
+            await self._client.disconnect_relay(RelayUrl.parse(url))
+
+    async def remove_relay(self, url: str) -> None:
+        """Full teardown — nostr-sdk keeps a disconnected relay in the
+        pool where reconnecting silently never serves REQs; removing it
+        makes the next add+connect+subscribe land on the wire."""
+        if self._client is not None:
+            target = RelayUrl.parse(url)
+            try:
+                await self._client.disconnect_relay(target)
+            except Exception:  # noqa: BLE001 — best-effort
+                pass
+            await self._client.remove_relay(target)
 
     async def close(self) -> None:
         client, self._client = self._client, None

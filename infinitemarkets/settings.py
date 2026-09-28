@@ -143,6 +143,7 @@ class ExtSettings:
     outbox_batch: int = 32
     peer_relay_ttl: int = 86400
     inbox_max_event_bytes: int = 32768
+    inbox_author_cap: int = 60  # per-author wraps/minute pre-validation (D-24)
     checkout_rate_limit: int = 10  # per minute per IP (section 15)
     checkout_rate_limit_hourly: int = 100  # per hour per IP (section 15)
     email_enabled: bool = True
@@ -178,6 +179,7 @@ def ext_settings() -> ExtSettings:
         outbox_batch=_int_env("INFINITEMARKETS_OUTBOX_BATCH", 32),
         peer_relay_ttl=_int_env("INFINITEMARKETS_PEER_RELAY_TTL", 86400),
         inbox_max_event_bytes=_int_env("INFINITEMARKETS_INBOX_MAX_EVENT_BYTES", 32768),
+        inbox_author_cap=_int_env("INFINITEMARKETS_INBOX_AUTHOR_CAP", 60),
         checkout_rate_limit=_int_env("INFINITEMARKETS_CHECKOUT_RATE_LIMIT", 10),
         checkout_rate_limit_hourly=_int_env(
             "INFINITEMARKETS_CHECKOUT_RATE_LIMIT_HOURLY", 100

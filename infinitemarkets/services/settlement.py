@@ -496,7 +496,9 @@ async def _core_payments_by_external_id(external_id: str) -> list:
 
 
 async def reconcile(now: int | None = None) -> dict:
-    """One §8.7 pass — web scope (order_msg machinery is Release B)."""
+    """One §8.7 pass — web + order intake scope (03-01). Order-message
+    rumor dispatch remains plan 03-02 scope: inbox_events rows accepted
+    here are durable evidence, not order intake yet."""
     from .readiness import assert_database_compatible
 
     await assert_database_compatible()
@@ -617,6 +619,22 @@ async def reconcile(now: int | None = None) -> dict:
                 f"infinitemarkets reconcile: status probe failed for"
                 f" {projection['core_external_id']}: {type(exc).__name__}"
             )
+
+    # §8.7 inbox admission tail: re-drive 'received' rows the leased
+    # inbox_processor hasn't drained yet (crash between admission insert
+    # and drain); 'validated' rows stay parked — domain dispatch is the
+    # 03-02 seam (TODO: dispatch, deliberately not a hidden gap).
+    from . import inbox as inbox_service
+
+    try:
+        drain = await inbox_service.drain_received()
+        if any(drain.values()):
+            report["resumed"].append({"inbox_drain": drain})
+    except Exception as exc:  # noqa: BLE001 — report-only
+        logger.debug(
+            f"infinitemarkets reconcile: inbox drain failed:"
+            f" {type(exc).__name__}"
+        )
     return report
 
 
