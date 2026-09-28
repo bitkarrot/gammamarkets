@@ -50,9 +50,9 @@ provides:
 affects: [03-04]
 
 actuals:
-  tokens: ~130000
+  tokens: ~135000
   tasks: 7
-  commits: 7
+  commits: 10
 
 tech-stack:
   added: []
@@ -190,7 +190,7 @@ coverage:
         status: pass
       - kind: e2e
         ref: tests/e2e/admin.spec.ts (messages nav, folders, health
-          strip, publications surface)
+          strip, publications surface, rejected-intake mute flow)
         status: pass
     human_judgment: false
   - id: D5
@@ -236,6 +236,9 @@ status: complete
 5. **Task 5: Release-B journey test + buyer/admin Playwright** - `061debe` (feat)
 6. **Verification-pass fixes** - `20b941e` (fix)
 7. **Evidence refresh (541/544 green)** - `d99eb9e` (chore)
+8. **Plan summary** - `c789eaf` (docs)
+9. **Evidence refresh (latest green run)** - `88463c9` (chore)
+10. **Rejected-intake panel wiring repair** - `32d166a` (fix)
 
 ## Checkpoint Selections
 
@@ -265,9 +268,17 @@ status: complete
 - **Fix:** `admin.spec.ts` tolerates existing conversations; `buyer.spec.ts` scopes to `.first()` order row and drops the stale 'No orders yet' check; `tools/e2e_server.py` raises seeded `stock_on_hand` (200/100) and hoists the fastapi import.
 - **Committed in:** `20b941e`
 
+**4. [Rule 2 - Blocking] Rejected-intake dialog wired to non-existent routes**
+- **Found during:** resume-executor acceptance audit (committed code review) — the API surface was tested but the JS↔API contract was never exercised end to end.
+- **Issue:** `admin_messages.js` called `GET /merchants/{id}/inbox/rejected` and `POST .../inbox/rejected/{id}/mute` — the real routes are `/rejected-intake` and `/rejected-intake/{id}/mute`; it also read `res.rejected` vs the API's `entries`, the row bindings used phantom keys (`r.reason`/`r.relay_url`/`r.created_at`/`r.muted_at` vs `reject_reason`/`source_relay`/`processed_at`), and the "Rejected intake" button opened the dialog without loading. Every merchant click would have produced a 404 banner behind an always-empty dialog.
+- **Fix:** JS calls the real routes + `entries` key; template binds real field names (npub truncated-middle, processed_state badge); the open button loads; mute goes through a confirm dialog (D-23); `_list_rejected_intake` annotates a durable `muted` flag from `inbox_blocklist` so the badge survives reload; `e2e_server` seeds one rejected row and `admin.spec.ts` exercises open → reason → mute → muted.
+- **Files modified:** `infinitemarkets/views_api.py`, `infinitemarkets/static/infinitemarkets/js/admin_messages.js`, `infinitemarkets/templates/infinitemarkets/admin.html`, `tests/runtime/test_admin_ui.py`, `tools/e2e_server.py`, `tests/e2e/admin.spec.ts`
+- **Verification:** `test_messages_workspace` asserts `muted: true` post-mute; Playwright mute flow passes (28/28).
+- **Committed in:** `32d166a`
+
 ---
 
-**Total deviations:** 3 auto-fixed (blocking surface bug + in-flight verification fixes)
+**Total deviations:** 4 auto-fixed (blocking surface bugs + in-flight verification fixes)
 **Impact on plan:** All necessary for correctness; no scope creep.
 
 ## Issues Encountered
@@ -278,8 +289,10 @@ status: complete
 ## Verification
 
 - `make lint` — ruff clean.
-- `make verify` (isolated `LNBITS_DATA_FOLDER`) — **541 passed, 3 skipped**; evidence refreshed in `d99eb9e`.
-- `cd tests/e2e && npx playwright test` (Node 22.22.3, isolated server `GM_E2E_PORT=5199`) — **28/28 passed** (admin 13 + buyer 15).
+- `make verify` (isolated `LNBITS_DATA_FOLDER`) — **541 passed, 3 skipped**; evidence refreshed in `d99eb9e`/`88463c9`.
+- `make verify-runtime` (isolated `LNBITS_DATA_FOLDER`, resume-executor rerun) — **321 passed, 2 skipped, 0 failed**.
+- `make verify-fast` — 33 passed.
+- `cd tests/e2e && npx playwright test` (Node 22.22.3, isolated server `GM_E2E_PORT=5199`) — **28/28 passed** (admin 13 + buyer 15, incl. the rejected-intake mute flow added in `32d166a`).
 
 ## User Setup Required
 
