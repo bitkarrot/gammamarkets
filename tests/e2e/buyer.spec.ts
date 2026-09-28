@@ -275,3 +275,202 @@ test('checkout retries preserve uncertain requests but allow corrected rejection
   await expect.poll(() => requests.length).toBe(2)
   expect(requests[1]).toEqual(requests[0])
 })
+
+/* --- Release B: NIP-07 sign-in, claim, storefront modes ------------- */
+
+async function installNostrStub(
+  page: import('@playwright/test').Page
+) {
+  /* A NIP-07 extension stand-in: getPublicKey + signEvent backed by the
+     harness /_e2e/sign route, so verify() runs against a REAL signed
+     kind-22242 event. */
+  await page.addInitScript(() => {
+    const w = window as unknown as {
+      nostr?: {getPublicKey: () => Promise<string>; signEvent: (e: unknown) => Promise<unknown>}
+    }
+    w.nostr = {
+      getPublicKey: async () => '',
+      signEvent: async (ev: unknown) => {
+        const r = await fetch('/_e2e/sign', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(ev)
+        })
+        const data = await r.json()
+        return data.event
+      }
+    }
+  })
+}
+
+async function setMode(
+  request: import('@playwright/test').APIRequestContext,
+  mode: string
+) {
+  const resp = await request.post(`${seed.base_url}/_e2e/mode`, {
+    data: {mode}
+  })
+  expect(resp.status()).toBe(200)
+}
+
+test('sign-in affordance renders once the inbox is active', async ({
+  page
+}) => {
+  await page.goto(seed.digital_url)
+  await expect(page.locator('[data-gm="signin"]')).toBeVisible()
+  await expect(page.locator('[data-gm="signin"]')).toContainText(
+    'Sign in with Nostr'
+  )
+})
+
+test('sign-in without a signer extension shows friendly guidance', async ({
+  page
+}) => {
+  await page.goto(seed.digital_url)
+  await page.locator('[data-gm="signin"]').click()
+  await expect(page.locator('[data-gm="nostr-panel"]')).toContainText(
+    'NIP-07'
+  )
+})
+
+test('NIP-07 sign-in, claim, order history, sign out', async ({
+  page,
+  request
+}) => {
+  // A fresh anonymous order to claim.
+  const checkout = await request.post(
+    `${seed.base_url}/infinitemarkets/api/v1/public/checkout`,
+    {
+      headers: {
+        'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID(),
+        Origin: seed.base_url
+      },
+      data: {
+        merchant_pubkey: seed.pubkey,
+        items: [{d_tag: seed.digital.d_tag, quantity: 1}]
+      }
+    }
+  )
+  expect(checkout.status()).toBe(201)
+  const token = (await checkout.json()).public_token
+  const orderLink =
+    `${seed.base_url}/infinitemarkets/order?shop=${seed.pubkey}#${token}`
+
+  await installNostrStub(page)
+  await page.goto(seed.digital_url)
+  await page.locator('[data-gm="signin"]').click()
+  await expect(
+    page.locator('[data-gm="nostr-signed-in"]')
+  ).toBeVisible({timeout: 20_000})
+  await expect(page.locator('.nostr-lead')).toContainText(
+    'Signed in as npub1'
+  )
+  await expect(page.locator('[data-gm="nostr-panel"]')).toContainText(
+    'No orders yet'
+  )
+
+  // Claim the private link — the order joins the signed-in history.
+  await page.locator('[data-gm="claim-input"]').fill(orderLink)
+  await page.locator('#gm-claim-btn').click()
+  await expect(page.locator('#gm-claim-msg')).toContainText(
+    'Order linked'
+  )
+  const orderRow = page.locator('[data-gm="nostr-order"]')
+  await expect(orderRow).toContainText('e2e digital tour')
+  await expect(orderRow).toContainText('2,500')
+  await expect(orderRow.locator('.status-pill')).toContainText(
+    'Waiting for payment'
+  )
+  await expect(
+    orderRow.locator('a.nostr-order-link')
+  ).toHaveAttribute('href', /\/infinitemarkets\/order/)
+
+  await page.locator('#gm-nostr-signout').click()
+  await expect(
+    page.locator('[data-gm="nostr-signed-in"]')
+  ).toHaveCount(0)
+})
+
+test('showcase mode swaps the checkout card for Nostr guidance', async ({
+  page,
+  request
+}) => {
+  await setMode(request, 'showcase')
+  try {
+    await page.goto(seed.digital_url)
+    await expect(
+      page.locator('[data-gm="showcase-guidance"]')
+    ).toBeVisible()
+    await expect(
+      page.locator('[data-gm="showcase-guidance"]')
+    ).toContainText('Order via Nostr')
+    await expect(
+      page.locator('[data-gm="showcase-guidance"]')
+    ).toContainText('npub1')
+    await expect(page.locator('#gm-checkout')).toHaveCount(0)
+    // API gate: quote + checkout 422 under showcase.
+    const quote = await request.post(
+      `${seed.base_url}/infinitemarkets/api/v1/public/quote`,
+      {
+        data: {
+          merchant_pubkey: seed.pubkey,
+          items: [{d_tag: seed.digital.d_tag, quantity: 1}]
+        }
+      }
+    )
+    expect(quote.status()).toBe(422)
+  } finally {
+    await setMode(request, 'full')
+  }
+})
+
+test('nostr_only shows the notice but /order still works', async ({
+  page,
+  request
+}) => {
+  await setMode(request, 'nostr_only')
+  try {
+    for (const url of [
+      seed.digital_url,
+      `${seed.base_url}/infinitemarkets/public/merchants/${seed.pubkey}`
+    ]) {
+      await page.goto(url)
+      await expect(page.locator('[data-gm="nostr-only"]')).toBeVisible()
+      await expect(
+        page.locator('[data-gm="nostr-only"]')
+      ).toContainText('Nostr')
+      await expect(
+        page.locator('[data-gm="nostr-only"]')
+      ).toContainText('npub1')
+    }
+    // Track-order + the private status link still work.
+    await page.goto(
+      `${seed.base_url}/infinitemarkets/order?shop=${seed.pubkey}`
+    )
+    await expect(page.locator('.order-title')).toHaveText(
+      'Track your order'
+    )
+    const status = await request.get(
+      `${seed.base_url}/infinitemarkets/api/v1/public/order-status`,
+      {headers: {'X-Order-Token': seed.seeded_order_token}}
+    )
+    expect(status.status()).toBe(200)
+    // New checkout is refused.
+    const checkout = await request.post(
+      `${seed.base_url}/infinitemarkets/api/v1/public/checkout`,
+      {
+        headers: {
+          'Idempotency-Key': crypto.randomUUID() + crypto.randomUUID(),
+          Origin: seed.base_url
+        },
+        data: {
+          merchant_pubkey: seed.pubkey,
+          items: [{d_tag: seed.digital.d_tag, quantity: 1}]
+        }
+      }
+    )
+    expect(checkout.status()).toBe(422)
+  } finally {
+    await setMode(request, 'full')
+  }
+})

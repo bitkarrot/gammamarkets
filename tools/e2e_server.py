@@ -295,6 +295,28 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
         else:
             raise RuntimeError("merchant did not reach active via publish")
 
+        # GAM-01 inbox activation: kind-10050 publishes to the local
+        # relay through the real outbox worker; inbox_state reaches
+        # 'active' only on the durable ACK. Sign-in affordance +
+        # showcase/nostr_only mode gating depend on it.
+        resp = await client.post(
+            f"{api}/merchants/{mid}/inbox/enable",
+            json={},
+            headers=await cookie(),
+        )
+        assert resp.status_code == 200, resp.text
+        for _ in range(80):
+            async with DomainTransaction() as tx:
+                row = await tx.fetch_one(
+                    f"SELECT inbox_state FROM {tx.table('merchants')}"
+                    " WHERE id = :m", {"m": mid}
+                )
+            if row and row["inbox_state"] == "active":
+                break
+            await asyncio.sleep(0.5)
+        else:
+            raise RuntimeError("inbox did not reach active via publish")
+
         # One live order so the admin Orders tab has a row on load.
         resp = await client.post(
             f"{api}/public/checkout",
@@ -329,6 +351,12 @@ async def _seed(app, seed: dict, relay_url: str) -> None:
             "relay_url": relay_url,
             "digital_url": f"{BASE_URL}/infinitemarkets/p/{pubkey}/{digital['d_tag']}",
             "physical_url": f"{BASE_URL}/infinitemarkets/p/{pubkey}/{physical['d_tag']}",
+            # The fixed NIP-07 buyer identity behind /_e2e/sign.
+            "buyer_pubkey": (
+                __import__(
+                    "harness.sdk", fromlist=["fixed_test_keys"]
+                ).fixed_test_keys("e2e-buyer").public_key().to_hex()
+            ),
         }
     )
 
@@ -416,7 +444,7 @@ async def main() -> None:
 
     seed: dict = {}
 
-    from fastapi import Header
+    from fastapi import Header, Request
 
     async def e2e_seed():
         return seed
@@ -424,8 +452,65 @@ async def main() -> None:
     async def e2e_settle(x_order_token: str = Header(...)):
         return await _settle(x_order_token)
 
+    # Harness-only: sign a NIP-07-shaped event with the fixed E2E buyer
+    # key so Playwright's window.nostr stub produces a REAL signed event
+    # (the verify path exercises Event.verify() against it). Test-only
+    # key material; the E2E database is disposable.
+    def _buyer_keys():
+        from harness.sdk import fixed_test_keys
+
+        return fixed_test_keys("e2e-buyer")
+
+    async def e2e_sign(request: Request):
+        from nostr_sdk import (
+            EventBuilder,
+            Kind,
+            NostrSigner,
+            Tag,
+            Timestamp,
+        )
+
+        body = await request.json()
+        builder = EventBuilder(
+            Kind(int(body.get("kind", 22242))),
+            str(body.get("content", "")),
+        )
+        tags = body.get("tags") or []
+        if tags:
+            builder = builder.tags([Tag.parse(t) for t in tags])
+        created = body.get("created_at") or int(time.time())
+        event = await builder.custom_created_at(
+            Timestamp.from_secs(int(created))
+        ).sign(NostrSigner.keys(_buyer_keys()))
+        return {
+            "event": json.loads(event.as_json()),
+            "pubkey": _buyer_keys().public_key().to_hex(),
+        }
+
+    async def e2e_mode(request: Request):
+        """Flip the storefront mode through the service layer — the
+        admin two-step confirm stays the product path; this just keeps
+        buyer specs from driving the settings UI."""
+        from infinitemarkets.services import storefront_mode
+
+        body = await request.json()
+        mid = body.get("merchant_id") or seed.get("merchant_id")
+        mode = body.get("mode") or "full"
+        from infinitemarkets.db import db
+
+        async with db.connect() as conn:
+            merchant = await conn.fetchone(
+                "SELECT * FROM infinitemarkets.merchants WHERE id = :m",
+                {"m": mid},
+            )
+        return await storefront_mode.set_mode(
+            dict(merchant), mode, confirm=True
+        )
+
     app.add_api_route("/_e2e/seed", e2e_seed, methods=["GET"])
     app.add_api_route("/_e2e/settle", e2e_settle, methods=["POST"])
+    app.add_api_route("/_e2e/sign", e2e_sign, methods=["POST"])
+    app.add_api_route("/_e2e/mode", e2e_mode, methods=["POST"])
 
     import uvicorn
 
