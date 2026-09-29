@@ -91,7 +91,7 @@ Plans:
 4. Inbox/outbox cursors, deduplication, overload handling, retry, sender recovery, and encrypted retention recover across crashes without duplicate domain commands.
 5. Deployed egress controls, recipient-gated relay behavior, NIP-42, and an independent Gamma client conformance run pass before the Release-B claim.
 
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 **Carried from Phase 2 UAT (2026-09-27):** Nostr buyers retrieve order status and history from their NIP-17 message history (order keyed by buyer pubkey + order id); an optional NIP-07 "Sign in with Nostr" for the web storefront; and a merchant `web_checkout_enabled` setting so a shop can run Nostr-only once Gamma ordering exists. Web buyers keep per-order private links — no buyer accounts.
 
@@ -100,19 +100,19 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 03-01: m006 schema, keystore NIP-17, kind-10050 activation, inbox transport/cursors, NIP-42, egress
+- [x] 03-01: m006 schema, keystore NIP-17, kind-10050 activation, inbox transport/cursors, NIP-42, egress
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02: Rumor⇄domain adapters, dual-copy outbox, inbound matrix, intake abuse and recovery
+- [x] 03-02: Rumor⇄domain adapters, dual-copy outbox, inbound matrix, intake abuse and recovery
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03: NIP-07 sign-in/sessions/claiming, attributed checkout, storefront modes, Messages/Rejected surfaces
+- [x] 03-03: NIP-07 sign-in/sessions/claiming, attributed checkout, storefront modes, Messages/Rejected surfaces
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 03-04: nostrrelay gated-inbox env, security drills, Plebeian conformance matrix, §21 spec amendment
+- [x] 03-04: nostrrelay gated-inbox env, security drills, Plebeian conformance matrix, §21 spec amendment
 
 ### Phase 4: Release C — Legacy Interop and Cutover
 
