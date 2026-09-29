@@ -58,22 +58,77 @@ Symlink or copy `infinitemarkets/` into the host's extensions directory, or run 
 
 ## Configuration
 
-All extension settings use the `INFINITEMARKETS_` prefix. The extension refuses to start without the three required secrets:
+All extension settings use the `INFINITEMARKETS_` prefix and are read from the **host** environment — i.e. the environment of the LNbits process itself (its `.env`, systemd unit, Docker env, or shell — wherever `LNBITS_*` settings already live), not a file inside the extension.
 
-| Variable | Required | Purpose |
+The extension **refuses to start** until the four required values below are present and valid.
+
+### Generating the required secrets
+
+Run each `openssl` command once per environment and store the output somewhere safe (a password manager or secrets store). The values are random 32-byte keys — they are **not** recoverable if lost, and losing them makes previously stored encrypted fields (buyer identifiers, Nostr payloads, private-link token hashes) unreadable.
+
+```bash
+# 1. Generate a master key (32 random bytes, base64-encoded)
+openssl rand -base64 32
+# example output: 9f3kD2mZ8xQ1wLp+vR7tYuN0cBhG4sJdEaF6iKoPq5M=
+
+# 2. Generate the privacy key — must be DIFFERENT key material
+openssl rand -base64 32
+# example output: Kx9vN2mQp8wR4tYuLcE0sG6hJdB3fA1iZoPqM5eX7kT=
+```
+
+Then assemble the four variables:
+
+```bash
+# JSON object mapping version label -> base64 key. One key is normal;
+# add a second entry (e.g. "v2") only when rotating keys. The JSON must
+# be a single line — quote it in single quotes in .env files.
+INFINITEMARKETS_MASTER_KEYS='{"v1": "9f3kD2mZ8xQ1wLp+vR7tYuN0cBhG4sJdEaF6iKoPq5M="}'
+
+# Which key in the map is currently used for new writes.
+# Must exactly match a key label from MASTER_KEYS.
+INFINITEMARKETS_ACTIVE_KEY_VERSION=v1
+
+# Independent key for privacy-sensitive fields. Same format (base64
+# 32-byte or 64-hex), MUST NOT equal any master key.
+INFINITEMARKETS_PRIVACY_KEY=Kx9vN2mQp8wR4tYuLcE0sG6hJdB3fA1iZoPqM5eX7kT=
+
+# Public https origin where buyers reach this host — port allowed,
+# no path, no userinfo/query/fragment.
+INFINITEMARKETS_PUBLIC_BASE_URL=https://shop.example.com
+```
+
+**Format rules enforced at startup** (a violation aborts extension boot with a clear error):
+
+| Variable | Rules |
+|---|---|
+| `INFINITEMARKETS_MASTER_KEYS` | Valid JSON object, non-empty; every version label a non-empty string; every value strict base64 decoding to **exactly 32 bytes**; duplicate key material under two versions is rejected (it breaks rotation semantics) |
+| `INFINITEMARKETS_ACTIVE_KEY_VERSION` | Must be a label present in `MASTER_KEYS` |
+| `INFINITEMARKETS_PRIVACY_KEY` | base64 (32 bytes) **or** 64-char hex; must not match any master key's material |
+| `INFINITEMARKETS_PUBLIC_BASE_URL` | `https://` origin only — `https://shop.example.com` and `https://shop.example.com:8443` valid; `http://…`, `…/shop`, `…?x=1`, `user:pass@host` all rejected |
+
+**Common mistakes**
+
+- `openssl rand 32` (no `-base64`) emits raw bytes — always use `openssl rand -base64 32`.
+- Multi-line JSON or smart quotes in `MASTER_KEYS` fail JSON parsing — keep it one line, ASCII quotes.
+- Don't reuse the same generated value for the privacy key and a master key — boot rejects it.
+- Behind a reverse proxy, `PUBLIC_BASE_URL` is still the **public** https origin, not the internal listen address.
+
+**Key rotation**: add the new key under a new label (`"v2": "…"`) in `MASTER_KEYS`, keep `v1` present, then set `INFINITEMARKETS_ACTIVE_KEY_VERSION=v2`. Old data stays decryptable via `v1`; new writes use `v2`.
+
+### Optional tuning
+
+| Variable | Default | Purpose |
 |---|---|---|
-| `INFINITEMARKETS_MASTER_KEYS` | yes | JSON map `{"v1": "<base64 32B>", ...}` — keyring for sensitive-field encryption |
-| `INFINITEMARKETS_ACTIVE_KEY_VERSION` | yes | Active key id; must exist in the keyring |
-| `INFINITEMARKETS_PRIVACY_KEY` | yes | Independent privacy/encryption key (must differ from master keys) |
-| `INFINITEMARKETS_PUBLIC_BASE_URL` | yes | `https://` origin used in buyer-facing links (no path/userinfo) |
-| `INFINITEMARKETS_RESERVATION_TTL` | | Inventory hold seconds (default `900`) |
-| `INFINITEMARKETS_OUTBOX_MAX_ATTEMPTS` / `_BATCH` | | Relay publish retry bound / batch size |
-| `INFINITEMARKETS_PEER_RELAY_TTL` | | Discovered peer-relay record TTL (default `86400`) |
-| `INFINITEMARKETS_INBOX_MAX_EVENT_BYTES` / `_AUTHOR_CAP` | | Inbound size cap / per-author admission cap |
-| `INFINITEMARKETS_CHECKOUT_RATE_LIMIT` / `_HOURLY` | | Buyer checkout rate limits |
-| `INFINITEMARKETS_EMAIL_ENABLED` / `_MAX_ATTEMPTS` | | Order notification email |
-
-Generate keys e.g. `openssl rand -base64 32`.
+| `INFINITEMARKETS_RESERVATION_TTL` | `900` | Inventory hold seconds |
+| `INFINITEMARKETS_OUTBOX_MAX_ATTEMPTS` | `20` | Relay publish retry bound |
+| `INFINITEMARKETS_OUTBOX_BATCH` | `32` | Relay publish batch size |
+| `INFINITEMARKETS_PEER_RELAY_TTL` | `86400` | Discovered peer-relay record TTL (s) |
+| `INFINITEMARKETS_INBOX_MAX_EVENT_BYTES` | `32768` | Inbound wrap size cap |
+| `INFINITEMARKETS_INBOX_AUTHOR_CAP` | `60` | Per-author wraps/minute pre-validation |
+| `INFINITEMARKETS_CHECKOUT_RATE_LIMIT` | `10` | Checkout requests/min per IP |
+| `INFINITEMARKETS_CHECKOUT_RATE_LIMIT_HOURLY` | `100` | Checkout requests/hour per IP |
+| `INFINITEMARKETS_EMAIL_ENABLED` | `true` | Order notification email |
+| `INFINITEMARKETS_EMAIL_MAX_ATTEMPTS` | `5` | Email retry bound |
 
 ## Storefront modes
 
