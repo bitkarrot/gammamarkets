@@ -24,3 +24,6 @@ tests/e2e/node_modules/
 tests/e2e/.seed.json
 tests/e2e/test-results/
 tests/e2e/playwright-report/
+
+# conformance run logs (raw output is never committed — JSON reports only)
+evidence/conformance/*.log
