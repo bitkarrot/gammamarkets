@@ -1,0 +1,305 @@
+{
+  "artifact": "plebeian-matrix",
+  "generated_at": "2026-09-29T03:10:57Z",
+  "outcome": "pass",
+  "clone": "/tmp/plebeian-market",
+  "plebeian_commit": "4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce",
+  "plebeian_pin": "4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce",
+  "bun": "1.3.11",
+  "nak": "nak version debug",
+  "nak_ws": "ws://127.0.0.1:53608",
+  "probes": [
+    {
+      "name": "clone_pin",
+      "outcome": "pass",
+      "detail": {
+        "clone": "/tmp/plebeian-market",
+        "pinned": "4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce",
+        "actual": "4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce",
+        "bun": "1.3.11",
+        "nak": "nak version debug"
+      }
+    },
+    {
+      "name": "env_bootstrap",
+      "outcome": "pass",
+      "detail": {
+        "inbox_state": "active",
+        "kind0_accepted": true,
+        "shipping_events": [
+          true,
+          true
+        ],
+        "nak": "ws://127.0.0.1:53608",
+        "lnurlp_shim": "http://127.0.0.1:53606",
+        "lud16": "matrix@conf.test"
+      }
+    },
+    {
+      "name": "real_checkout_publish",
+      "outcome": "pass",
+      "detail": {
+        "order_ids": [
+          "22bf820c-9ec6-4de5-9216-67f0daf67931"
+        ],
+        "published_kinds": [
+          10050,
+          10050,
+          1059,
+          16,
+          16
+        ],
+        "driver_error": null,
+        "log_tail": ",{\"kind\":16,\"id\":\"9f26aed335d30fda2bf5a03440797e145667f42fdcc0b74fcf74a69ec6752608\",\"pubkey\":\"b98a7fb8cc007048625b6446ad49a1b3a722df8c1ca975b87160023e14d19097\",\"tags\":[[\"p\",\"b98a7fb8cc007048625b6446ad49a1b3a722df8c1ca975b87160023e14d19097\"],[\"recipient\",\"2806e79a21b1a477657822236867779a573b24f155eb1b06c12a195df8b0ed3b\"],[\"subject\",\"order-payment\"],[\"type\",\"2\"],[\"order\",\"22bf820c-9ec6-4de5-9216-67f0daf67931\"],[\"amount\",\"700\"],[\"payment\",\"lightning\",\"matrix@conf.test\"]],\"created_at\":1790651431}]}\n"
+      }
+    },
+    {
+      "name": "real_checkout_intake",
+      "outcome": "pass",
+      "detail": {
+        "order": {
+          "id": "a6f82b3e98054afa993e9523445f65db",
+          "protocol": "gamma",
+          "state": "awaiting_payment",
+          "total_sat": 700
+        },
+        "wrap_id": "0f51e7638d73a44cf9858b150ea8707badd3e19f2c0866c05459ab5900f47b46"
+      }
+    },
+    {
+      "name": "real_checkout_payment_request",
+      "outcome": "pass",
+      "detail": {
+        "publications": [
+          {
+            "delivery_copy": "recipient",
+            "relay_url": "ws://127.0.0.1:53608",
+            "result": "accepted",
+            "event_id": "f1a5e769ff87e2d75486d0d4b8945b18939cd1b2ada0e4ed4b5ebe1a8f13e95e",
+            "event_kind": 16,
+            "has_payload": 1
+          },
+          {
+            "delivery_copy": "sender",
+            "relay_url": "ws://127.0.0.1:53608",
+            "result": "accepted",
+            "event_id": "4deb259dde2f8cb7206e51321e4c66d9794c16b86e1ba2305962e63a421bc610",
+            "event_kind": 16,
+            "has_payload": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "real_checkout_settlement",
+      "outcome": "pass",
+      "detail": {
+        "order_state": "confirmed",
+        "lud16": "matrix@conf.test",
+        "lnurlp": {
+          "metadata_hits": 1,
+          "callback_hits": 1,
+          "invoice_matches_order": true
+        },
+        "settlement": {
+          "bolt11": "lnbc7u1p4tktp8dpzf9hxv6twd96x2mtpwf4k2arnyphhyer9wgxqzuysp5474re7x4urhqzt69m2wzs7hfk4e2e4anm8mr4gdwamp9nr023uqqpp5enq82sqs6hagz4rd4zqpxct43cwy6wg76d9rtwugm5ksv8kszu0s6c6anay2pl7srhh7rf3mryynmzza63a7kz7pxjrh448xakxtlf6sywqsz97narfw8l3n8jdeh6zpgrjm6jkk76wydm7ulyrstjtqstsqkxrnuw",
+          "checking_id": "ccc0754010d5fa81546da8801361758e1c4d391ed34a35bb88dd2d061ed0171f"
+        },
+        "delivery_copies": [
+          "recipient",
+          "sender"
+        ],
+        "kind16_publications": 4
+      }
+    },
+    {
+      "name": "buyer_readback",
+      "outcome": "pass",
+      "detail": {
+        "wraps_on_wire": 2,
+        "types_read": [
+          "2",
+          "3"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "strict_rumor_transport",
+      "outcome": "pass",
+      "detail": {
+        "status": "published",
+        "sender_wrap": "b8d51419e89043b972919834276e08a05801bb8a9722e19c7f24d585fb05be03",
+        "recipient_wrap": "64417ee5b8ac7fffbf871d1cbf7ea04b6ead9d5c2d8a2f6578c73bfa4dbfd97e",
+        "rumor_id": "c03a0f485fd67ff43e7dcafa76f8308ebf60771d6fd7fb334a1a44c92102d18e",
+        "driver_error": null
+      }
+    },
+    {
+      "name": "strict_rumor_intake",
+      "outcome": "pass",
+      "detail": {
+        "order": {
+          "id": "b0755005432945e3b145e325f156445c",
+          "protocol": "gamma",
+          "state": "awaiting_payment",
+          "total_sat": 700
+        }
+      }
+    },
+    {
+      "name": "strict_rumor_settlement",
+      "outcome": "pass",
+      "detail": {
+        "order_state": "confirmed",
+        "type2_wrap_bolt11_matches": true,
+        "delivery_copies": [
+          "recipient",
+          "sender"
+        ],
+        "publications": [
+          {
+            "delivery_copy": "recipient",
+            "result": "accepted",
+            "event_kind": 16
+          },
+          {
+            "delivery_copy": "sender",
+            "result": "accepted",
+            "event_kind": 16
+          },
+          {
+            "delivery_copy": "recipient",
+            "result": "accepted",
+            "event_kind": 16
+          },
+          {
+            "delivery_copy": "sender",
+            "result": "accepted",
+            "event_kind": 16
+          }
+        ]
+      }
+    },
+    {
+      "name": "physical_checkout_publish",
+      "outcome": "pass",
+      "detail": {
+        "order_ids": [
+          "e9a024b9-b718-48d9-8a01-ace61f3192ab"
+        ],
+        "driver_error": null
+      }
+    },
+    {
+      "name": "physical_rejected_intake",
+      "outcome": "pass",
+      "detail": {
+        "rejected_rows": [
+          {
+            "id": "797624726c5c4c1bbe83e2a1e2c7d2bd",
+            "source_relay_url": "ws://127.0.0.1:53608",
+            "processed_state": "rejected",
+            "reject_reason": "invalid-shipping-destination",
+            "outer_event_id": "f36a903e3e180fdf8359b179ddda5c77da672939a8d954c28642a35b06fc6cbc",
+            "rumor_id": "5250d9c136daea3e135a21a6b8928970f54c7258eb17aa5cb8df13f9765ab96c"
+          }
+        ],
+        "reply_publications": [
+          {
+            "id": "8d4570c2d3594abfb3487c2821492c73",
+            "state": "published",
+            "delivery_copy": "recipient",
+            "result": "accepted"
+          },
+          {
+            "id": "8d4570c2d3594abfb3487c2821492c73",
+            "state": "published",
+            "delivery_copy": "sender",
+            "result": "accepted"
+          }
+        ],
+        "wrap_ids": [
+          "f36a903e3e180fdf8359b179ddda5c77da672939a8d954c28642a35b06fc6cbc"
+        ]
+      }
+    },
+    {
+      "name": "public_events_not_admitted",
+      "outcome": "pass",
+      "detail": {
+        "public_kind16_17_on_relay": [
+          {
+            "id": "dba222977c1625d7496c5de7c9a0bf0f0bd49bf677ccec2c1b6dae9727fe1e14",
+            "kind": 16,
+            "type": "2"
+          },
+          {
+            "id": "223e9a215b8a4044cd2ad4963cc1737e438d9766b08ca403ef520ade4e835c59",
+            "kind": 16,
+            "type": "1"
+          },
+          {
+            "id": "b38410fa646cabaa2fa31ac51f2c93f5e5cc66c15168b5b24544fc39377b4e68",
+            "kind": 16,
+            "type": "1"
+          },
+          {
+            "id": "9f26aed335d30fda2bf5a03440797e145667f42fdcc0b74fcf74a69ec6752608",
+            "kind": 16,
+            "type": "2"
+          }
+        ],
+        "admitted_public_events": 0,
+        "merchant_wraps_on_relay": 8
+      }
+    },
+    {
+      "name": "delta_register",
+      "outcome": "pass",
+      "detail": {
+        "recorded": [
+          "no-sender-copy",
+          "opaque-address-physical-rejected",
+          "order-info-envelope",
+          "payment-path-lnurlp-shim",
+          "public-order-events-unread",
+          "real-checkout-app-relay-only"
+        ],
+        "missing": []
+      }
+    }
+  ],
+  "deltas": [
+    {
+      "id": "no-sender-copy",
+      "summary": "Plebeian's live checkout publishes a single recipient-only kind-1059 (no buyer sender copy); the strict-rumor transport publishes both copies",
+      "evidence": "real_checkout_publish.published (one kind-1059) vs strict_rumor_transport.sender/recipient attempts"
+    },
+    {
+      "id": "public-order-events-unread",
+      "summary": "The public kind-16 type-1 marker, public type-2 lud16 payment request, and kind-17 receipt are invisible to the NIP-17 inbox (kind-1059 filter) \u2014 receipt_verified may stay false; recorded, not fixed",
+      "evidence": "public_events_not_admitted (public kind-16/17 on relay, zero admitted)"
+    },
+    {
+      "id": "order-info-envelope",
+      "summary": "Plebeian's type-1 rumor carries subject='order-info' and a 'name' tag; tolerated by the intake (subject is not value-enforced per spec tolerance)",
+      "evidence": "real_checkout_intake / strict_rumor_intake order rows"
+    },
+    {
+      "id": "opaque-address-physical-rejected",
+      "summary": "Plebeian serializes the address as a newline-joined opaque string; physical orders are rejected pre-reservation with a D-22 status=rejected type-3 reply",
+      "evidence": "physical_rejected_intake (rejected row + recipient-copy reply publication)"
+    },
+    {
+      "id": "payment-path-lnurlp-shim",
+      "summary": "Payment leg: merchant kind-0 lud16 -> loopback LNURLp shim -> the order's own bolt11 -> FakeWallet settlement (no real sats \u2014 D-31). A production host would serve a fresh invoice per LNURLp callback; settlement correlation via external_id is unchanged",
+      "evidence": "real_checkout_settlement.lnurlp + strict_rumor_settlement.type2_wrap_bolt11_matches"
+    },
+    {
+      "id": "real-checkout-app-relay-only",
+      "summary": "publishOrderWithDependencies posts the private wrap to the connected app relay set \u2014 not the merchant's resolved kind-10050 set (Plebeian's own strict transport does resolve it; both coincide on nak in this env)",
+      "evidence": "driver published[] targets (app relay) vs strict_rumor_transport.relayTargets"
+    }
+  ]
+}

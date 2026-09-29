@@ -1,0 +1,152 @@
+{
+  "artifact": "nostrrelay-env",
+  "generated_at": "2026-09-29T03:09:26Z",
+  "outcome": "pass",
+  "host": {
+    "port": 53447,
+    "base": "http://127.0.0.1:53447",
+    "data_dir": "/var/folders/_l/mkpnssh91x9fd3khg5ltnfjm0000gn/T/conf-nostrrelay-j4qclv3q/data"
+  },
+  "relays": {
+    "gated": {
+      "id": "aLEPnKpe",
+      "ws": "ws://127.0.0.1:53447/nostrrelay/aLEPnKpe",
+      "requireAuthFilter": true,
+      "paid": true,
+      "allowlist": [
+        "e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb"
+      ]
+    },
+    "open": {
+      "id": "KkyCx2kT",
+      "ws": "ws://127.0.0.1:53447/nostrrelay/KkyCx2kT",
+      "requireAuthFilter": false,
+      "paid": false
+    },
+    "paywall": {
+      "id": "WLNUivb8",
+      "ws": "ws://127.0.0.1:53447/nostrrelay/WLNUivb8",
+      "requireAuthFilter": false,
+      "paid": true
+    }
+  },
+  "merchant": {
+    "pubkey": "e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb",
+    "inbox_state": "active"
+  },
+  "pins": {
+    "nostrrelay_commit": "a87bc1fd3da7ceb8f2fdf3d6b80e3ff54cbbdb30",
+    "nostrrelay_src": "/Users/bk/github/infinitemarkets/.cache/gsd-tmp/nostrrelay"
+  },
+  "probes": [
+    {
+      "name": "gated_anon_req",
+      "outcome": "pass",
+      "detail": {
+        "challenge": true,
+        "events": 0,
+        "eose": false
+      }
+    },
+    {
+      "name": "gated_stranger_req",
+      "outcome": "pass",
+      "detail": {
+        "auth_sent": true,
+        "paid_notice": true,
+        "events": 0,
+        "frames": [
+          [
+            "AUTH",
+            "aLEPnKpe:kZnXvbdJZcMUJ4mapism44"
+          ],
+          [
+            "OK",
+            "4cada69390d01d57d98b8121fb33f1284fe80e662f47306d7d161f4bb036d1a0"
+          ],
+          [
+            "NOTICE",
+            "This is a paid relay: 'aLEPnKpe'"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "gated_merchant_req",
+      "outcome": "pass",
+      "detail": {
+        "write_oks": [
+          "95386e174a23f63e8780c199bb36dc7f5ccfd5e9a00e46501d20fef2f89270e4",
+          "956be76d9c45f5a1f8c03d7573236b2979b6b07417063c049d383097dd298aec"
+        ],
+        "events": 2,
+        "eose": true
+      }
+    },
+    {
+      "name": "open_write_accepted",
+      "outcome": "pass",
+      "detail": {
+        "ok": true,
+        "served": true
+      }
+    },
+    {
+      "name": "gated_paid_write",
+      "outcome": "pass",
+      "detail": {
+        "ok_frames": [
+          [
+            "OK",
+            "8bca1caa1144a326b055b38481d84c9a04485ddf23f3a5aa110ee5ec69821117",
+            false,
+            "This is a paid relay: 'aLEPnKpe'"
+          ]
+        ],
+        "classified": "payment-required"
+      }
+    },
+    {
+      "name": "paid_publish_surface",
+      "outcome": "pass",
+      "detail": {
+        "publications": [
+          {
+            "result": "rejected",
+            "message": "This is a paid relay: 'WLNUivb8'"
+          },
+          {
+            "result": "rejected",
+            "message": "This is a paid relay: 'WLNUivb8'"
+          },
+          {
+            "result": "rejected",
+            "message": "This is a paid relay: 'WLNUivb8'"
+          }
+        ]
+      }
+    },
+    {
+      "name": "extension_gated_inbox",
+      "outcome": "pass",
+      "detail": {
+        "auth_state": "authenticated",
+        "admitted": 2,
+        "states": [
+          "received",
+          "received"
+        ]
+      }
+    },
+    {
+      "name": "extension_open_inbox",
+      "outcome": "pass",
+      "detail": {
+        "admitted": 1,
+        "states": [
+          "received"
+        ]
+      }
+    }
+  ]
+}

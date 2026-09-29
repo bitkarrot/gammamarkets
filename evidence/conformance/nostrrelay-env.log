@@ -1,0 +1,282 @@
+2026-09-28 20:08:49.00 | INFO | Starting LNbits Version: 1.6.2-rc1
+running migration core.1
+running migration core.2
+running migration core.3
+running migration core.4
+running migration core.5
+running migration core.6
+running migration core.7
+running migration core.8
+running migration core.9
+running migration core.10
+running migration core.11
+running migration core.12
+running migration core.13
+running migration core.14
+running migration core.15
+running migration core.16
+running migration core.17
+running migration core.18
+running migration core.19
+running migration core.20
+running migration core.21
+running migration core.22
+running migration core.23
+running migration core.24
+running migration core.25
+running migration core.26
+running migration core.27
+2026-09-28 20:08:49.06 | INFO | Updating payments
+2026-09-28 20:08:49.06 | INFO | Updating 0 to 1000
+2026-09-28 20:08:49.06 | INFO | Payments count: 0
+2026-09-28 20:08:49.06 | INFO | Payments updated
+running migration core.28
+running migration core.29
+running migration core.30
+running migration core.31
+running migration core.32
+running migration core.33
+running migration core.34
+running migration core.35
+running migration core.36
+running migration core.37
+running migration core.38
+running migration core.39
+running migration core.40
+running migration core.42
+running migration core.43
+running migration core.44
+running migration core.45
+running migration core.46
+running migration core.47
+running migration core.48
+running migration core.49
+running migration core.50
+2026-09-28 20:08:49.11 | INFO | ✔️ All migrations done.
+2026-09-28 20:08:49.11 | WARNING | Settings DB empty. Inserting default settings.
+2026-09-28 20:08:49.42 | WARNING | Initialized settings from environment variables.
+2026-09-28 20:08:49.48 | SUCCESS | ✔️ Admin UI is enabled. run `uv run lnbits-cli superuser` to get the superuser.
+2026-09-28 20:08:49.72 | INFO | Initialized webpush settings with generated VAPID key pair.
+2026-09-28 20:08:49.72 | INFO | Pubkey: BN_v_EQ4kJz8g8B-Z-8229mDcUHCbvS5e7AUxXS6F1TFVLL4xSFZm4YIFXoDZxqh1kRx52jxXhAqgGJ0qzLa-ls
+running migration nostrrelay.1
+running migration infinitemarkets.1
+running migration infinitemarkets.2
+running migration infinitemarkets.3
+running migration infinitemarkets.4
+running migration infinitemarkets.5
+running migration infinitemarkets.6
+running migration infinitemarkets.7
+2026-09-28 20:08:49.90 | INFO | Installed Extensions (2):
+2026-09-28 20:08:49.90 | INFO | nostrrelay (1.1.0)
+2026-09-28 20:08:49.90 | INFO | infinitemarkets (0.1.0)
+2026-09-28 20:08:50.04 | INFO | LNbits Info
+2026-09-28 20:08:50.04 | SUCCESS | This is a fresh install of LNbits.
+2026-09-28 20:08:50.04 | INFO | Version: 1.6.2-rc1
+2026-09-28 20:08:50.04 | INFO | Baseurl: http://127.0.0.1:5000/
+2026-09-28 20:08:50.04 | INFO | Host: 127.0.0.1
+2026-09-28 20:08:50.04 | INFO | Port: 5000
+2026-09-28 20:08:50.04 | INFO | Debug: False
+2026-09-28 20:08:50.04 | INFO | Site title: LNbits
+2026-09-28 20:08:50.04 | INFO | Funding source: FakeWallet
+2026-09-28 20:08:50.04 | INFO | Data folder: /var/folders/_l/mkpnssh91x9fd3khg5ltnfjm0000gn/T/conf-nostrrelay-j4qclv3q/data
+2026-09-28 20:08:50.04 | INFO | Database: SQLite
+2026-09-28 20:08:50.04 | INFO | Service fee: 0.0
+2026-09-28 20:08:50.04 | INFO | Service fee max: 0
+2026-09-28 20:08:50.04 | INFO | Service fee wallet: None
+2026-09-28 20:08:50.04 | INFO | Connecting to backend FakeWallet...
+2026-09-28 20:08:50.04 | INFO | FakeWallet funding source is for using LNbits as a centralised, stand-alone payment system with brrrrrr.
+2026-09-28 20:08:50.04 | SUCCESS | ✔️ Backend FakeWallet connected and with a balance of 1000000000 msat.
+2026-09-28 20:08:50.10 | SUCCESS | LNbits started in 1.09 seconds.
+2026-09-28 20:08:50.14 | INFO | FakeWallet funding source is for using LNbits as a centralised, stand-alone payment system with brrrrrr.
+2026-09-28 20:08:50.16 | INFO | FakeWallet funding source is for using LNbits as a centralised, stand-alone payment system with brrrrrr.
+2026-09-28 20:08:50.55 | INFO | Installed Extensions (2):
+2026-09-28 20:08:50.55 | INFO | nostrrelay (1.1.0)
+2026-09-28 20:08:50.55 | INFO | infinitemarkets (0.1.0)
+2026-09-28 20:08:51.36 | INFO | got an internal payment notification 880c33af2d747554950d65fdeb595c0d47090e1950cbf19ebc95408f17eb04c0
+2026-09-28 20:08:51.48 | INFO | nostr event: [0, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '{"name":"conf shop"}']
+2026-09-28 20:08:51.50 | INFO | nostr event: [31989, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '']
+2026-09-28 20:08:51.52 | INFO | nostr event: [31990, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '{"about":"Lightning + Nostr storefront checkout","name":"Infinitemarkets"}']
+2026-09-28 20:08:51.54 | INFO | nostr event: [10050, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '']
+2026-09-28 20:08:51.54 | INFO | nostr event: [10050, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '']
+2026-09-28 20:08:55.57 | WARNING | (1000, '')
+2026-09-28 20:08:55.96 | INFO | event=infinitemarkets.inbox.session_open merchant=9f619626ab634174937cff9b11893fb0 relay=ws://127.0.0.1:53447/nostrrelay/KkyCx2kT since=1788059335
+2026-09-28 20:08:55.98 | INFO | event=infinitemarkets.inbox.cursor_committed merchant=9f619626ab634174937cff9b11893fb0 relay=ws://127.0.0.1:53447/nostrrelay/KkyCx2kT delivered=0
+2026-09-28 20:08:56.02 | INFO | event=infinitemarkets.inbox.session_open merchant=9f619626ab634174937cff9b11893fb0 relay=ws://127.0.0.1:53447/nostrrelay/aLEPnKpe since=1788059335
+2026-09-28 20:08:56.04 | INFO | nostr event: [22242, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '']
+2026-09-28 20:08:56.05 | INFO | event=infinitemarkets.inbox.auth_answered relay=ws://127.0.0.1:53447/nostrrelay/aLEPnKpe
+2026-09-28 20:08:56.06 | INFO | event=infinitemarkets.inbox.cursor_committed merchant=9f619626ab634174937cff9b11893fb0 relay=ws://127.0.0.1:53447/nostrrelay/aLEPnKpe delivered=0
+2026-09-28 20:08:58.59 | INFO | nostr event: [22242, b95c249d84f417e3e395a127425428b540671cc15881eb828c17b722a53fc599, '']
+2026-09-28 20:09:03.10 | WARNING | (1000, '')
+2026-09-28 20:09:05.62 | INFO | nostr event: [22242, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '']
+2026-09-28 20:09:07.14 | INFO | nostr event: [1059, 4779d681af2ac9400d7ebdd99b3650197ae8a0acf8219f5663e4440aa7b27ddd, 'AsuxqOmVI9iT1FUKZWK7atL+abouikd9nuQFsKDdTt2JdCYmGjTqSAzLGx2MhuS8y3m+fuExUPa5pqCYix9KGNhrbMQ1fqK0ViEtEv7O4AksLx+y+9lVMAAQjL9rnGfRxjO5b9zwiNzBEg+FZt1UXSF6LN5ObWfUKt0I7Tr5NogOChAPyuMWtCsJ1j1Gw/L2KJ9rsdo+yjw49cd3rY//8uxU8PXrJhth9pHWYS138w8Sjwtcc7CskKX48D2z6BpJa4OPnHLXRzRYw+PLME4f4nrMArVfGaMS4dx1vzUNyhddD3PzAon+6PkKQBoQ7znQ6de6bJ6/s33gFHWK+LbGu7si9llJrqoDGLCjyosF2/tGiR9K3d45J80TVyAOZC3j+ef/5WLSug/AtnWp/OPInavARpBqSGJOqzpmag7LnxO4kw5l6KRwYacYWG4twtWAo82EDcu/RCqlEyIjHb63MJH8ZlgWIXUVLaXPgX4ljqC3uy5g9S4qmbH2esfQDaoPiiCmgtAAf8YpqSVBz+2Ei8JZOsJAQWrTC6u5u41yP5IPQHvW4LYkIJq0zNbe2CzTGm7neK0JNFwJ5iHf6rvTnHPUpAc/5xb54c7olOODF7XjXF0DBDt5GgXgKVh8EWMh7qnBbLNfd+aXl5nQeut5LMXChs9xgF71lGihGEUCczFiP9JoN8qgFGLuSPxJyEQ8GW64zewWiY6sqRzYM/fkKt5jlwxU3ccuiuhH3K4R/szVHScvbgoy9b4H0H6h1GveInWBoU4N0j2xKRNDVoCGZV94vJNOV7FC/y67mVcugXfJ7/EuKf7fWUsqqrj+ArPMTGbXAx7hYnikXcWacnIj98Q+lZ3KyvQYyZPry16HbTjCkxao3DF1+pz+Ydqk/UIYUCCE0BmNLAavAmcQMGsSC+t1aqB7CcvvWRyErFmUTgMnXv9EDD0Xbzl+V1n8C9dV9mzrvUOHT0cgN2F26rP8pJ6howYhpq09EjwCkpqqxkE2+ntWZArskRUs8rLJeXlE/hLc7pjULQM6rTn6+cOd2AIpFjxH5UNnuu1ybef8uC1clEgaP0xKahd+aJbgo2mT1TdTjJUqImCpbzMgvs/LatY7IkyAyVAt9RPclosrEokbC8baA1O/snW1QladxSndjvs9GT9pKnzNMSV2Ez0AHTOUM5DLBAqAfZDuJTC7LC12rnTjQmEWOlcfSUjwH9RZnCny9Z+Nohi+jFuzqQqE1pS0KUL+/YFCTSKcVxga9Yg2MyiqL32CRZvrxslrD0DUyqdgboOYfQdm/yZotSrYqE2c9TG1fwVIYJCY+ccHw/WXnwjZHGMO6dfnANKfXkQoMCVTJqckbsG+PkC6rILHJt02tLLlX1//aCHSvSeyx8CpHeFZS9a7ikylKesNFj0SVP4Y0sbBAuhJFKPSPQ9Co9+WhzD0QsB7U/5Y8JCS+HQ3MCKRuuQNo4ZHaLJR5xAi90QW4f0ftaT5n50C4x5j65168o/0u3ndbhElCM9vbcRQocVMT5MZBvygOfw+6SzoNpiY1SzvzQmXy1KuOup0O2tak/GVW1mKVVH0ZyNsB5S5mzfb3UeLYFDL5d/1o260vteOBpmJdEnWZks467LPpvFy8rWBnEfvdSI49fVOQP+bX4eKdJoKl7LoYhQlBgYkXsNleFQKHO4ioI8fJbqbuldh0zZTy7N+kZ2/hPMZeHY68cTeRgqZiR1X7FVrnGIa9AvUjC9fYOJ4pH2MbMemjaDgMXJW42Mnu4auiWdGRAM9GGSqqR6/MbuUqM/Ui+GA3N0I']
+2026-09-28 20:09:07.16 | INFO | nostr event: [1059, 2b7d94f514c2346270d3b7c5caf42a06a4091549352b79a9083a907350698313, 'AldLhzPBV8Pz5xbOrfc1AEaffxo8YGtuAshERFpW8pZoT7pIaGhNuTkE3sZpBCrW+iG0dMM+yPFTcC8oo+wx9vI3AsY+FWPfRKDL3ymEBwS2A0b5qFZCnv0LuFJJ8Gew/gz1KbUGKAB9cgrLvihE/TC4Pvhdjp3XTE11/+PhG6TUs9sQS0rXJAARkG6y9SHLbXuh7+ioLyDCNAkKxiJg7oTtpFIk4bYp0VYb5r8NBDXvbcg652jtfvuxXTy09FPV3AJ7hcsic4wzuoeBhTtyp4VMnmuT4JVqiDgNU1zElIGmH7XklmiHLKy+0PfnArIsGMT0IJhD7cyF/nTSj435sxRQgok+4nks67xvXq+/xzznumTKo57dWyz58p3J2glsHJdudgDz1ItIrZxFoYrvQ8HWz+XCd4K9bayTJ2E6HfMDd+ymZuB/MEmcarAPtVBapmbmUrpIeZJykHWgf6ye0ssZSZuboTZ3ig/nzsXqjjOA/E3oagk7g5U85cjpskFJpGcePMsnxA7qaipq+pMD3mdRMDXCBmK0DGCs/GTD8+fQLBBz/eeoeqOnmjVnC07X1ideQ3vH7gNl6NcMJ2r14WjRymfs9RBmiSMvXr0fzID8EWR3XzO6EyovJoyJ6QLI6U9NgVAa6c5rPHkHYNKqPk7f/JI2jswdCaBY85WMnrYelvE32gaRVa/+5jF3nJVZq6bzOW90qsRi5XTFf2I4NfXFZLQbsIQWaqgO1D79fD6S79yDk6O0DUOtT6Tf5Tvjp7vwUwGTqY0mJzSV09nGJLztpY1qsBugWkCT2KhO8LuR4Z+zlsK3Ifd5uEU/EGDXpAH2M1xICyZAy/o1FW0k7v70Kjck3m9/Ycp6HghEDRWUfHnlQ01tgfkU7Bp4b4EQJvAzg1MLvRmRZGXnkBDDJAyah3urgMjyDTq3UkGWbVOF+xKnFx5R+EYOH++kTqJVVR+kVHG7J8c+vWzEioMntOuujN2VupKPLl1TSQxJPBTWGEM0VbgTFBLY42fo34wbITWG0A8VLAlDhJ5wD6g2BcB959CkJ0nUjR4OPJBKFv3X0/NUuFPm68wSeR2buxy0BNTZsAL6ShIypYKz/z5NeFrUITfmNYJLF3OUxwSdIq0DAhNFC63Hfanu18dcBoO22bseTzCDZH/NnTVqqmHrsiuJuxss6XwJ2f6XmflCQzHLrnHLZxLhH7Ow3hBC4mEYDGq7/+nxYb62dm7ja2y5gBdTAlK7e0IVdIXgyRJVQOGQEjNMoMIempiTjv7y2oyJROGmUGra0OjA7jHYXsNsz+5iC0b0OV4ecZa5tLZxZe4WspiHm162cWATVTPP6XZMTifNkxAoN69UCGiHt1QFhY+MLtd73NXKznDIdh3e5jm5/64AAjYGeHNTKV57mNQclxImfuWYjXPRD3UyUc81nKug74nBgNNcY9Fi8Y8usroRQeXBAG4SooohiFdRvi9lgOH1JoJ5E7VNsthJGbRQCEFjrFjXk1CWwM/njZVXhAXAF3ksddsjhQZCSZvRo+TNAGpBqeVV/QWC6qs5CDem0WmmNhcg+WAwedF5PI+/8lJ/HHyk1b6Dorlm/Ht3f/IpZ5V4N29CRIawbskIYZzh2HAOZYZPpenn5diV4PaubDE5lJz6I1NJC8EtpT/d6aZgx7y2SFjSd9tXLToF0CfUJMR0wPfHF10josXOXelKxBfBMmmsgabpLt0ffOs8RWen/1Ml/YY4Albq6r3p0Ycl/DWPzO9dnhENsh9YbKp/9s/BdsmSipu25xRzo3Xukfg12NSt']
+2026-09-28 20:09:13.65 | WARNING | (1000, '')
+2026-09-28 20:09:13.66 | INFO | nostr event: [1059, 40fa5b37e52eb0668e1534fda12a5b8d984a1c11b76b5b45a19fcb7413a61482, 'Atd1RLGe7CG4edtvfD1u7b6126GyoupG87lZ6yV5dwg4fOV7AkB04IT6JYuIRg1Q5kxqIGl5KTSgRXtjX86x04HU3AH29rJhxGo6BOF+Ck3WnMMZ64mZs2W/Ex6gKWDfAnyKX+w+VTj5GwhmMjNtljev4n9vJLaQ584rUyrSEZZp4zhjLVPEdt5nS/VOnqfvSW0HezRfBwULAPmGQorIhniRUhOeWRegj8qXZ3czWcS5XHVa4xCO4N35oYXexoGClhnnJLTE4D2NvHz/tyhAaKr35c2aVlJp0Y1JIr7iU7tAgAhUfGpkH642i39ZmAC8vZNVTkIfGAGyBY6S8ljrkRssJk8LvJhSkyz/sKgz+PSf8h9pkJ3Gn6xpxxVisC08q2/zO1NODqkNdYMP4U83EwvGjW7UcyIPrfOGm30qrv3qC0OSGYwtDbIioYgPS+L8nquSbx8sLQequ/fX05xA/BGEgnjhjrsT58UoeMPk7ygYo869HDlJgYF32Qe/6CG9bBUNTUWsTu/tvrI4oPVa9TlY6KHMci/i9Wxzn3QKGMHtkQwftLsrYn5DDplFSCDGLv2NmVleeF5xoc1Q+FRmpn5mx4WPIa9Xh4X00hU7wLbFx8/tyatuvuoMugCXXoy24aOar40YQl49F7/fR+c9t2c4mPA6ImxaQS0lmAyShQzqwPDx/qnWSX7f/npOIm6qNaxJTwir6pcPnIihz5+noDuiyxP9OApGuIOrtLZlFzt/QBWeN0Xl9y+cPZaR1ffSE43YB19t+9Mjc5uWeBzr2+e2eTnU5RAVqmzZtMck9C8toHXKO4DDL2YDExGWvKy7eW8MjRUbQSogvp1VQGQhf2XPj/4D3hb7wwCsbPDH5CaPkNIPFmU93NyjzFrZNxVTnADXiJ5gAP8AePwD97OYQ5S1JYdOCc0pjstcBAR7W2dbniWQ56RyE5N7aQx5x3okPxTKj2o3jN/nh4VeFloCd/MXI+qCIVnoe7J9KPMxTZLa3DP3T6z2KV5HwMk8Xz1e1B9C/J9Wzmv7r2lT3jt/TMYXZGDZejQyvAWqZPM0QPdF95FkkS43wNiNUduVyBXz5Jozo8LYLverHcIjRStFLg8hPPSjb1xQnuwrp1LR9jd3WTKDOwGWllX7/qGNDMek2gwUqAxgDdmuhoBpL/MEqlryrNVafp4++VhSR9sO2/bclJbzCwLaEGOVfwOBfMpLGslHDLGvwfYwrJLnw9bDoR5jIgTdLLCIGwTZz+uTQ8uCkZYMVCBHoh2VT2VYAZ5bexVXyhuVjI7XtyQpfRw0wUGMY6UY/1ts2fFDHsTk20fk9k/TnydBKHKNdHG0/Oj0J9OPpOTfyPgQo2CnXyGJVinPLb84I+N1qxDb8AuKdampJtBd+Zs+omcXX2ZQDnIqAyR1V7b7+RVw8Tn8e8iq6PGPympBPpwq9MVcxZGgIvL+ntW182B+W5CGAjxA1zvZv0zpWqIHDTymizsQwg4AM/MeZDr8GGS4e8Bv4xv5d1Hyo34YG0q5jHb8XKnIBR8CLJF0qJvVdSo4pRKdyoBUPgzN3Mq9KCNHFYkNVK9Wea1YG/EMCK5N3Yp3xlbIoK5t7dlbGH8gPSwyEaEqYl6zBbMMrGKk4iIRxiBUnowf3BEoyNK6bjsHycyFM1PcO/aCuA78GLNb+Nc6xz1bqf20faqa6fKx/GTE/6jVXhEu7kRFocSkpzLe7YlQWuQS1gPhhxH0WJW1GZmoEcDsO52c7MYE3suBZOVcx0Sk65EtzHZrJFdgwiObE7yRhCFYL9QqnskY']
+2026-09-28 20:09:19.67 | WARNING | (1000, '')
+2026-09-28 20:09:19.68 | INFO | nostr event: [1059, 8d4ca0c8208af6feb5ca31671bdbdc2bb8da14a71b232fca019fe16f1612a977, 'AkhCOf6wv/leLTe1onfXhJe34hpZB1ta8Ik7tzKDcmKZENv2APLvpAS9/zwC3U8fx95vBqHZOYYLrpATUGhyhRql4yW9aHYlDsoJc0SsZX0D+SHBy3Z4qTpLxqcaEI6nBFO7/d13Ao4xTABueYLnf6AE+7MXyfgIAGtnKOk8wCpbLUxNB4SUa4A2gwRXLIHEvAGWiF6ud+3CS8y3mBlLCW1B2c7zw18xIvHxtKuJOi7KB+L/LYNKlpj87m3kNV24zJJ6o/fF1mncRuqChgV4+Ppn3wzFnj2QgHnPVDWzauT4WniAifFWPpn7j3utDCqCx0F5xFhB4Yjjw1mwE3Hmy6jJ8aRPUYVhpeucSYloEN2Z7KEjgY0UochEubZ7fSr+ZIH7jOVx1YUser5pcvmTRVi76Pz6ff5YukVNMCHHDS221MnScFF6/ry2TWUg8PzmYAlkPuzI841odhw5CNgy/uymobmA/lDyrqQJOqNZivdaubiL5Ef3mrq0z59lsfMrHanLPcmnoJWKHOS5sEtwDbQyUJaxr7lHRHYipFCJjToGV5mYPs4BvuZ/FPCCXqixL5+DyO7yXxnDTOxXYOCtEQJAb3XqbgJ5QT2oxB8y1XYXB9EUHwTczvrmVy3iNA792tDvyrIL0ymRMCeKzZzyzEnZ56F1yncu/e1aEGz/MEI5o5tjHeIxcKPRR934z9Gu+jDuJWzZtZdhbEwg0bGcrIPBpQvqVraCCsIj7zc+e5qi0DtdvMbNjmcvN+JbwRwzCnfUnBM2u1dwlrMOt+k8mzXRO4YQUwbS9C2cF9pNvFHuRblJfpsJptd8QUzW0OQjfFeI+XWC9B9Cr/S49hxjEC9ZMfsN3k0LGFw1klk4jdUc9ILr1rY3XYqcA1gBvXicbwKrUdK1lVIyk2XZutI89Ehiga+7MyS658tpOZyIo8rJ3kBK8L2b0OOt9+bpgsUb1+ePS1DAp2yYKtuGymwFsAqjIxtG4ett9K/dQq5mxaA0h1BJLqESRA8YDJOKP/qh6i8a+7iigDigMpx0gvK3837Nl+9qFKtlB3VoTXiagpA0SN4pYKnWlygSX9SdqzXZlwJMRmBzfV13ODdPk7rCGONNh6oLzmKyi5L1K+bgizo4HXl7JWlZssuXJz/aNiy+JT1D+saFxxMaezPYce4QdJhL8p4PUcthrcM7+o4Zjcp2Q23Pqw4HfA1Z+/HAhxcJv51sMEdDM1kwUqFneBcCpKcSm8GL0RvYcYnIAFpHgwYIE363BKD+7RLVtXU78TfpIHigSN3+Fd6dWh/27q9yZ+UieXPqcWSukWpo9HWnXwc8T7qAjsbkrY/r2cEmqY9lNMgHLfQI55Tme01iC+xlQTZmm48ioQ1le5BZTNzy72ZOtYBI4x06Ep9l/JUESTR8Vlhocs/PMU0PKKh+U9I7iN+/DwlqahdCAbVYOd/kGgSPb943wyFgHiHQRbW0562/PZZrR84sF7TO/VgfhPqLeUcfzi1r33dLPEPJUaSxsoNC0Mq2lAhUCtX2BxX/huO+jQrqWr8vV+QsNcjrpLxPXALoxVft59HQdEq9WrDktge/qXgDDhBW1L1AaV6igxn/OuW9x8qM8g4ZpfdVQmRNVwx62pos9aOw7luMyjAW+x0tPL416PnKF5lsqDjz0cZnNjyfl32x4BIkyCq/LTg1PvlH61ZCTxpRGsBvklUxodmz9qL4gpqU5UztkmQ2E/dpuaKigT38FBuQ3xS91jgWzmjHh+XTCC49jW9FjpyxOkH37yA2AK8n4WvbHSbr8uATshkW']
+2026-09-28 20:09:22.69 | WARNING | (1000, '')
+2026-09-28 20:09:22.75 | INFO | nostr event: [0, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '{"name":"conf shop"}']
+2026-09-28 20:09:22.75 | INFO | nostr event: [0, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '{"name":"conf shop"}']
+2026-09-28 20:09:22.78 | INFO | nostr event: [31989, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '']
+2026-09-28 20:09:22.78 | INFO | nostr event: [31989, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '']
+2026-09-28 20:09:22.80 | INFO | nostr event: [31990, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '{"about":"Lightning + Nostr storefront checkout","name":"Infinitemarkets"}']
+2026-09-28 20:09:22.80 | INFO | nostr event: [31990, e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb, '{"about":"Lightning + Nostr storefront checkout","name":"Infinitemarkets"}']
+2026-09-28 20:09:26.38 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=494b1f5b7185cf3da350eb280445f70754d454918326265910ede4a182932ed7 kind=16
+2026-09-28 20:09:26.39 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=76e7b9f0364a8304c0cee8be36a28f53b6d7407a216cddd766529f90cde79525 kind=16
+2026-09-28 20:09:26.40 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=eeb22b933fe36a863df3e39be27a657b0aa70b39caa48f8010a9d851c09f649d kind=16
+{
+  "artifact": "nostrrelay-env",
+  "generated_at": "2026-09-29T03:09:26Z",
+  "outcome": "pass",
+  "host": {
+    "port": 53447,
+    "base": "http://127.0.0.1:53447",
+    "data_dir": "/var/folders/_l/mkpnssh91x9fd3khg5ltnfjm0000gn/T/conf-nostrrelay-j4qclv3q/data"
+  },
+  "relays": {
+    "gated": {
+      "id": "aLEPnKpe",
+      "ws": "ws://127.0.0.1:53447/nostrrelay/aLEPnKpe",
+      "requireAuthFilter": true,
+      "paid": true,
+      "allowlist": [
+        "e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb"
+      ]
+    },
+    "open": {
+      "id": "KkyCx2kT",
+      "ws": "ws://127.0.0.1:53447/nostrrelay/KkyCx2kT",
+      "requireAuthFilter": false,
+      "paid": false
+    },
+    "paywall": {
+      "id": "WLNUivb8",
+      "ws": "ws://127.0.0.1:53447/nostrrelay/WLNUivb8",
+      "requireAuthFilter": false,
+      "paid": true
+    }
+  },
+  "merchant": {
+    "pubkey": "e020d4ecb1ca1dbb0c99e547a1cf8fa452b6b87248f4e461cb3fa0196a352adb",
+    "inbox_state": "active"
+  },
+  "pins": {
+    "nostrrelay_commit": "a87bc1fd3da7ceb8f2fdf3d6b80e3ff54cbbdb30",
+    "nostrrelay_src": "/Users/bk/github/infinitemarkets/.cache/gsd-tmp/nostrrelay"
+  },
+  "probes": [
+    {
+      "name": "gated_anon_req",
+      "outcome": "pass",
+      "detail": {
+        "challenge": true,
+        "events": 0,
+        "eose": false
+      }
+    },
+    {
+      "name": "gated_stranger_req",
+      "outcome": "pass",
+      "detail": {
+        "auth_sent": true,
+        "paid_notice": true,
+        "events": 0,
+        "frames": [
+          [
+            "AUTH",
+            "aLEPnKpe:kZnXvbdJZcMUJ4mapism44"
+          ],
+          [
+            "OK",
+            "4cada69390d01d57d98b8121fb33f1284fe80e662f47306d7d161f4bb036d1a0"
+          ],
+          [
+            "NOTICE",
+            "This is a paid relay: 'aLEPnKpe'"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "gated_merchant_req",
+      "outcome": "pass",
+      "detail": {
+        "write_oks": [
+          "95386e174a23f63e8780c199bb36dc7f5ccfd5e9a00e46501d20fef2f89270e4",
+          "956be76d9c45f5a1f8c03d7573236b2979b6b07417063c049d383097dd298aec"
+        ],
+        "events": 2,
+        "eose": true
+      }
+    },
+    {
+      "name": "open_write_accepted",
+      "outcome": "pass",
+      "detail": {
+        "ok": true,
+        "served": true
+      }
+    },
+    {
+      "name": "gated_paid_write",
+      "outcome": "pass",
+      "detail": {
+        "ok_frames": [
+          [
+            "OK",
+            "8bca1caa1144a326b055b38481d84c9a04485ddf23f3a5aa110ee5ec69821117",
+            false,
+            "This is a paid relay: 'aLEPnKpe'"
+          ]
+        ],
+        "classified": "payment-required"
+      }
+    },
+    {
+      "name": "paid_publish_surface",
+      "outcome": "pass",
+      "detail": {
+        "publications": [
+          {
+            "result": "rejected",
+            "message": "This is a paid relay: 'WLNUivb8'"
+          },
+          {
+            "result": "rejected",
+            "message": "This is a paid relay: 'WLNUivb8'"
+          },
+          {
+            "result": "rejected",
+            "message": "This is a paid relay: 'WLNUivb8'"
+          }
+        ]
+      }
+    },
+    {
+      "name": "extension_gated_inbox",
+      "outcome": "pass",
+      "detail": {
+        "auth_state": "authenticated",
+        "admitted": 2,
+        "states": [
+          "received",
+          "received"
+        ]
+      }
+    },
+    {
+      "name": "extension_open_inbox",
+      "outcome": "pass",
+      "detail": {
+        "admitted": 1,
+        "states": [
+          "received"
+        ]
+      }
+    }
+  ]
+}
+2026-09-28 20:09:26.46 | WARNING | (1012, None)
+2026-09-28 20:09:26.46 | WARNING | (1012, None)
+2026-09-28 20:09:26.46 | WARNING | (1012, None)
+2026-09-28 20:09:26.56 | WARNING | LNbits shutting down...

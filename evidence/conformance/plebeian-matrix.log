@@ -1,0 +1,412 @@
+2026-09-28 20:10:27.43 | INFO | Starting LNbits Version: 1.6.2-rc1
+running migration core.1
+running migration core.2
+running migration core.3
+running migration core.4
+running migration core.5
+running migration core.6
+running migration core.7
+running migration core.8
+running migration core.9
+running migration core.10
+running migration core.11
+running migration core.12
+running migration core.13
+running migration core.14
+running migration core.15
+running migration core.16
+running migration core.17
+running migration core.18
+running migration core.19
+running migration core.20
+running migration core.21
+running migration core.22
+running migration core.23
+running migration core.24
+running migration core.25
+running migration core.26
+running migration core.27
+2026-09-28 20:10:27.48 | INFO | Updating payments
+2026-09-28 20:10:27.48 | INFO | Updating 0 to 1000
+2026-09-28 20:10:27.48 | INFO | Payments count: 0
+2026-09-28 20:10:27.48 | INFO | Payments updated
+running migration core.28
+running migration core.29
+running migration core.30
+running migration core.31
+running migration core.32
+running migration core.33
+running migration core.34
+running migration core.35
+running migration core.36
+running migration core.37
+running migration core.38
+running migration core.39
+running migration core.40
+running migration core.42
+running migration core.43
+running migration core.44
+running migration core.45
+running migration core.46
+running migration core.47
+running migration core.48
+running migration core.49
+running migration core.50
+2026-09-28 20:10:27.51 | INFO | ✔️ All migrations done.
+2026-09-28 20:10:27.51 | WARNING | Settings DB empty. Inserting default settings.
+2026-09-28 20:10:27.87 | WARNING | Initialized settings from environment variables.
+2026-09-28 20:10:27.92 | SUCCESS | ✔️ Admin UI is enabled. run `uv run lnbits-cli superuser` to get the superuser.
+2026-09-28 20:10:28.15 | INFO | Initialized webpush settings with generated VAPID key pair.
+2026-09-28 20:10:28.15 | INFO | Pubkey: BHw90_hF11e_xx0uUZHwsD91JcFKDZAbITiLqUHHnKlbJtFyx_C43FkoG_s7ggFzkEEMTzGjWxsjya5TVSLtClE
+running migration infinitemarkets.1
+running migration infinitemarkets.2
+running migration infinitemarkets.3
+running migration infinitemarkets.4
+running migration infinitemarkets.5
+running migration infinitemarkets.6
+running migration infinitemarkets.7
+2026-09-28 20:10:28.30 | INFO | Installed Extensions (1):
+2026-09-28 20:10:28.30 | INFO | infinitemarkets (0.1.0)
+2026-09-28 20:10:28.42 | INFO | LNbits Info
+2026-09-28 20:10:28.42 | SUCCESS | This is a fresh install of LNbits.
+2026-09-28 20:10:28.42 | INFO | Version: 1.6.2-rc1
+2026-09-28 20:10:28.42 | INFO | Baseurl: http://127.0.0.1:5000/
+2026-09-28 20:10:28.42 | INFO | Host: 127.0.0.1
+2026-09-28 20:10:28.42 | INFO | Port: 5000
+2026-09-28 20:10:28.42 | INFO | Debug: False
+2026-09-28 20:10:28.42 | INFO | Site title: LNbits
+2026-09-28 20:10:28.42 | INFO | Funding source: FakeWallet
+2026-09-28 20:10:28.42 | INFO | Data folder: /var/folders/_l/mkpnssh91x9fd3khg5ltnfjm0000gn/T/conf-plebeian-7su26op_/data
+2026-09-28 20:10:28.42 | INFO | Database: SQLite
+2026-09-28 20:10:28.42 | INFO | Service fee: 0.0
+2026-09-28 20:10:28.42 | INFO | Service fee max: 0
+2026-09-28 20:10:28.42 | INFO | Service fee wallet: None
+2026-09-28 20:10:28.42 | INFO | Connecting to backend FakeWallet...
+2026-09-28 20:10:28.42 | INFO | FakeWallet funding source is for using LNbits as a centralised, stand-alone payment system with brrrrrr.
+2026-09-28 20:10:28.42 | SUCCESS | ✔️ Backend FakeWallet connected and with a balance of 1000000000 msat.
+2026-09-28 20:10:28.47 | SUCCESS | LNbits started in 1.04 seconds.
+2026-09-28 20:10:28.51 | INFO | FakeWallet funding source is for using LNbits as a centralised, stand-alone payment system with brrrrrr.
+2026-09-28 20:10:28.53 | INFO | FakeWallet funding source is for using LNbits as a centralised, stand-alone payment system with brrrrrr.
+2026-09-28 20:10:28.90 | INFO | Installed Extensions (1):
+2026-09-28 20:10:28.90 | INFO | infinitemarkets (0.1.0)
+2026-09-28 20:10:29.21 | INFO | got an internal payment notification c73c5905d8b25789bd2db2cff06be182c963c094cd174abbeb5e539015c572f7
+2026-09-28 20:10:29.43 | INFO | event=infinitemarkets.inbox.session_open merchant=991b4e685f094520aa96137a743fc066 relay=ws://127.0.0.1:53608 since=1788059429
+2026-09-28 20:10:29.44 | INFO | event=infinitemarkets.inbox.cursor_committed merchant=991b4e685f094520aa96137a743fc066 relay=ws://127.0.0.1:53608 delivered=0
+2026-09-28 20:10:31.14 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=46f2084ab36bb22178384c50ec04111096e4841f72b2f7b541f59ddcba417f5f kind=16
+2026-09-28 20:10:31.14 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=46f2084ab36bb22178384c50ec04111096e4841f72b2f7b541f59ddcba417f5f kind=16
+2026-09-28 20:10:36.33 | INFO | got a payment notification ccc0754010d5fa81546da8801361758e1c4d391ed34a35bb88dd2d061ed0171f
+2026-09-28 20:10:36.34 | SUCCESS | fundingsource invoice ccc0754010d5fa81546da8801361758e1c4d391ed34a35bb88dd2d061ed0171f settled
+2026-09-28 20:10:36.34 | INFO | got a payment notification ccc0754010d5fa81546da8801361758e1c4d391ed34a35bb88dd2d061ed0171f
+2026-09-28 20:10:41.76 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=c03a0f485fd67ff43e7dcafa76f8308ebf60771d6fd7fb334a1a44c92102d18e kind=16
+2026-09-28 20:10:41.76 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=c03a0f485fd67ff43e7dcafa76f8308ebf60771d6fd7fb334a1a44c92102d18e kind=16
+2026-09-28 20:10:47.27 | INFO | got a payment notification 5bb517067f54b2705f3a4dd8dd0bc2c126781468bf8c2297baa3ad21e651a8d6
+2026-09-28 20:10:47.28 | SUCCESS | fundingsource invoice 5bb517067f54b2705f3a4dd8dd0bc2c126781468bf8c2297baa3ad21e651a8d6 settled
+2026-09-28 20:10:47.28 | INFO | got a payment notification 5bb517067f54b2705f3a4dd8dd0bc2c126781468bf8c2297baa3ad21e651a8d6
+2026-09-28 20:10:52.36 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=5250d9c136daea3e135a21a6b8928970f54c7258eb17aa5cb8df13f9765ab96c kind=16
+2026-09-28 20:10:52.37 | INFO | event=infinitemarkets.keystore.wrap_accepted rumor_id=5250d9c136daea3e135a21a6b8928970f54c7258eb17aa5cb8df13f9765ab96c kind=16
+2026-09-28 20:10:57.69 | WARNING | LNbits shutting down...
+{
+  "artifact": "plebeian-matrix",
+  "generated_at": "2026-09-29T03:10:57Z",
+  "outcome": "pass",
+  "clone": "/tmp/plebeian-market",
+  "plebeian_commit": "4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce",
+  "plebeian_pin": "4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce",
+  "bun": "1.3.11",
+  "nak": "nak version debug",
+  "nak_ws": "ws://127.0.0.1:53608",
+  "probes": [
+    {
+      "name": "clone_pin",
+      "outcome": "pass",
+      "detail": {
+        "clone": "/tmp/plebeian-market",
+        "pinned": "4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce",
+        "actual": "4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce",
+        "bun": "1.3.11",
+        "nak": "nak version debug"
+      }
+    },
+    {
+      "name": "env_bootstrap",
+      "outcome": "pass",
+      "detail": {
+        "inbox_state": "active",
+        "kind0_accepted": true,
+        "shipping_events": [
+          true,
+          true
+        ],
+        "nak": "ws://127.0.0.1:53608",
+        "lnurlp_shim": "http://127.0.0.1:53606",
+        "lud16": "matrix@conf.test"
+      }
+    },
+    {
+      "name": "real_checkout_publish",
+      "outcome": "pass",
+      "detail": {
+        "order_ids": [
+          "22bf820c-9ec6-4de5-9216-67f0daf67931"
+        ],
+        "published_kinds": [
+          10050,
+          10050,
+          1059,
+          16,
+          16
+        ],
+        "driver_error": null,
+        "log_tail": ",{\"kind\":16,\"id\":\"9f26aed335d30fda2bf5a03440797e145667f42fdcc0b74fcf74a69ec6752608\",\"pubkey\":\"b98a7fb8cc007048625b6446ad49a1b3a722df8c1ca975b87160023e14d19097\",\"tags\":[[\"p\",\"b98a7fb8cc007048625b6446ad49a1b3a722df8c1ca975b87160023e14d19097\"],[\"recipient\",\"2806e79a21b1a477657822236867779a573b24f155eb1b06c12a195df8b0ed3b\"],[\"subject\",\"order-payment\"],[\"type\",\"2\"],[\"order\",\"22bf820c-9ec6-4de5-9216-67f0daf67931\"],[\"amount\",\"700\"],[\"payment\",\"lightning\",\"matrix@conf.test\"]],\"created_at\":1790651431}]}\n"
+      }
+    },
+    {
+      "name": "real_checkout_intake",
+      "outcome": "pass",
+      "detail": {
+        "order": {
+          "id": "a6f82b3e98054afa993e9523445f65db",
+          "protocol": "gamma",
+          "state": "awaiting_payment",
+          "total_sat": 700
+        },
+        "wrap_id": "0f51e7638d73a44cf9858b150ea8707badd3e19f2c0866c05459ab5900f47b46"
+      }
+    },
+    {
+      "name": "real_checkout_payment_request",
+      "outcome": "pass",
+      "detail": {
+        "publications": [
+          {
+            "delivery_copy": "recipient",
+            "relay_url": "ws://127.0.0.1:53608",
+            "result": "accepted",
+            "event_id": "f1a5e769ff87e2d75486d0d4b8945b18939cd1b2ada0e4ed4b5ebe1a8f13e95e",
+            "event_kind": 16,
+            "has_payload": 1
+          },
+          {
+            "delivery_copy": "sender",
+            "relay_url": "ws://127.0.0.1:53608",
+            "result": "accepted",
+            "event_id": "4deb259dde2f8cb7206e51321e4c66d9794c16b86e1ba2305962e63a421bc610",
+            "event_kind": 16,
+            "has_payload": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "real_checkout_settlement",
+      "outcome": "pass",
+      "detail": {
+        "order_state": "confirmed",
+        "lud16": "matrix@conf.test",
+        "lnurlp": {
+          "metadata_hits": 1,
+          "callback_hits": 1,
+          "invoice_matches_order": true
+        },
+        "settlement": {
+          "bolt11": "lnbc7u1p4tktp8dpzf9hxv6twd96x2mtpwf4k2arnyphhyer9wgxqzuysp5474re7x4urhqzt69m2wzs7hfk4e2e4anm8mr4gdwamp9nr023uqqpp5enq82sqs6hagz4rd4zqpxct43cwy6wg76d9rtwugm5ksv8kszu0s6c6anay2pl7srhh7rf3mryynmzza63a7kz7pxjrh448xakxtlf6sywqsz97narfw8l3n8jdeh6zpgrjm6jkk76wydm7ulyrstjtqstsqkxrnuw",
+          "checking_id": "ccc0754010d5fa81546da8801361758e1c4d391ed34a35bb88dd2d061ed0171f"
+        },
+        "delivery_copies": [
+          "recipient",
+          "sender"
+        ],
+        "kind16_publications": 4
+      }
+    },
+    {
+      "name": "buyer_readback",
+      "outcome": "pass",
+      "detail": {
+        "wraps_on_wire": 2,
+        "types_read": [
+          "2",
+          "3"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "strict_rumor_transport",
+      "outcome": "pass",
+      "detail": {
+        "status": "published",
+        "sender_wrap": "b8d51419e89043b972919834276e08a05801bb8a9722e19c7f24d585fb05be03",
+        "recipient_wrap": "64417ee5b8ac7fffbf871d1cbf7ea04b6ead9d5c2d8a2f6578c73bfa4dbfd97e",
+        "rumor_id": "c03a0f485fd67ff43e7dcafa76f8308ebf60771d6fd7fb334a1a44c92102d18e",
+        "driver_error": null
+      }
+    },
+    {
+      "name": "strict_rumor_intake",
+      "outcome": "pass",
+      "detail": {
+        "order": {
+          "id": "b0755005432945e3b145e325f156445c",
+          "protocol": "gamma",
+          "state": "awaiting_payment",
+          "total_sat": 700
+        }
+      }
+    },
+    {
+      "name": "strict_rumor_settlement",
+      "outcome": "pass",
+      "detail": {
+        "order_state": "confirmed",
+        "type2_wrap_bolt11_matches": true,
+        "delivery_copies": [
+          "recipient",
+          "sender"
+        ],
+        "publications": [
+          {
+            "delivery_copy": "recipient",
+            "result": "accepted",
+            "event_kind": 16
+          },
+          {
+            "delivery_copy": "sender",
+            "result": "accepted",
+            "event_kind": 16
+          },
+          {
+            "delivery_copy": "recipient",
+            "result": "accepted",
+            "event_kind": 16
+          },
+          {
+            "delivery_copy": "sender",
+            "result": "accepted",
+            "event_kind": 16
+          }
+        ]
+      }
+    },
+    {
+      "name": "physical_checkout_publish",
+      "outcome": "pass",
+      "detail": {
+        "order_ids": [
+          "e9a024b9-b718-48d9-8a01-ace61f3192ab"
+        ],
+        "driver_error": null
+      }
+    },
+    {
+      "name": "physical_rejected_intake",
+      "outcome": "pass",
+      "detail": {
+        "rejected_rows": [
+          {
+            "id": "797624726c5c4c1bbe83e2a1e2c7d2bd",
+            "source_relay_url": "ws://127.0.0.1:53608",
+            "processed_state": "rejected",
+            "reject_reason": "invalid-shipping-destination",
+            "outer_event_id": "f36a903e3e180fdf8359b179ddda5c77da672939a8d954c28642a35b06fc6cbc",
+            "rumor_id": "5250d9c136daea3e135a21a6b8928970f54c7258eb17aa5cb8df13f9765ab96c"
+          }
+        ],
+        "reply_publications": [
+          {
+            "id": "8d4570c2d3594abfb3487c2821492c73",
+            "state": "published",
+            "delivery_copy": "recipient",
+            "result": "accepted"
+          },
+          {
+            "id": "8d4570c2d3594abfb3487c2821492c73",
+            "state": "published",
+            "delivery_copy": "sender",
+            "result": "accepted"
+          }
+        ],
+        "wrap_ids": [
+          "f36a903e3e180fdf8359b179ddda5c77da672939a8d954c28642a35b06fc6cbc"
+        ]
+      }
+    },
+    {
+      "name": "public_events_not_admitted",
+      "outcome": "pass",
+      "detail": {
+        "public_kind16_17_on_relay": [
+          {
+            "id": "dba222977c1625d7496c5de7c9a0bf0f0bd49bf677ccec2c1b6dae9727fe1e14",
+            "kind": 16,
+            "type": "2"
+          },
+          {
+            "id": "223e9a215b8a4044cd2ad4963cc1737e438d9766b08ca403ef520ade4e835c59",
+            "kind": 16,
+            "type": "1"
+          },
+          {
+            "id": "b38410fa646cabaa2fa31ac51f2c93f5e5cc66c15168b5b24544fc39377b4e68",
+            "kind": 16,
+            "type": "1"
+          },
+          {
+            "id": "9f26aed335d30fda2bf5a03440797e145667f42fdcc0b74fcf74a69ec6752608",
+            "kind": 16,
+            "type": "2"
+          }
+        ],
+        "admitted_public_events": 0,
+        "merchant_wraps_on_relay": 8
+      }
+    },
+    {
+      "name": "delta_register",
+      "outcome": "pass",
+      "detail": {
+        "recorded": [
+          "no-sender-copy",
+          "opaque-address-physical-rejected",
+          "order-info-envelope",
+          "payment-path-lnurlp-shim",
+          "public-order-events-unread",
+          "real-checkout-app-relay-only"
+        ],
+        "missing": []
+      }
+    }
+  ],
+  "deltas": [
+    {
+      "id": "no-sender-copy",
+      "summary": "Plebeian's live checkout publishes a single recipient-only kind-1059 (no buyer sender copy); the strict-rumor transport publishes both copies",
+      "evidence": "real_checkout_publish.published (one kind-1059) vs strict_rumor_transport.sender/recipient attempts"
+    },
+    {
+      "id": "public-order-events-unread",
+      "summary": "The public kind-16 type-1 marker, public type-2 lud16 payment request, and kind-17 receipt are invisible to the NIP-17 inbox (kind-1059 filter) \u2014 receipt_verified may stay false; recorded, not fixed",
+      "evidence": "public_events_not_admitted (public kind-16/17 on relay, zero admitted)"
+    },
+    {
+      "id": "order-info-envelope",
+      "summary": "Plebeian's type-1 rumor carries subject='order-info' and a 'name' tag; tolerated by the intake (subject is not value-enforced per spec tolerance)",
+      "evidence": "real_checkout_intake / strict_rumor_intake order rows"
+    },
+    {
+      "id": "opaque-address-physical-rejected",
+      "summary": "Plebeian serializes the address as a newline-joined opaque string; physical orders are rejected pre-reservation with a D-22 status=rejected type-3 reply",
+      "evidence": "physical_rejected_intake (rejected row + recipient-copy reply publication)"
+    },
+    {
+      "id": "payment-path-lnurlp-shim",
+      "summary": "Payment leg: merchant kind-0 lud16 -> loopback LNURLp shim -> the order's own bolt11 -> FakeWallet settlement (no real sats \u2014 D-31). A production host would serve a fresh invoice per LNURLp callback; settlement correlation via external_id is unchanged",
+      "evidence": "real_checkout_settlement.lnurlp + strict_rumor_settlement.type2_wrap_bolt11_matches"
+    },
+    {
+      "id": "real-checkout-app-relay-only",
+      "summary": "publishOrderWithDependencies posts the private wrap to the connected app relay set \u2014 not the merchant's resolved kind-10050 set (Plebeian's own strict transport does resolve it; both coincide on nak in this env)",
+      "evidence": "driver published[] targets (app relay) vs strict_rumor_transport.relayTargets"
+    }
+  ]
+}

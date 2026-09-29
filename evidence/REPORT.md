@@ -632,3 +632,28 @@ External relay smoke is opt-in only (`GAMMA_QUAL_SMOKE_RELAY`) and is never the 
 
 Evidence record only — **owner approval of `PINS.md` remains explicitly pending** and is required before Phase 2. Nothing in this report constitutes approval.
 
+<!-- release-b-conformance:start -->
+
+## Release-B Conformance (GAM-05)
+
+- Generated (UTC): 2026-09-29T03:10:58Z
+- Platform (this run): darwin-arm64 py3.12.13 — advisory profile; blocking matrix per PINS.md §2
+
+| Artifact | Outcome | Tested revisions |
+| --- | --- | --- |
+| nostrrelay-env | pass | infinitemarkets=729820f3157367479244a5f66afa966091f61166, lnbits_host=e336fe14b841d6f0c940e75b3d343e3ab5cf8433, nostr_sdk=0.44.8, nostrrelay=a87bc1fd3da7ceb8f2fdf3d6b80e3ff54cbbdb30 |
+| release-b-drills | pass | infinitemarkets=729820f3157367479244a5f66afa966091f61166, lnbits_host=e336fe14b841d6f0c940e75b3d343e3ab5cf8433, nostr_sdk=0.44.8 |
+| plebeian-matrix | pass | infinitemarkets=729820f3157367479244a5f66afa966091f61166, lnbits_host=e336fe14b841d6f0c940e75b3d343e3ab5cf8433, nostr_sdk=0.44.8, plebeian_market=4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce, bun=1.3.11, nak=nak version debug |
+
+### Known-delta register (D-32)
+
+- **no-sender-copy** — Plebeian's live checkout publishes a single recipient-only kind-1059 (no buyer sender copy); the strict-rumor transport publishes both copies _(evidence: real_checkout_publish.published (one kind-1059) vs strict_rumor_transport.sender/recipient attempts)_
+- **public-order-events-unread** — The public kind-16 type-1 marker, public type-2 lud16 payment request, and kind-17 receipt are invisible to the NIP-17 inbox (kind-1059 filter) — receipt_verified may stay false; recorded, not fixed _(evidence: public_events_not_admitted (public kind-16/17 on relay, zero admitted))_
+- **order-info-envelope** — Plebeian's type-1 rumor carries subject='order-info' and a 'name' tag; tolerated by the intake (subject is not value-enforced per spec tolerance) _(evidence: real_checkout_intake / strict_rumor_intake order rows)_
+- **opaque-address-physical-rejected** — Plebeian serializes the address as a newline-joined opaque string; physical orders are rejected pre-reservation with a D-22 status=rejected type-3 reply _(evidence: physical_rejected_intake (rejected row + recipient-copy reply publication))_
+- **payment-path-lnurlp-shim** — Payment leg: merchant kind-0 lud16 -> loopback LNURLp shim -> the order's own bolt11 -> FakeWallet settlement (no real sats — D-31). A production host would serve a fresh invoice per LNURLp callback; settlement correlation via external_id is unchanged _(evidence: real_checkout_settlement.lnurlp + strict_rumor_settlement.type2_wrap_bolt11_matches)_
+- **real-checkout-app-relay-only** — publishOrderWithDependencies posts the private wrap to the connected app relay set — not the merchant's resolved kind-10050 set (Plebeian's own strict transport does resolve it; both coincide on nak in this env) _(evidence: driver published[] targets (app relay) vs strict_rumor_transport.relayTargets)_
+
+Manual-only (not a pass source): live `plebeian.market` public-relay smoke — checklist in `tests/conformance/README.md`; results land in `.planning/phases/03-release-b-gamma-nip-17-orders/03-VERIFICATION.md`.
+
+<!-- release-b-conformance:end -->
