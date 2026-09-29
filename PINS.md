@@ -245,3 +245,37 @@ against the new lock naturally.
 | Approved pins | nostr-sdk 0.44.8 (release-source `a600c2a7`, wheel sha256 per §1), LNbits `v1.6.2-rc1` @ `e336fe14b841`, Python 3.12, SQLite + PostgreSQL dialects, Linux x86_64/aarch64 blocking matrix |
 | Approved evidence bundle | canonical CI run `35535526249` (linux-x86_64 + postgres, 220/221 passed, 1 optional-relay skip) committed at `2abeb30`; all P0-01..P0-14 green |
 | Owner / date | bitkarrot / 2026-09-20 |
+
+## 8. Release-B Conformance Tooling + Operator Egress (D-33)
+
+### Operator egress requirement (normative for the Release-B claim)
+
+Per `docs/technical-specification.md` §21 decision 30 (the D-33 §9.5
+disposition), Release-B conformance is proven by in-code relay-target
+egress checks (syntactic + DNS-resolve private-range rejection at
+discover/connect/reconnect), this documented operator requirement, and
+self-hosted recipient-gated relay evidence. **Deployments claiming
+Release B MUST block loopback/private/link-local/multicast/reserved/
+metadata ranges (IPv4+IPv6, including 169.254.169.254) at OS or container
+egress, or restrict relay targets to an operator-curated allowlist.** The
+OS/container egress policy itself is an operator deployment
+responsibility — it is not part of the Release-B conformance
+precondition.
+
+### External-client conformance pins (dev/test tooling only — never
+runtime dependencies)
+
+| Input | Pin |
+|---|---|
+| External Gamma client | `PlebeianApp/market` @ `4bc7f8c0c73ae4ba2ff2a78f0c66d28347d1c1ce` (HEAD re-verified at matrix run time; drift fails the gate) |
+| Reference gated inbox | LNbits `nostrrelay` extension @ `a87bc1fd3da7ceb8f2fdf3d6b80e3ff54cbbdb30` (reference deployment only, D-34) |
+| `nak` (local relay) | go-install build, `nak version` reports `debug` — unversioned dev tool |
+| `bun` (Plebeian driver) | `1.3.11` |
+| Runtime requirements | none added — nostr-sdk 0.44.8 covers the protocol surface |
+
+Conformance artifacts live at `evidence/conformance/` (durable JSON
+reports; raw logs are never committed) and are merged into
+`evidence/manifest.json` under `conformance.release_b` by
+`tests/conformance/run_matrix.sh matrix`. Divergences from the strict
+rumor model are recorded in the known-delta register
+(`tests/conformance/README.md` + the matrix report), per D-32.

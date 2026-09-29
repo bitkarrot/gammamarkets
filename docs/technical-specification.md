@@ -1416,6 +1416,9 @@ buyer kind-10050 relays MUST be disabled; Release B conformance cannot be claime
 Connection count, handshake time, frame size, idle time, and per-host concurrency are
 bounded. Never log relay AUTH challenges or complete sensitive event payloads.
 
+For the Release-B conformance disposition of the deployed egress requirement, see
+§21 decision 30.
+
 ---
 
 ## 10. Background tasks
@@ -1825,6 +1828,12 @@ revisit only through a spec revision.
 29. **Host lifecycle/security.** Start is bounded registration; readiness follows startup
     reconciliation. Cleanup is cancellation-safe, route auth does not trust host CORS,
     and audit redaction is a deployment qualification predicate (§5/§10).
+30. **Release-B §9.5 egress disposition.** Release-B §9.5 conformance is satisfied by
+    (a) in-code relay-target egress checks (syntactic + DNS-resolve private-range
+    rejection at discover/connect/reconnect), (b) a documented operator egress
+    requirement in PINS.md, and (c) self-hosted recipient-gated relay evidence;
+    OS/container egress policy remains an operator deployment responsibility, not a
+    Release-B conformance precondition.
 
 ---
 

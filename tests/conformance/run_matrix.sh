@@ -221,6 +221,11 @@ case "${1:-matrix}" in
 		run_plebeian; exit $rc_pleb ;;
 	drills)
 		run_drills; exit $rc_drills ;;
+	emit)
+		# Re-merge the durable JSON reports into evidence — use after a
+		# `make verify` regenerates manifest.json/REPORT.md.
+		emit_evidence
+		exit $? ;;
 	matrix)
 		run_env
 		run_drills
@@ -231,5 +236,5 @@ case "${1:-matrix}" in
 		[ "$rc_env" -eq 0 ] && [ "$rc_drills" -eq 0 ] && [ "$rc_pleb" -eq 0 ] && [ "$rc_emit" -eq 0 ]
 		exit $? ;;
 	*)
-		echo "usage: $0 [matrix|env|plebeian|drills]" >&2; exit 2 ;;
+		echo "usage: $0 [matrix|env|plebeian|drills|emit]" >&2; exit 2 ;;
 esac
