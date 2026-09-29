@@ -613,7 +613,7 @@ class _Session:
 
     __slots__ = ("merchant_id", "merchant_pubkey", "relay_url",
                  "subscription_id", "session_start", "delivered",
-                 "eose_seen")
+                 "eose_seen", "filter", "auth_answered", "resubscribed")
 
     def __init__(self, merchant_id: str, merchant_pubkey: str,
                  relay_url: str, session_start: int):
@@ -624,6 +624,13 @@ class _Session:
         self.session_start = session_start
         self.delivered = 0
         self.eose_seen = False
+        # Retained for the post-AUTH REQ re-issue: relays that answer an
+        # unauthenticated REQ with an AUTH challenge (nostrrelay's
+        # require-auth filter) never register that REQ — the filter must
+        # be replayed once the AUTH answer lands (§9.5 gated reads).
+        self.filter = None
+        self.auth_answered = False
+        self.resubscribed = False
 
 
 class _NotificationHandler:
@@ -791,11 +798,13 @@ class InboxRuntime:
         pending = self._pending_auth.pop(relay_url, None)
         if pending is not None:
             await self._handle_auth(relay_url, pending)
+        session.filter = sub_filter(merchant_pubkey, since)
         out = await client.subscribe_to(
-            [target], sub_filter(merchant_pubkey, since)
+            [target], session.filter
         )
         session.subscription_id = str(out.id)
         self._by_sub[str(out.id)] = session
+        await self._maybe_resubscribe(session)
         logger.info(
             "event=infinitemarkets.inbox.session_open merchant={}"
             " relay={} since={}",
@@ -916,11 +925,48 @@ class InboxRuntime:
         if session is None:
             self._pending_auth[relay_url] = challenge
             return
-        await nostr_auth.answer_auth_challenge(
+        answered = await nostr_auth.answer_auth_challenge(
             transport().client, keystore_mod.key_store(),
             session.merchant_id,
             relay_url=relay_url, challenge=challenge,
         )
+        # NIP-42: relays that answer an unauthenticated REQ with an AUTH
+        # challenge (nostrrelay's require-auth filter) never registered
+        # that REQ — once the AUTH answer lands on the wire the filter
+        # must be replayed or the session stalls with no EOSE. Relays
+        # that instead CLOSE the REQ drop the session first
+        # (_handle_closed -> _open replays it), so this only matters when
+        # the connection survived the challenge. Marking auth_answered
+        # only once a REQ is in flight keeps the pre-REQ pending-answer
+        # path from triggering a redundant re-issue.
+        if answered and session.filter is not None:
+            session.auth_answered = True
+            await self._maybe_resubscribe(session)
+
+    async def _maybe_resubscribe(self, session: "_Session") -> None:
+        """Replay the session REQ after a surviving AUTH answer."""
+        if (
+            not session.auth_answered
+            or session.resubscribed
+            or session.subscription_id is None
+            or session.filter is None
+        ):
+            return
+        from nostr_sdk import RelayUrl
+
+        from .transport import transport
+
+        old_id = session.subscription_id
+        try:
+            out = await transport().client.subscribe_to(
+                [RelayUrl.parse(session.relay_url)], session.filter
+            )
+        except Exception:  # noqa: BLE001 — reconcile re-opens on miss
+            return
+        session.resubscribed = True
+        session.subscription_id = str(out.id)
+        self._by_sub.pop(old_id, None)
+        self._by_sub[session.subscription_id] = session
 
     async def _handle_closed(self, relay_url: str, subscription_id: str,
                              message: str) -> None:

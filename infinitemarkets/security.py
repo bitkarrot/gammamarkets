@@ -277,11 +277,13 @@ _dns_cache: dict[str, tuple[float, list]] = {}
 
 def is_public_ip(ip) -> bool:
     """Routable public space only — loopback/private/link-local/multicast/
-    reserved/unspecified and the cloud-metadata literal are egress-banned
-    for IPv4 AND IPv6 answers alike."""
+    reserved/unspecified, the cloud-metadata literal, and every other
+    non-global special-registry range (CGNAT 100.64/10, documentation
+    prefixes, IETF assignments — ``is_global`` is the positive check) are
+    egress-banned for IPv4 AND IPv6 answers alike."""
     if ip == _METADATA_IP:
         return False
-    return not (
+    return ip.is_global and not (
         ip.is_loopback
         or ip.is_private
         or ip.is_link_local
