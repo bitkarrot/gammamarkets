@@ -103,7 +103,7 @@ def main() -> None:
           f"({len(files)} files, {zip_path.stat().st_size} bytes)")
     print(f"sha256:   {digest}")
     print(f"manifest: {manifest_path.relative_to(ROOT)}")
-    print(f"\nRelease commands:")
+    print("\nRelease commands:")
     print(f"  git tag v{version} && git push origin v{version}")
     print(f"  gh release create v{version} "
           f"dist/{zip_path.name} dist/manifest.json "
