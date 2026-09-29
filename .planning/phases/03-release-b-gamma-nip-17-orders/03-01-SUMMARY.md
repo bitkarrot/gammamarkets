@@ -85,6 +85,7 @@ coverage:
       - kind: integration
         ref: tests/runtime/test_inbox_activation.py (7 tests)
         status: pass
+    human_judgment: false
   - id: D2
     description: "Keystore NIP-17 wrap/unwrap explicit section-8.5 chain,
       golden fixtures, tamper matrix, bounded WrapRejection reasons"
@@ -92,6 +93,7 @@ coverage:
       - kind: integration
         ref: tests/runtime/test_keystore_nip17.py + tests/qualification/test_p0_05
         status: pass
+    human_judgment: false
   - id: D3
     description: "Inbox transport: kind-1059 sessions/admission/cursors,
       NIP-42 AUTH, paid-relay evidence, egress validation, peer discovery"
@@ -99,6 +101,7 @@ coverage:
       - kind: integration
         ref: tests/runtime/test_inbox_transport.py (14 tests)
         status: pass
+    human_judgment: false
 ---
 
 ## Accomplishments
