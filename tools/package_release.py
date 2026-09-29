@@ -53,6 +53,15 @@ def build_zip(version: str, files: list[str], out_dir: Path) -> Path:
     return zip_path
 
 
+def icon_url(config: dict, tag: str) -> str | None:
+    """Repo raw URL for the extension tile icon (ExplicitRelease.icon)."""
+    tile = config.get("tile") or ""
+    _, _, *rest = tile.split("/")
+    if not rest:
+        return None
+    return f"{REPO}/raw/{tag}/{EXT_DIR}/{'/'.join(rest)}"
+
+
 def write_manifest(version: str, zip_name: str, sha256: str,
                    config: dict, out_dir: Path) -> Path:
     tag = f"v{version}"
@@ -65,7 +74,7 @@ def write_manifest(version: str, zip_name: str, sha256: str,
                 "archive": f"{REPO}/releases/download/{tag}/{zip_name}",
                 "hash": sha256,
                 "repo": REPO,
-                "icon": None,
+                "icon": icon_url(config, tag),
                 "short_description": config["short_description"],
                 "min_lnbits_version": config.get("min_lnbits_version"),
                 "max_lnbits_version": config.get("max_lnbits_version"),

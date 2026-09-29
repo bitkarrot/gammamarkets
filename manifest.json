@@ -7,7 +7,7 @@
       "archive": "https://github.com/bitkarrot/infinitemarkets/releases/download/v0.1.1/infinitemarkets-0.1.1.zip",
       "hash": "7f1a341a5a34ccae17abf4aaace0351d14c4b384e3a3671bd053b0d6d97e7223",
       "repo": "https://github.com/bitkarrot/infinitemarkets",
-      "icon": null,
+      "icon": "https://github.com/bitkarrot/infinitemarkets/raw/v0.1.1/infinitemarkets/static/infinitemarkets/img/infinite-markets-blue.png",
       "short_description": "NIP-99 catalog and Lightning checkout with one authoritative inventory.",
       "min_lnbits_version": "1.6.0",
       "max_lnbits_version": null,
