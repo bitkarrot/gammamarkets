@@ -45,5 +45,10 @@ verify-host: host
 verify-runtime: host
 	uv run pytest -m runtime -q; $(SUBSET_OK)
 
+# Remote-install release artifacts: dist/infinitemarkets-<version>.zip +
+# dist/manifest.json (LNbits ExplicitRelease manifest with real sha256).
+package:
+	$(PYTHON) tools/package_release.py
+
 lint:
 	uv run ruff check .

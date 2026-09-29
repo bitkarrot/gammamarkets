@@ -27,3 +27,4 @@ tests/e2e/playwright-report/
 
 # conformance run logs (raw output is never committed — JSON reports only)
 evidence/conformance/*.log
+dist/
