@@ -1,4 +1,6 @@
-# Infinitemarkets
+# Infinite Markets
+
+<img width="160" height="160" alt="Infinite Markets" align="right" src="infinitemarkets/static/infinitemarkets/img/infinite-markets-blue.png" />
 
 An [LNbits](https://github.com/lnbits/lnbits) extension that gives a merchant one authoritative inventory across two storefronts: a classic web shop with Lightning checkout, and a native Nostr/Gamma commerce channel with encrypted (NIP-17) ordering.
 
@@ -37,7 +39,7 @@ An [LNbits](https://github.com/lnbits/lnbits) extension that gives a merchant on
 Add the release manifest URL to the host's extension sources — LNbits admin UI → **Server → Extensions → Manifest sources**, or the `LNBITS_EXTENSIONS_MANIFESTS` setting:
 
 ```
-https://github.com/bitkarrot/infinitemarkets/releases/download/v0.1.0/manifest.json
+https://github.com/bitkarrot/infinitemarkets/releases/download/v0.1.1/manifest.json
 ```
 
 The extension then appears in the extension manager and installs with sha256 verification against the release archive. The zip layout follows the LNbits contract: a single top-level `infinitemarkets/` directory containing `config.json` and the package.
@@ -126,4 +128,4 @@ evidence/               # conformance + qualification evidence bundles
 
 ## License
 
-See repository owner for licensing.
+[MIT](LICENSE)

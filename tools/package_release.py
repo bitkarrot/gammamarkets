@@ -107,7 +107,7 @@ def main() -> None:
     print(f"  git tag v{version} && git push origin v{version}")
     print(f"  gh release create v{version} "
           f"dist/{zip_path.name} dist/manifest.json "
-          f"--title 'infinitemarkets v{version}'")
+          f"--title 'Infinite Markets v{version}'")
 
 
 if __name__ == "__main__":

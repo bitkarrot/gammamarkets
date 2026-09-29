@@ -16,10 +16,12 @@ sync start hook's strict validation passes.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
 import sys
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -349,6 +351,23 @@ async def runtime_env(tmp_path_factory):
                 ext_module = importlib.import_module("infinitemarkets")
             finally:
                 sys.path.remove(str(tmp / "extroot" / "extensions"))
+
+            # The startup reconciliation worker gates checkout until its
+            # first pass marks readiness — poll the live flag so the first
+            # checkout call in a module cannot race it on slow runners.
+            readiness_mod = importlib.import_module(
+                "infinitemarkets.services.readiness"
+            )
+            deadline = time.monotonic() + 60.0
+            while not readiness_mod.readiness()["checkout"]:
+                if time.monotonic() > deadline:
+                    raise AssertionError(
+                        "checkout readiness never arrived — "
+                        "reconciliation worker did not complete its "
+                        "first pass within 60s"
+                    )
+                await asyncio.sleep(0.25)
+
             yield {
                 "app": app,
                 "client": client,

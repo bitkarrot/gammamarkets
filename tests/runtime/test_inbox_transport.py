@@ -554,7 +554,7 @@ async def test_answer_auth_challenge_bounds(runtime_env):
             "INSERT INTO infinitemarkets.relay_configs "
             "(id, merchant_id, relay_url, direction, enabled,"
             " created_at, updated_at) "
-            "VALUES (:i, :m, :u, 'inbox', 1, 0, 0)",
+            "VALUES (:i, :m, :u, 'inbox', TRUE, 0, 0)",
             {"i": uuid.uuid4().hex, "m": mid, "u": "wss://a.example"},
         )
     out = await nostr_auth.answer_auth_challenge(
@@ -821,7 +821,7 @@ async def test_relay_auth_endpoints(runtime_env, monkeypatch):
             "INSERT INTO infinitemarkets.relay_configs "
             "(id, merchant_id, relay_url, direction, enabled,"
             " created_at, updated_at) "
-            "VALUES (:i, :m, :u, 'public', 1, 0, 0)",
+            "VALUES (:i, :m, :u, 'public', TRUE, 0, 0)",
             {"i": uuid.uuid4().hex, "m": mid,
              "u": "wss://relay-auth.example"},
         )

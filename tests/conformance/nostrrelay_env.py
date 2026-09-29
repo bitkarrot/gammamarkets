@@ -112,6 +112,10 @@ shutil.copytree(
 import base64  # noqa: E402
 
 _DEFAULT_KEYS = base64.b64encode(b"k" * 32).decode()
+# The env provisions its own isolated host — always SQLite inside the tmp
+# data dir. Inheriting a caller's LNBITS_DATABASE_URL (postgres CI profile)
+# would point this host at the shared test database.
+os.environ.pop("LNBITS_DATABASE_URL", None)
 os.environ.update(
     {
         "INFINITEMARKETS_MASTER_KEYS": json.dumps({"v1": _DEFAULT_KEYS}),

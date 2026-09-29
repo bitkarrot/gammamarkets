@@ -612,7 +612,7 @@ async def test_egress_dns_matrix_rejects_non_public(runtime_env,
             "INSERT INTO infinitemarkets.relay_configs "
             "(id, merchant_id, relay_url, direction, enabled,"
             " created_at, updated_at)"
-            " VALUES (:i, :m, :u, 'inbox', 1, :t, :t)",
+            " VALUES (:i, :m, :u, 'inbox', TRUE, :t, :t)",
             {"i": uuid.uuid4().hex, "m": mid, "u": url, "t": now},
         )
     await _activate_inbox(env, mid)
