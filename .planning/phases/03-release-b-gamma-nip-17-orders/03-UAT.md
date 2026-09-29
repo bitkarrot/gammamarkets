@@ -1,23 +1,16 @@
 ---
-status: testing
+status: partial
 phase: 03-release-b-gamma-nip-17-orders
 source: [03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md]
 started: 2026-09-29T00:00:00Z
-updated: 2026-09-29T00:00:00Z
+updated: 2026-09-29T07:07:26.745868+00:00
 ---
 
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 17
-name: Live plebeian.market public-relay smoke
-expected: |
-  Manual checklist in tests/conformance/README.md executed against the live
-  plebeian.market instance over public relays: a real digital-order checkout
-  produces a wrap visible to the extension inbox, the order enters the
-  canonical pipeline, and wrap/ACK evidence is collected and recorded into
-  03-VERIFICATION.md. (D-30/D-35: manual-only gate artifact.)
-awaiting: user response
+[testing paused — 1 item outstanding: live plebeian.market smoke,
+deferred to operator per user decision 2026-09-29]
 
 ## Tests
 
@@ -104,6 +97,7 @@ source: automated — grep-verified spec/PINS edits (a4bc536)
 ### 17. Live plebeian.market public-relay smoke
 expected: Manual checklist (tests/conformance/README.md) executed against live plebeian.market over public relays — wrap/ACK evidence collected and recorded into 03-VERIFICATION.md
 result: [pending]
+reason: Deferred to operator — user will run the live smoke later; Release-B claim remains gated on this evidence
 
 ## Summary
 
