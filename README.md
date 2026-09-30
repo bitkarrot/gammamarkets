@@ -6,6 +6,12 @@ An [LNbits](https://github.com/lnbits/lnbits) extension that gives a merchant on
 
 **One inventory, two rails.** Web and Nostr orders flow through the same pricing, reservation, invoice, and settlement pipeline — no duplicate invoices, no double allocation, and relay delivery is never mistaken for payment truth.
 
+## Demo
+
+<video src="https://github.com/bitkarrot/infinitemarkets/raw/main/docs/assets/infinitemarkets_demo.mp4" controls muted playsinline width="100%"></video>
+
+[▶ Watch the demo](docs/assets/infinitemarkets_demo.mp4) (~3.5 min) — merchant key import, catalog publish to public relays, a live Lightning purchase, and encrypted order messaging, all on a live host.
+
 ## Features
 
 ### Catalog & web commerce (Release A)
