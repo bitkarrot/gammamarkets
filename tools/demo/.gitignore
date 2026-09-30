@@ -1,0 +1,22 @@
+# Secrets — never commit real credentials
+keys.json
+token*.txt
+
+# Generated artifacts (recordings, frames, TTS, renders)
+__pycache__/
+video/
+video_tail/
+video_reshoot/
+frames/
+tls/
+tts/
+*.webm
+*.mp4
+*.mp3
+*.m4a
+*.png
+narration.log
+narration_tail.log
+narration_final.json
+checkout_response.json
+reshoot_beats.json

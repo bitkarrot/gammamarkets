@@ -1,0 +1,12 @@
+{
+  "merchant": {
+    "nsec": "nsec1...",
+    "npub": "npub1...",
+    "hex": "<64-hex-pubkey>"
+  },
+  "customer": {
+    "nsec": "nsec1...",
+    "npub": "npub1...",
+    "hex": "<64-hex-pubkey>"
+  }
+}
