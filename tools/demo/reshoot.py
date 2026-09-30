@@ -62,7 +62,7 @@ window.nostr = {
 
 
 def pysign(event_json):
-    from nostr_sdk import EventBuilder, Kind, Tag, Timestamp, Keys
+    from nostr_sdk import EventBuilder, Keys, Kind, Tag, Timestamp
 
     ev = json.loads(event_json)
     keys = Keys.parse(KEYS["customer"]["nsec"])

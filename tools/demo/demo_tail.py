@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 HERE = Path(__file__).resolve().parent
@@ -27,7 +28,8 @@ BANNER_JS = """
 
 async def narrate(page, text, pause=5.0):
     NARR.append({"t": round(time.monotonic() - T0, 2), "text": text})
-    LOG.write(f"{time.monotonic()-T0:8.2f}  {text}\n"); LOG.flush()
+    LOG.write(f"{time.monotonic()-T0:8.2f}  {text}\n")
+    LOG.flush()
     await page.evaluate("""(t)=>{const d=document.getElementById('__narr');
         if(d){d.textContent=t;d.style.opacity='1';}}""", text)
     await page.wait_for_timeout(int(pause * 1000))

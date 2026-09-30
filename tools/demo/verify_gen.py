@@ -59,7 +59,7 @@ async def fetch_events():
             RESULT["events"].append(j)
     # per-relay liveness
     try:
-        conns = await client.relays()
+        await client.relays()
         for url in RELAYS:
             RESULT["relays"][url] = "queried"
     except Exception:
@@ -104,7 +104,7 @@ def check_nip99(ev):
     if kind == 30402:
         need("published_at")
         need("summary")
-        img = need("image")
+        need("image")
         need("price")
         price = next((t for t in ev.get("tags", []) if t and t[0] == "price"), None)
         checks.append({"tag": "price=[amount,currency]",
@@ -116,8 +116,16 @@ def check_nip99(ev):
 
 async def unwrap_dm():
     """Try to read the latest gift wrap to the customer and show content."""
-    from nostr_sdk import (Client, Filter, Kind, PublicKey, Keys,
-                           UnwrappedGift, RelayUrl, NostrSigner)
+    from nostr_sdk import (
+        Client,
+        Filter,
+        Keys,
+        Kind,
+        NostrSigner,
+        PublicKey,
+        RelayUrl,
+        UnwrappedGift,
+    )
     client = Client()
     for r in RELAYS:
         try:
@@ -189,11 +197,13 @@ def render():
         f'<span class="relay">{html.escape(r.replace("wss://",""))}</span>'
         for r in RELAYS)
     body = f"""<!doctype html><html><head><meta charset="utf-8"><style>
-body{{margin:0;min-height:100vh;background:#0b1120;color:#e2e8f0;font-family:system-ui,sans-serif;padding:44px 60px;box-sizing:border-box}}
+body{{margin:0;min-height:100vh;background:#0b1120;color:#e2e8f0;
+font-family:system-ui,sans-serif;padding:44px 60px;box-sizing:border-box}}
 h1{{font-size:36px;margin:0 0 6px}}
 .sub{{color:#94a3b8;font-size:18px;margin-bottom:26px}}
 .relays{{margin-bottom:22px}}
-.relay{{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:6px 14px;margin-right:10px;font-family:ui-monospace,monospace;font-size:15px}}
+.relay{{background:#1e293b;border:1px solid #334155;border-radius:8px;
+padding:6px 14px;margin-right:10px;font-family:ui-monospace,monospace;font-size:15px}}
 table{{width:100%;border-collapse:collapse;font-size:15px}}
 td,th{{border-bottom:1px solid #1e293b;padding:9px 10px;text-align:left;vertical-align:top}}
 th{{color:#94a3b8;font-weight:600}}
@@ -202,14 +212,18 @@ th{{color:#94a3b8;font-weight:600}}
 .warn{{color:#fbbf24}}
 .info{{color:#93c5fd}}
 .mini{{color:#64748b;font-size:12px;margin-top:4px}}
-.card{{background:#111c33;border:1px solid #24344f;border-radius:14px;padding:18px 24px;margin-top:28px}}
-blockquote{{border-left:3px solid #4ade80;margin:12px 0;padding-left:14px;color:#bbf7d0;font-size:17px}}
+.card{{background:#111c33;border:1px solid #24344f;border-radius:14px;
+padding:18px 24px;margin-top:28px}}
+blockquote{{border-left:3px solid #4ade80;margin:12px 0;padding-left:14px;
+color:#bbf7d0;font-size:17px}}
 h3{{margin-top:0}}
 </style></head><body>
 <h1>Relay verification — independent of LNbits</h1>
-<div class="sub">Events authored by merchant npub…{MERCHANT_HEX[-12:]}, fetched live from public relays</div>
+<div class="sub">Events authored by merchant npub…{MERCHANT_HEX[-12:]},
+fetched live from public relays</div>
 <div class="relays">{relay_badges}</div>
-<table><tr><th>kind</th><th>object</th><th>d-tag</th><th>title</th><th>event id</th><th>validation</th></tr>{rows}</table>
+<table><tr><th>kind</th><th>object</th><th>d-tag</th><th>title</th>
+<th>event id</th><th>validation</th></tr>{rows}</table>
 {msg}
 </body></html>"""
     (HERE / "verify.html").write_text(body)

@@ -97,7 +97,7 @@ async def hide_banner(page):
 
 def pysign(event_json):
     """NIP-07 signEvent — signs with the customer key in-process."""
-    from nostr_sdk import EventBuilder, Kind, Tag, Timestamp, Keys
+    from nostr_sdk import EventBuilder, Keys, Kind, Tag, Timestamp
 
     ev = json.loads(event_json)
     keys = Keys.parse(KEYS["customer"]["nsec"])
@@ -397,7 +397,6 @@ async def main():
         await page.wait_for_timeout(2000)
         await narrate(page, "Messages runs on NIP-17 gift-wrapped DMs — private "
                             "between merchant and buyer.", 4)
-        comp = page.locator(".q-field", has_text="recipient").first
         comp_btn = page.get_by_role("button", name="Compose")
         if await comp_btn.count():
             await comp_btn.click()
